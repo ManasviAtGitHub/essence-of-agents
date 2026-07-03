@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The librarian - Module 4</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  :root { --good:var(--green); --card:var(--panel); }
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:740px; margin:40px auto; padding:0 20px; }
+  h1 { font-size:19px; margin-bottom:4px; }
+  .sub { color:var(--dim); margin-top:0; }
+  .locked { background:var(--panel); border-radius:8px; padding:10px 14px; margin:14px 0; font-size:14px; }
+  .row { display:flex; align-items:flex-start; gap:10px; margin:10px 0; }
+  .rl { width:74px; color:var(--dim); font-variant:small-caps; padding-top:6px; flex:none; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { font:inherit; font-size:14px; padding:6px 12px; border:1px solid #2a2f38; border-radius:999px;
+          background:#171b21; cursor:pointer; }
+  .chip.sel { background:var(--bright); color:#04222a; border-color:var(--bright); }
+  .switch { font:inherit; padding:6px 14px; border:1px solid #2a2f38; border-radius:999px; background:#171b21; cursor:pointer; }
+  .switch.on { background:var(--bright); color:#04222a; border-color:var(--bright); }
+  .desk { background:#171b21; border:1px dashed #2a2f38; border-radius:8px; padding:10px 12px; margin:12px 0; }
+  .desk-h { font-size:13px; color:var(--dim); font-variant:small-caps; margin-bottom:6px; }
+  .empty { color:var(--dim); font-style:italic; }
+  .card { background:var(--card); border:1px solid #2a2f38; border-radius:6px; padding:8px 10px;
+          margin:5px 0; font-size:14px; }
+  .card-t { font-weight:600; margin-right:6px; }
+  .score { color:var(--dim); font-size:12px; margin-left:6px; }
+  button.run { font:inherit; padding:8px 18px; border:0; border-radius:8px; background:var(--bright);
+               color:#04222a; cursor:pointer; margin:10px 0; }
+  button.run:disabled { opacity:.5; cursor:default; }
+  .answer { font-size:17px; margin:8px 0; }
+  .answer.good { color:var(--good); }
+  .answer.muted { color:var(--dim); }
+  .who { margin:6px 0; }
+  .who b { color:var(--ink); }
+  .caption { color:var(--dim); font-size:14px; margin-top:8px; }
+  .cursor { color:var(--bright); }
+  @media (max-width:640px) {
+    body { padding:0 14px; }
+    img, svg, pre { max-width:100%; }
+    .card, .desk { word-break:break-word; }
+    .react { flex-wrap:wrap; }
+  }
+</style>
+</head>
+<body>
+<h1>The librarian</h1>
+<p class="sub">Same model, same question. Change which notes are on the desk.</p>
+<div id="widget" role="group" aria-label="The librarian - retrieval demo" aria-live="polite"></div>
+
+<script>
+const MODEL = "one pinned LLM";
+
+// A tiny knowledge base about a fictional project - facts the model can't know from
+// training, so retrieval genuinely matters.
+const KB = [
+  { id:"launch", title:"Launch plan",    text:"Project Heron's launch date is March 3, 2027." },
+  { id:"team",   title:"Team roster",    text:"Dana Okafor leads Project Heron." },
+  { id:"budget", title:"Budget memo",    text:"Project Heron's budget is $2.4M for FY27." },
+  { id:"menu",   title:"Cafeteria menu", text:"Tuesday's lunch special is mushroom risotto." }
+];
+const QUERIES = [
+  { q:"When does Project Heron launch?", needs:"launch", answer:"Project Heron launches on March 3, 2027." },
+  { q:"Who leads Project Heron?",        needs:"team",   answer:"Project Heron is led by Dana Okafor." },
+  { q:"What is Heron's budget?",         needs:"budget", answer:"Project Heron's budget is $2.4M for FY27." }
+];
+const STOP = new Set("a an the is are of do does what when who whose how to for in on it s much".split(" "));
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const toks = s => s.toLowerCase().replace(/[^a-z0-9$ ]/g, " ").split(/\s+/).filter(w => w && !STOP.has(w));
+const titleOf = id => KB.find(d => d.id === id).title;
+
+// REAL retrieval (keyword overlap) - only the model's answer is canned.
+function retrieve(query, k) {
+  const q = new Set(toks(query));
+  return KB.map(d => {
+    const dt = new Set(toks(d.title + " " + d.text));
+    let score = 0; q.forEach(w => { if (dt.has(w)) score++; });
+    return { doc: d, score };
+  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, k);
+}
+
+const el = document.getElementById("widget");
+const state = { qi:0, retrieval:true, busy:false, ran:false, answer:null, retrieved:[], grounded:false, agentLabel:"" };
+function resetOut() { state.ran = false; state.answer = null; state.retrieved = []; state.grounded = false; }
+
+function render() {
+  let html = `<div class="locked">&#128274; model: ${MODEL}</div>`;
+
+  html += `<div class="row"><span class="rl">question</span><div class="chips">`;
+  QUERIES.forEach((q, i) =>
+    html += `<button class="chip ${i === state.qi ? "sel" : ""}" data-q="${i}">${esc(q.q)}</button>`);
+  html += `</div></div>`;
+
+  html += `<div class="row"><span class="rl">retrieval</span>
+      <button class="switch ${state.retrieval ? "on" : "off"}" id="retrieval">${state.retrieval ? "ON" : "OFF"}</button></div>`;
+
+  if (state.ran) {
+    html += `<div class="desk"><div class="desk-h">on the desk (inserted into the context)</div>`;
+    if (!state.retrieval) html += `<div class="empty">(nothing &mdash; just your question)</div>`;
+    else if (state.retrieved.length === 0) html += `<div class="empty">(retrieval found nothing relevant)</div>`;
+    else state.retrieved.forEach(r =>
+      html += `<div class="card"><span class="card-t">${esc(r.doc.title)}</span>${esc(r.doc.text)}<span class="score">match ${r.score}</span></div>`);
+    html += `</div>`;
+  }
+
+  html += `<button class="run" id="run" ${state.busy ? "disabled" : ""}>&#9654; Run</button>`;
+
+  if (state.answer !== null) {
+    html += `<div class="answer ${state.grounded ? "good" : "muted"}">${esc(state.answer)}${state.busy ? '<span class="cursor">&#9612;</span>' : ""}</div>`;
+    if (!state.busy)
+      html += `<div class="who">Which agent are you running? <b>${esc(state.agentLabel)}</b></div>
+               <div class="caption">Same model, same question. Only the notes on the desk changed &mdash; and that changed who answered.</div>${state.grounded ? '<div class="react good"><span class="chr" data-c="cortex" data-e="happy"></span><span class="line">Now I remember - because you handed me the right page.</span></div>' : ''}`;
+  }
+
+  el.innerHTML = html;
+  el.querySelectorAll(".chip").forEach(b => b.onclick = () => { if (state.busy) return; state.qi = +b.dataset.q; resetOut(); render(); });
+  document.getElementById("retrieval").onclick = () => { if (state.busy) return; state.retrieval = !state.retrieval; resetOut(); render(); };
+  document.getElementById("run").onclick = run;
+  if (window.Cast) Cast.render(el);
+}
+
+async function run() {
+  const Q = QUERIES[state.qi];
+  state.busy = true; state.ran = true; state.answer = "";
+  state.retrieved = state.retrieval ? retrieve(Q.q, 2) : [];
+  state.grounded = state.retrieval && state.retrieved.some(r => r.doc.id === Q.needs);
+  state.agentLabel = !state.retrieval
+    ? "the generic model - it has no project knowledge"
+    : state.grounded
+      ? `the agent that just read "${titleOf(Q.needs)}"`
+      : "an agent with the wrong notes on its desk";
+  render();
+
+  const text = !state.retrieval
+    ? "I don't have any information about Project Heron - it isn't in my training data."
+    : state.grounded ? Q.answer : "The notes on my desk don't mention that.";
+  for (const w of text.split(/(\s+)/)) { state.answer += w; render(); await sleep(35); }
+  state.busy = false; render();
+}
+
+render();
+</script>
+<script src="../../../../assets/cast.js"></script>
+<script>Cast.render(document);</script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The context window</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:820px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .scene { display:flex; gap:18px; align-items:flex-start; }
+  .model { flex:none; width:132px; display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:26px; }
+  .model .chr svg { width:92px; height:92px; }
+  .mnote { color:var(--dim); font-size:12px; text-align:center; }
+
+  .win { flex:1; border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px; min-width:0; }
+  .meter { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .meter .lbl { font:11px var(--mono); color:var(--faint); min-width:74px; }
+  .bar { flex:1; height:8px; border-radius:6px; background:#1b2028; overflow:hidden; }
+  .bar > div { height:100%; width:0; background:var(--blue); transition:width .4s ease; }
+  .meter.full .bar > div { background:var(--red); }
+  .meter.full .lbl { color:var(--red); }
+
+  .evict { min-height:20px; font:12px var(--mono); margin-bottom:8px; }
+  .evict.drop { color:var(--red); } .evict.compact { color:var(--green); }
+
+  .cards { display:flex; flex-direction:column; gap:6px; min-height:210px; }
+  .card { border-radius:8px; padding:6px 10px; font-size:13px; border-left:3px solid var(--line); background:var(--panel); }
+  .card .ml { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); display:block; margin-bottom:1px; }
+  .card.user { border-left-color:var(--gold); } .card.user .ml { color:var(--gold); }
+  .card.assistant { border-left-color:var(--blue); } .card.assistant .ml { color:var(--blue); }
+  .card.tool { border-left-color:var(--dim); font-family:var(--mono); color:#cdd3da; }
+  .card.summary { border-left-color:var(--gold); border:1px dashed var(--gold); background:rgba(255,211,92,.06); font-style:italic; }
+  .card.summary .ml { color:var(--gold); font-style:normal; }
+  .card.new { animation:slidein .34s ease; }
+  @keyframes slidein { from { transform:translateY(10px); opacity:0; } to { transform:none; opacity:1; } }
+  .reduce .card.new { animation:none; }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:14px 0 2px; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modebtn[data-mode="compact"].on { border-color:var(--green); }
+  .modehint { color:var(--faint); font-size:12.5px; }
+  .capctl { color:var(--dim); font-size:13.5px; }
+  #capslider { accent-color:var(--blue); vertical-align:middle; max-width:160px; }
+  #caplbl { color:var(--ink); font:13px var(--mono); min-width:14px; display:inline-block; text-align:center; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .scene { flex-direction:column; }
+    .model { width:100%; max-width:100%; padding-top:0; }
+  }
+</style>
+</head>
+<body>
+<h1>The context window</h1>
+<p class="sub">The model has no memory of its own. Everything it knows at a step is whatever fits in
+this fixed <b>context window</b>. Watch it fill - then watch what happens when it overflows.</p>
+
+<div class="scene">
+  <div class="model"><span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
+    <span class="mnote" id="mnote">Cortex sees only what is inside the window &rarr;</span></div>
+  <div class="win" role="group" aria-label="The context window - message cards with a fill meter">
+    <div class="meter" id="meter"><span class="lbl" id="meterlbl">0 / 6</span><div class="bar"><div id="fill"></div></div></div>
+    <div class="evict" id="evict"></div>
+    <div class="cards" id="cards"></div>
+  </div>
+</div>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="truncate">Truncate (naive)</button>
+  <button class="modebtn" data-mode="compact">Compact (summarize)</button>
+  <span class="modehint">what to do when the window is full - switch and re-step to compare</span>
+</div>
+
+<div class="modes">
+  <label class="capctl" for="capslider">Window size:</label>
+  <input type="range" id="capslider" min="2" max="8" value="6" aria-label="Window size in turns" />
+  <b id="caplbl">6</b>
+  <span class="modehint">turns &mdash; drag to resize the window, then re-step and watch what survives</span>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+// Window capacity is adjustable (state.cap) via the slider -- change it and watch what survives.
+// A support chat. The order number (88231) is stated ONCE, in the very first turn.
+const T = [
+  { role:"user",      label:"You",                 text:"Hi - my order 88231 hasn't arrived." },
+  { role:"assistant", label:"Cortex",              text:"Let me check order 88231." },
+  { role:"tool",      label:"tool: lookup_order",  text:"shipped Mar 2, stuck in transit" },
+  { role:"assistant", label:"Cortex",              text:"It shipped Mar 2 but is stuck in transit." },
+  { role:"user",      label:"You",                 text:"Can you refund the shipping?" },
+  { role:"assistant", label:"Cortex",              text:"Checking the refund policy..." },
+  { role:"tool",      label:"tool: refund_policy", text:"shipping refundable if delayed > 7 days" },
+  { role:"user",      label:"You",                 text:"Wait - what was my order number again?" },
+];
+const SUMMARY = "user asked about order 88231; it shipped Mar 2 but is stuck in transit.";
+
+// Pure function of (step, mode): replay the adds with the eviction rule.
+function windowState(upto, mode, cap) {
+  let cards = [], event = null;
+  for (let k = 0; k <= upto; k++) {
+    cards.push({ role: T[k].role, label: T[k].label, text: T[k].text });
+    if (cards.length > cap) {
+      if (mode === "truncate") { event = { type: "drop", card: cards.shift() }; }
+      else { const chunk = cards.slice(0, 3); cards = [{ role: "summary", label: "summary", text: SUMMARY }, ...cards.slice(3)]; event = { type: "compact", n: chunk.length }; }
+    } else if (k === upto) { event = null; }
+  }
+  return { cards, event };
+}
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const cardsEl = $("cards"), fill = $("fill"), meter = $("meter"), meterlbl = $("meterlbl"),
+      evict = $("evict"), caption = $("caption"), insight = $("insight"),
+      cortexChr = $("cortexChr"), mnote = $("mnote");
+const state = { mode: "truncate", cap: 6 };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderStep(i, dir) {
+  const mode = state.mode;
+  const CAP = state.cap;
+  const { cards, event } = windowState(i, mode, CAP);
+  const last = i === T.length - 1;
+
+  // meter
+  const used = Math.min(cards.length, CAP);
+  fill.style.width = (used / CAP * 100) + "%";
+  meterlbl.textContent = used + " / " + CAP + (used >= CAP ? " full" : "");
+  meter.classList.toggle("full", used >= CAP);
+
+  // eviction note
+  if (event && event.type === "drop") { evict.className = "evict drop"; evict.textContent = "x dropped from context: " + event.card.label + " - \"" + event.card.text + "\""; }
+  else if (event && event.type === "compact") { evict.className = "evict compact"; evict.textContent = "+ folded " + event.n + " old turns into one summary (gist kept)"; }
+  else { evict.className = "evict"; evict.textContent = ""; }
+
+  // cards (newest highlighted on forward)
+  cardsEl.innerHTML = cards.map((c, idx) =>
+    `<div class="card ${c.role}${(dir >= 0 && idx === cards.length - 1 && !last) ? " new" : ""}">
+       <span class="ml">${esc(c.label)}</span>${esc(c.text)}</div>`).join("");
+
+  // Cortex mood + captions -- outcomes are DERIVED from the real window (so the slider matters)
+  let mood = "neutral", cap = "", note = "Cortex sees only what is inside the window ->";
+  let ins = "Everything the model knows is in this window - nothing else.";
+  if (i === 0) cap = "A conversation starts. The first turn holds the order number: 88231.";
+  else if (!last) {
+    if (event && event.type === "drop") { mood = "panic"; cap = "Window full (" + CAP + ")! To fit the new turn, the OLDEST turn is dropped."; }
+    else if (event && event.type === "compact") { mood = "read"; cap = "Window full (" + CAP + ")! The oldest turns fold into a one-line summary instead."; }
+    else { mood = "think"; cap = "Turn appended - the window holds " + used + " of " + CAP + "."; }
+  }
+
+  // the finale: the user asks for the order number. Did 88231 survive in THIS window?
+  if (last) {
+    const kept = cards.some(c => c.text.indexOf("88231") !== -1);
+    if (kept) {
+      mood = "happy"; note = "\"Order 88231 - it's right here.\"";
+      cap = "You ask for the order number - and it is still in the window.";
+      ins = (mode === "compact")
+        ? "<b>Compaction kept the gist.</b> The old turns were summarized, so 88231 survived. Cortex answers \"Order 88231.\""
+        : "<b>The window was big enough (" + CAP + ").</b> Nothing fell off, so Cortex still has 88231 - no compaction needed. (But a bigger window costs more on every call; you can't always afford it.)";
+    } else {
+      mood = "panic"; note = "\"...I don't have that anymore.\"";
+      cap = "You ask for the order number - but it is no longer in the window.";
+      ins = "<b>Truncation lost it.</b> The turn holding 88231 fell off the window; the model has no memory outside it. Drag the window bigger, or switch to Compact.";
+    }
+  }
+  cortexChr.dataset.e = mood; Cast.render(cortexChr.parentElement);
+  mnote.textContent = note;
+  caption.textContent = cap;
+  insight.innerHTML = ins;
+}
+
+const tl = new Anim.Timeline({ length: T.length, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "turn " + (i + 1) + " / " + T.length });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  state.mode = b.dataset.mode;
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+const capSlider = $("capslider"), caplbl = $("caplbl");
+capSlider.oninput = () => { state.cap = +capSlider.value; caplbl.textContent = state.cap; tl.render(0); };
+
+tl.render(0);
+</script>
+</body>
+</html>

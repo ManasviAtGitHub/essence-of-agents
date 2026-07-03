@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Watch it run twice - Module 0</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:720px; margin:40px auto; padding:0 20px; }
+  h1 { font-size:19px; margin-bottom:4px; }
+  .sub { color:var(--dim); margin-top:0; }
+  .locked { background:var(--panel); border-radius:8px; padding:12px 14px; margin:18px 0; font-size:14px; }
+  .locked div { margin:3px 0; }
+  .note { color:var(--dim); }
+  .run-row { margin:10px 0; }
+  .run-label { display:inline-block; width:62px; color:var(--dim); font-variant:small-caps; vertical-align:top; }
+  .shared { color:var(--dim); }
+  .diverged { color:var(--ink); }
+  .diverged.b { color:var(--bright); font-weight:500; }
+  .cursor { color:var(--bright); }
+  button { font:inherit; padding:8px 18px; border:0; border-radius:8px;
+           background:var(--bright); color:#04222a; cursor:pointer; margin-top:14px; }
+  button:disabled { opacity:.5; cursor:default; }
+  .caption { color:var(--dim); font-size:14px; margin-top:12px; }
+  .door { color:var(--dim); font-size:14px; margin-top:14px; }
+  @media (max-width:640px) {
+    body { padding:0 14px; }
+    img, svg, pre { max-width:100%; }
+    .locked { word-break:break-word; }
+    .react { flex-wrap:wrap; }
+  }
+</style>
+</head>
+<body>
+<h1>Watch it run twice</h1>
+<p class="sub">Same prompt, same model, same settings. Press Run a few times.</p>
+<div id="widget" role="group" aria-label="Watch it run twice - replay demo" aria-live="polite"></div>
+
+<script>
+// Embedded replay data (mirrors trace.m0-nondeterminism.json - regenerate with
+// record_trace.py once you have an API key). Replay = no key, no server, no build.
+const TRACE = {
+  input: {
+    model: "one pinned LLM",
+    tools: "read_file",
+    prompt: "Read your own source and explain how you work, in two sentences."
+  },
+  runs: [
+    { chunks: [
+      { t_ms:120, text:"I read my own source code" },
+      { t_ms:270, text:" with a read_file tool, then summarized how I work." },
+      { t_ms:690, text:" I loop: call the model, run any tool it requests, feed the result back, until it has a final answer." }
+    ]},
+    { chunks: [
+      { t_ms:110, text:"I read my own source code" },
+      { t_ms:250, text:", then explained the loop and the one tool I call." },
+      { t_ms:640, text:" Each turn I resend the whole message history, execute any tool the model asks for, and continue until it stops." }
+    ]},
+    { chunks: [
+      { t_ms:130, text:"I read my own source code" },
+      { t_ms:280, text:" and described the read_file tool and the loop around it." },
+      { t_ms:720, text:" The loop keeps calling the model and running requested tools until it returns a final answer instead of a tool request." }
+    ]}
+  ]
+};
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// REPLAY source - re-plays cached chunks with their recorded timing.
+async function* replayStream(run, speed = 1) {
+  let prev = 0;
+  for (const c of run.chunks) {
+    await sleep((c.t_ms - prev) / speed);
+    prev = c.t_ms;
+    yield c.text;
+  }
+}
+
+// Word-level divergence: index of the first token that differs from the baseline.
+function divergenceWord(base, text) {
+  const a = base.split(/(\s+)/), b = text.split(/(\s+)/);
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
+
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
+const el = document.getElementById("widget");
+const state = { runs: [], busy: false };
+
+function render() {
+  const i = TRACE.input;
+  let html = `<div class="locked">
+      <div>&#128274; prompt: ${esc(i.prompt)}</div>
+      <div>&#128274; model: ${esc(i.model)} &nbsp; &#128274; tools: ${esc(i.tools)}</div>
+      <div class="note">Nothing changes between runs &mdash; except the answer.</div>
+    </div>`;
+
+  const base = state.runs[0] || "";
+  state.runs.forEach((text, idx) => {
+    let body;
+    if (idx === 0) {
+      body = `<span class="diverged">${esc(text)}</span>`;
+    } else {
+      const split = divergenceWord(base, text);
+      const w = text.split(/(\s+)/);
+      body = `<span class="shared">${esc(w.slice(0, split).join(""))}</span>` +
+             `<span class="diverged b">${esc(w.slice(split).join(""))}</span>`;
+    }
+    if (state.busy && idx === state.runs.length - 1) body += `<span class="cursor">&#9612;</span>`;
+    html += `<div class="run-row"><span class="run-label">Run ${idx + 1}</span>${body}</div>`;
+  });
+
+  if (state.runs.length >= 2)
+    html += `<div class="caption">Same prompt. Same model. Same settings. Different answers.</div>` +
+            `<div class="react"><span class="chr" data-c="cortex" data-e="confused"></span><span class="line">Same question, a different me each time - I'm a distribution, not a lookup table.</span></div>`;
+  html += `<button id="run" ${state.busy ? "disabled" : ""}>${state.runs.length ? "&#9654; Run again" : "&#9654; Run"}</button>`;
+  html += `<div class="door">&#9656; Why does it split here? &#128274; unlocks in Module 3</div>`;
+
+  el.innerHTML = html;
+  document.getElementById("run").onclick = runOnce;
+  if (window.Cast) Cast.render(el);
+}
+
+async function runOnce() {
+  state.busy = true;
+  const idx = state.runs.length;
+  const cached = TRACE.runs[idx % TRACE.runs.length];
+  state.runs.push("");
+  render();
+  for await (const text of replayStream(cached)) {
+    state.runs[idx] += text;
+    render();
+  }
+  state.busy = false;
+  render();
+}
+
+render();
+</script>
+<script src="../../../../assets/cast.js"></script>
+<script>Cast.render(document);</script>
+</body>
+</html>

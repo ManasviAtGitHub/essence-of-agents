@@ -1,0 +1,37 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      # All checks are keyless / offline (FakeClient + deterministic evals).
+      - name: harness loop tests
+        run: python tests/test_offline_loop.py
+      - name: course module checks (demos run, widgets well-formed, ASCII)
+        run: python tests/test_modules.py
+      - name: structure invariants (single-source lib, simulation-first)
+        run: python tests/test_structure.py
+      - name: no stale UI links (every href/src/nav/iframe resolves)
+        run: python tools/check_links.py
+      - name: widget runtime gate (no console errors, scenes build)
+        run: node tools/check_widgets.mjs
+      - name: production core tests
+        run: python production/test_agent_pro.py
+      - name: production module tests
+        run: python production/test_production.py
+      - name: production extra tests (server, vector store, sandbox, caching, compaction)
+        run: python production/test_production_extra.py
+      - name: eval gate (block regressions)
+        run: python production/eval_gate.py

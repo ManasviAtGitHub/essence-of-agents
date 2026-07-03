@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The verifier earns its keep</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:820px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .wrap { display:flex; gap:20px; align-items:stretch; }
+  .diagram { position:relative; width:360px; height:240px; flex:none;
+             border:1px solid var(--line); border-radius:12px; background:#0b0e12; }
+  svg.edges { position:absolute; inset:0; width:100%; height:100%; overflow:visible; color:#5a6b74; }
+  .edge { stroke:#2a3a44; stroke-width:2; fill:none; transition:stroke .2s; }
+  .edge.active { stroke:var(--gold); stroke-width:3; filter:drop-shadow(0 0 4px var(--gold)); }
+  .edge.pass { stroke:var(--green); stroke-width:3; filter:drop-shadow(0 0 4px var(--green)); }
+  .edge.loop { stroke-dasharray:5 4; }
+  .edge.loop.fire { stroke:var(--red); stroke-width:3; filter:drop-shadow(0 0 5px var(--red)); }
+  .edge-lbl { fill:var(--faint); font:10px var(--mono); }
+  .edge-lbl.fire { fill:var(--red); }
+
+  .node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column;
+          align-items:center; gap:3px; z-index:2; }
+  .node .box { border:1px solid var(--line); background:var(--panel); border-radius:9px;
+               padding:6px 11px; font:12px var(--mono); color:var(--ink); white-space:nowrap; transition:all .18s; text-align:center; }
+  .node .box .s { display:block; font-size:9.5px; color:var(--faint); letter-spacing:.04em; }
+  .node .lbl { font:10px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+  .node .chr svg { width:66px; height:66px; }
+  .node.verifier.run .box { border-color:var(--gold); color:var(--gold); box-shadow:0 0 10px rgba(255,211,92,.4); }
+  .node.verifier.fail .box { border-color:var(--red); color:var(--red); box-shadow:0 0 10px rgba(252,98,85,.4); }
+  .node.verifier.pass .box { border-color:var(--green); color:var(--green); box-shadow:0 0 10px rgba(131,193,103,.4); }
+  .node.verifier.off .box { border-style:dashed; color:var(--faint); opacity:.6; }
+  .node.ship.sent .box { border-color:var(--gold); color:var(--gold); }
+  .node.ship.good .box { border-color:var(--green); color:var(--green); box-shadow:0 0 10px rgba(131,193,103,.4); }
+  .node.ship.bad .box { border-color:var(--red); color:var(--red); box-shadow:0 0 10px rgba(252,98,85,.4); }
+
+  .side { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .col-h { color:var(--faint); font:11px var(--mono); text-transform:uppercase; letter-spacing:.12em; margin:0 0 8px; }
+  .meter { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .meter .lbl { font:11px var(--mono); color:var(--faint); min-width:120px; }
+  .bar { flex:1; height:9px; border-radius:6px; background:#1b2028; overflow:hidden; }
+  .bar > div { height:100%; width:0; background:var(--faint); transition:width .45s ease, background .2s; }
+  .bar.gray > div { background:#4a5563; } .bar.blue > div { background:var(--blue); }
+  .bar.red > div { background:var(--red); } .bar.green > div { background:var(--green); }
+
+  .codelbl { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin:2px 0 4px; }
+  pre.code { margin:0; background:var(--panel); border:1px solid var(--line); border-radius:8px;
+             padding:10px 12px; font:12.5px/1.5 var(--mono); color:#cdd3da; overflow:auto; min-height:96px; }
+  .stamp { margin-top:10px; font:12.5px var(--mono); min-height:22px; padding:5px 10px; border-radius:7px; border:1px solid transparent; }
+  .stamp.none { color:var(--faint); border-color:var(--line); }
+  .stamp.fail { color:var(--red); border-color:var(--red); background:rgba(252,98,85,.07); }
+  .stamp.pass { color:var(--green); border-color:var(--green); background:rgba(131,193,103,.07); }
+  .stamp.prod { color:var(--red); border-color:var(--red); background:rgba(252,98,85,.12); }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:16px 0 2px; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modebtn[data-mode="off"].on { border-color:var(--red); }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .wrap { flex-direction:column; }
+    .diagram { width:100%; max-width:100%; }
+  }
+</style>
+</head>
+<body>
+<h1>The verifier earns its keep</h1>
+<p class="sub">A verifier turns "looks right" into "is right". It runs the tests the writer skipped -
+a failed check loops back for a fix. Same writer, one harsh reader - watch quality jump.</p>
+
+<div class="wrap">
+  <div class="diagram" id="diagram" role="group" aria-label="Verifier loop diagram">
+    <svg class="edges">
+      <defs>
+        <marker id="ah" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#5a6b74"/></marker>
+        <marker id="ahr" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#fc6255"/></marker>
+      </defs>
+      <line class="edge" id="e-write" x1="118" y1="92" x2="242" y2="86" marker-end="url(#ah)"/>
+      <text class="edge-lbl" x="150" y="80">code</text>
+      <path class="edge loop" id="e-loop" d="M250,112 C210,168 150,150 118,120" marker-end="url(#ahr)"/>
+      <text class="edge-lbl" id="loop-lbl" x="168" y="158">fix</text>
+      <line class="edge" id="e-ship" x1="285" y1="118" x2="285" y2="176" marker-end="url(#ah)"/>
+      <text class="edge-lbl" x="292" y="152">ship</text>
+    </svg>
+    <div class="node writer" style="left:80px;top:96px"><span class="chr" id="writerChr" data-c="cortex" data-e="neutral"></span><span class="lbl">writer</span></div>
+    <div class="node verifier" id="verNode" style="left:285px;top:90px"><span class="box" id="verBox">VERIFIER<span class="s">runs tests</span></span></div>
+    <div class="node ship" id="shipNode" style="left:285px;top:200px"><span class="box" id="shipBox">SHIP<span class="s">to users</span></span></div>
+  </div>
+
+  <div class="side">
+    <div class="col-h">the code under test</div>
+    <div class="meter"><span class="lbl" id="qlbl">quality: untested</span><div class="bar gray" id="qbar"><div id="qfill"></div></div></div>
+    <div class="codelbl" id="codelbl">attempt 1</div>
+    <pre class="code" id="code"></pre>
+    <div class="stamp none" id="stamp"></div>
+  </div>
+</div>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="on">Verifier ON</button>
+  <button class="modebtn" data-mode="off">Verifier OFF</button>
+  <span class="modehint">a checker node that runs the tests - switch and re-step to compare</span>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+const A1 = "def is_palindrome(s):\n    return s == s[::-1]";
+const A2 = "def is_palindrome(s):\n    t = ''.join(\n        c.lower() for c in s\n        if c.isalnum())\n    return t == t[::-1]";
+const FAILTXT = "FAIL  is_palindrome('Race car') -> False   (expected True)";
+const PASSTXT = "PASS  all 7 tests pass, incl. case + spaces";
+const PRODTXT = "in production a user hits: is_palindrome('Race car') -> False";
+
+// Two scripts of equal length (6). renderStep indexes into the active mode.
+const ON = [
+  { code:A1, cl:"attempt 1", stamp:["none","not yet checked - looks plausible"], q:40, qk:"gray", qt:"quality: untested",
+    ver:"", ship:"", loop:false, mood:"neutral",
+    cap:"Attempt 1 - the obvious one-liner. It looks right." },
+  { code:A1, cl:"attempt 1", stamp:["fail",FAILTXT], q:14, qk:"red", qt:"quality: failing",
+    ver:"fail", ship:"", loop:true, mood:"panic",
+    cap:"The verifier runs real tests. 'Race car' -> False. FAIL - it ignored case and spaces." },
+  { code:A2, cl:"attempt 2 (after reading the failure)", stamp:["none","re-testing the fix..."], q:58, qk:"blue", qt:"quality: climbing",
+    ver:"run", ship:"", loop:true, mood:"read",
+    cap:"The failed check loops back. Cortex reads the case and normalizes first - strip case, spaces, punctuation." },
+  { code:A2, cl:"attempt 2", stamp:["pass",PASSTXT], q:96, qk:"green", qt:"quality: verified",
+    ver:"pass", ship:"", loop:false, mood:"happy",
+    cap:"Verifier re-runs every test - all pass, including the tricky ones." },
+  { code:A2, cl:"attempt 2", stamp:["pass",PASSTXT], q:100, qk:"green", qt:"quality: verified",
+    ver:"pass", ship:"good", loop:false, mood:"happy",
+    cap:"Only now does it ship - checked, not just plausible." },
+  { code:A2, cl:"attempt 2", stamp:["pass",PASSTXT], q:100, qk:"green", qt:"quality: verified",
+    ver:"pass", ship:"good", loop:false, mood:"happy",
+    cap:"'Looks right' became 'is right'. The self-correction loop closed." },
+];
+const OFF = [
+  { code:A1, cl:"attempt 1", stamp:["none","not yet checked - looks plausible"], q:40, qk:"gray", qt:"quality: untested",
+    ver:"off", ship:"", loop:false, mood:"neutral",
+    cap:"Attempt 1 - the obvious one-liner. It looks right." },
+  { code:A1, cl:"attempt 1", stamp:["none","no tests run - trusting the eye"], q:40, qk:"gray", qt:"quality: untested",
+    ver:"off", ship:"sent", loop:false, mood:"happy",
+    cap:"No verifier. It looks right, so it ships unchecked." },
+  { code:A1, cl:"attempt 1 (shipped)", stamp:["none","live for users - never checked"], q:40, qk:"gray", qt:"quality: unknown",
+    ver:"off", ship:"sent", loop:false, mood:"neutral",
+    cap:"The naive attempt is live. No test ever ran against it." },
+  { code:A1, cl:"attempt 1 (shipped)", stamp:["prod",PRODTXT], q:14, qk:"red", qt:"quality: broken",
+    ver:"off", ship:"bad", loop:false, mood:"confused",
+    cap:"A real input arrives: 'Race car'. The one-liner returns False." },
+  { code:A1, cl:"attempt 1 (shipped)", stamp:["prod",PRODTXT], q:14, qk:"red", qt:"quality: broken",
+    ver:"off", ship:"bad", loop:false, mood:"panic",
+    cap:"A bug reached users. It looked done - it never was." },
+  { code:A1, cl:"attempt 1 (shipped)", stamp:["prod",PRODTXT], q:14, qk:"red", qt:"quality: broken",
+    ver:"off", ship:"bad", loop:false, mood:"panic",
+    cap:"Nothing caught it. 'Looks right' shipped straight through as a bug." },
+];
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const writerChr = $("writerChr"), verNode = $("verNode"), verBox = $("verBox"),
+      shipNode = $("shipNode"), qbar = $("qbar"), qfill = $("qfill"), qlbl = $("qlbl"),
+      codeEl = $("code"), codelbl = $("codelbl"), stamp = $("stamp"),
+      caption = $("caption"), insight = $("insight"), eLoop = $("e-loop"),
+      eShip = $("e-ship"), eWrite = $("e-write"), loopLbl = $("loop-lbl");
+const state = { mode: "on" };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderStep(i, dir) {
+  const s = (state.mode === "on" ? ON : OFF)[i];
+
+  // writer mood
+  writerChr.dataset.e = s.mood; Cast.render(writerChr.parentElement);
+
+  // verifier node
+  verNode.className = "node verifier" + (s.ver ? " " + s.ver : "");
+  verBox.innerHTML = s.ver === "off"
+    ? 'NO VERIFIER<span class="s">tests skipped</span>'
+    : 'VERIFIER<span class="s">runs tests</span>';
+
+  // ship node
+  shipNode.className = "node ship" + (s.ship ? " " + s.ship : "");
+
+  // edges
+  eWrite.classList.toggle("active", s.ver === "run" || s.ver === "fail");
+  eLoop.classList.toggle("fire", !!s.loop);
+  loopLbl.classList.toggle("fire", !!s.loop);
+  eShip.classList.remove("active", "pass");
+  if (s.ship === "good") eShip.classList.add("pass");
+  else if (s.ship === "sent" || s.ship === "bad") eShip.classList.add("active");
+
+  // quality bar (grow on forward; snap on scrub-back / reduced)
+  qbar.className = "bar " + s.qk;
+  if (dir <= 0 || Anim.reduced()) { qfill.style.transition = "none"; qfill.style.width = s.q + "%"; void qfill.offsetWidth; qfill.style.transition = ""; }
+  else qfill.style.width = s.q + "%";
+  qlbl.textContent = s.qt;
+
+  // code + stamp
+  codelbl.textContent = s.cl;
+  codeEl.textContent = s.code;
+  stamp.className = "stamp " + s.stamp[0];
+  stamp.textContent = s.stamp[1];
+
+  // caption + insight
+  caption.textContent = s.cap;
+  const done = i === 5;
+  if (!done) {
+    insight.innerHTML = "A verifier is just a <b>reader that runs the tests</b>. Watch what happens when it says \"no\".";
+  } else if (state.mode === "on") {
+    insight.innerHTML = "<b>With a verifier</b>, a failed check loops back for a fix - the agent self-corrects, and only verified code ships.";
+  } else {
+    insight.innerHTML = "<b>Without a verifier you ship \"looks right\".</b> With one, a failed check loops back for a fix - self-correction.";
+  }
+}
+
+const tl = new Anim.Timeline({ length: ON.length, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + ON.length });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  state.mode = b.dataset.mode;
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

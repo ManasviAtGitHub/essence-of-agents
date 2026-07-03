@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Essence of Agents</title>
+<link rel="stylesheet" href="assets/theme.css" />
+<style>
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; }
+  body { background:var(--bg); color:var(--ink); min-height:100vh;
+         font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;
+         display:flex; flex-direction:column; align-items:center; justify-content:center;
+         padding:40px 24px; }
+  .wrap { width:100%; max-width:860px; }
+  .kicker { color:var(--blue); font:12px var(--mono); letter-spacing:.14em; text-transform:uppercase; text-align:center; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:34px; text-align:center; margin:8px 0 6px; }
+  .lede { text-align:center; color:var(--dim); max-width:620px; margin:0 auto 10px; }
+
+  .scene { justify-content:center; }
+
+  .doors { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:26px; }
+  .door { display:block; text-decoration:none; color:var(--ink); border:1px solid var(--line);
+          border-radius:16px; background:var(--panel); padding:22px 22px 20px; transition:all .15s; }
+  .door:hover { border-color:var(--blue); transform:translateY(-2px); }
+  .door .step { font:11px var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+  .door h2 { font-family:var(--serif); font-weight:600; font-size:22px; margin:6px 0 6px; }
+  .door.prod h2 { color:var(--ink); }
+  .door p { color:#d3d8de; font-size:14.5px; margin:6px 0; }
+  .door .go { color:var(--blue); font-weight:600; font-size:14px; margin-top:12px; display:inline-block; }
+  .door.prod { border-left:3px solid var(--gold); }
+  .door.prod .go { color:var(--gold); }
+  .door ul { margin:8px 0 0; padding-left:18px; color:var(--dim); font-size:13px; }
+  .door ul li { margin:3px 0; }
+
+  .foot { text-align:center; color:var(--faint); font-size:12.5px; margin-top:26px; }
+  .foot code { background:#0b0e12; border:1px solid var(--line); padding:1px 6px; border-radius:4px;
+               font:12px var(--mono); color:var(--gold); }
+  @media (max-width:640px){ .doors { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Essence of Agents</div>
+  <h1>Build an agent from first principles - then ship it.</h1>
+  <p class="lede">One idea, twice: first you learn the agent loop from a while-loop up, then you
+  harden that same loop into something you can run in production. Cortex and Bit walk you through both.</p>
+
+  <div class="scene">
+    <div class="actor"><span class="chr" data-c="bit" data-e="happy"></span><span class="who b">BIT &middot; you</span></div>
+    <div class="actor"><span class="chr" data-c="cortex" data-e="happy"></span><span class="who c">CORTEX &middot; the model</span></div>
+  </div>
+
+  <div class="doors">
+    <a class="door course" href="agentic-course/index.html">
+      <span class="step">Start here</span>
+      <h2>The Course</h2>
+      <p>Learn how an agent works, from nothing. Twelve short modules, each with an interactive
+      widget you can click - no API key needed.</p>
+      <ul>
+        <li>The loop, tools, memory, context</li>
+        <li>Planning, verification, multi-agent, security</li>
+        <li>Evals, shipping, and a capstone</li>
+      </ul>
+      <span class="go">Enter the course -&gt;</span>
+    </a>
+
+    <a class="door prod" href="production/index.html">
+      <span class="step">The sequel</span>
+      <h2>Production</h2>
+      <p>Now let real users hit that agent. Watch the toy break - and fix it, one failure at a
+      time - until it's production-grade.</p>
+      <ul>
+        <li>Retries, budgets, guardrails, tracing</li>
+        <li>An eval gate, a server, compaction</li>
+        <li>A live loop you can talk to</li>
+      </ul>
+      <span class="go">Enter production -&gt;</span>
+    </a>
+  </div>
+
+  <p class="foot">Everything here runs with no key and no server &mdash; it's all simulation.
+  Optional: to run the agent against a real model, start <code>python production/server.py</code> and open <code>/?live</code>.</p>
+</div>
+
+<script src="assets/cast.js"></script>
+<script>Cast.render(document);</script>
+</body>
+</html>

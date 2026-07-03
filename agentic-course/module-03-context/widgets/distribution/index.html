@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Why the answer changes - the distribution</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:760px; margin:36px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+  .locked { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+            padding:10px 13px; font:13px/1.5 var(--mono); color:#cdd3da; margin:12px 0; }
+  .locked b { color:var(--gold); font-weight:600; }
+
+  .stage { display:flex; gap:16px; align-items:stretch; margin:14px 0 6px; }
+  .model { flex:none; width:150px; display:flex; flex-direction:column; align-items:center;
+           justify-content:center; gap:6px; border:1px solid var(--line); border-radius:12px;
+           background:var(--panel); padding:12px 8px; }
+  .model .chr svg { width:82px; height:82px; }
+  .mlabel { color:var(--dim); font-size:12px; text-align:center; min-height:30px; }
+
+  .dist { flex:1; display:flex; gap:14px; align-items:flex-end; justify-content:center;
+          border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:14px 12px 10px; }
+  .cand { display:flex; flex-direction:column; align-items:center; gap:5px; width:96px; }
+  .pc { font:12px var(--mono); color:var(--faint); }
+  .cand.sel .pc { color:var(--blue); }
+  .barwrap { height:130px; width:38px; display:flex; align-items:flex-end; }
+  .bar { width:100%; background:#26323b; border-radius:5px 5px 0 0; height:0;
+         transition:height .5s cubic-bezier(.2,.8,.2,1); }
+  .reduce .bar, .instant .bar { transition:none; }
+  .cand.sel .bar { background:linear-gradient(180deg,#7fd6e8,#2b7d92); box-shadow:0 0 14px rgba(88,196,221,.5); }
+  .tok { font:12px var(--mono); color:var(--dim); text-align:center; white-space:nowrap;
+         overflow:hidden; text-overflow:ellipsis; max-width:96px; }
+  .cand.sel .tok { color:var(--ink); }
+  .pick { font:10px var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--blue); }
+
+  .entropy { font-size:13.5px; margin:12px 0 4px; padding:8px 12px; border-radius:8px;
+             border:1px solid var(--line); background:var(--panel); }
+  .entropy.fork { color:var(--gold); border-left:3px solid var(--gold); }
+  .entropy.sure { color:var(--dim); border-left:3px solid var(--line); }
+
+  .sentence { white-space:pre-wrap; font-size:18px; line-height:1.7; margin:10px 0;
+              min-height:32px; border-bottom:1px dashed var(--line); padding-bottom:12px; }
+  .stok.new { background:rgba(88,196,221,.22); border-radius:3px; }
+  .stok.fork.a { color:var(--blue); font-weight:600; }
+  .stok.fork.b { color:var(--gold); font-weight:600; }
+  .caret { color:var(--blue); }
+
+  .runs { display:flex; align-items:center; gap:8px; margin:6px 0 2px; }
+  .runbtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+            color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .runbtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .runbtn[data-run="B"].on { border-color:var(--gold); }
+  .runhint { color:var(--faint); font-size:12.5px; }
+
+  .compare { margin-top:14px; border:1px solid var(--line); border-radius:12px; background:var(--panel);
+             padding:14px 16px; display:none; }
+  .compare.on { display:block; }
+  .cmp-h { color:var(--dim); font-size:13px; margin-bottom:8px; }
+  .cmp-row { display:flex; gap:10px; align-items:baseline; margin:6px 0; font-size:15.5px; white-space:pre-wrap; }
+  .cmp-tag { font:11px var(--mono); text-transform:uppercase; letter-spacing:.06em; flex:none; padding-top:2px; }
+  .cmp-tag.a { color:var(--blue); } .cmp-tag.b { color:var(--gold); }
+  .fk.a { color:var(--blue); font-weight:700; } .fk.b { color:var(--gold); font-weight:700; }
+  .cmp-note { color:var(--dim); font-size:13px; margin-top:10px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .stage { flex-direction:column; }
+    .model { width:100%; max-width:100%; }
+  }
+</style>
+</head>
+<body>
+<h1>Why the answer changes</h1>
+<p class="sub">A model doesn't look up an answer. At every step it produces a <b>distribution</b>
+over possible next tokens, then <b>samples one</b>. Step through and watch where that matters.</p>
+
+<div class="locked">prompt: <b>Q:</b> In one line, how does your agent loop work?  <b>A:</b></div>
+
+<div class="stage" role="group" aria-label="Token probability distribution with the model sampling one token">
+  <div class="model"><span class="chr" data-c="cortex" data-e="think"></span><span class="mlabel" id="mlabel"></span></div>
+  <div class="dist" id="dist"></div>
+</div>
+
+<div class="entropy" id="entropy" aria-live="polite"></div>
+<div class="sentence" id="sentence"></div>
+
+<div id="scrub"></div>
+
+<div class="runs">
+  <button class="runbtn on" data-run="A">Run A</button>
+  <button class="runbtn" data-run="B">Run B</button>
+  <span class="runhint">Same prompt, same settings - switch runs to see where they diverge.</span>
+</div>
+
+<div class="compare" id="compare"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+// Each step: a distribution over next tokens, and which index each run samples.
+// Most tokens are near-certain (one tall bar); one is a genuine fork.
+const STEPS = [
+  { dist: [["The", .95], ["It", .04], ["So", .01]], a: 0, b: 0 },
+  { dist: [[" loop", .92], [" model", .05], [" agent", .03]], a: 0, b: 0 },
+  { dist: [[" calls", .85], [" runs", .10], [" sends", .05]], a: 0, b: 0 },
+  { dist: [[" the model,", .90], [" it,", .07], [" the AI,", .03]], a: 0, b: 0 },
+  { dist: [[" runs any tool it asks for,", .80], [" executes each tool call,", .15], [" uses its tools,", .05]], a: 0, b: 0 },
+  { dist: [[" and repeats", .38], [" then loops", .34], [" over and over", .28]], a: 0, b: 1, fork: true },
+  { dist: [[" until it stops.", .90], [" forever.", .07], [" and answers.", .03]], a: 0, b: 0 },
+];
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const dist = $("dist"), entropy = $("entropy"), sentence = $("sentence"),
+      mlabel = $("mlabel"), compare = $("compare"), model = document.querySelector(".model");
+const state = { run: "a" };
+const runKey = () => state.run;
+
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderStep(i, dir) {
+  const run = runKey();
+  const step = STEPS[i];
+  const last = i === STEPS.length - 1;
+
+  // Cortex reacts
+  model.querySelector(".chr").dataset.e = last ? "happy" : "think";
+  Cast.render(model);
+  mlabel.textContent = last ? "...done. That is one sampled answer." : "predicting token " + (i + 1) + " of " + STEPS.length + "...";
+
+  // distribution bars
+  const sampled = step[run];
+  dist.innerHTML = step.dist.map((c, idx) => {
+    const p = c[1], h = Math.round(8 + p * 118), sel = idx === sampled;
+    return `<div class="cand ${sel ? "sel" : ""}">
+      <div class="pc">${Math.round(p * 100)}%</div>
+      <div class="barwrap"><div class="bar" data-h="${h}"></div></div>
+      <div class="tok" title="${esc(c[0])}">${esc(c[0].trim() || "(space)")}</div>
+      <div class="pick">${sel ? "sampled" : "&nbsp;"}</div>
+    </div>`;
+  }).join("");
+  const grow = dir > 0 && !Anim.reduced();
+  if (!grow) dist.classList.add("instant");
+  dist.querySelectorAll(".bar").forEach(b => {
+    const h = b.dataset.h + "px";
+    if (grow) { b.style.height = "0px"; requestAnimationFrame(() => { b.style.height = h; }); }
+    else b.style.height = h;
+  });
+  if (!grow) requestAnimationFrame(() => dist.classList.remove("instant"));
+
+  // entropy read-out (the insight)
+  const top = Math.max.apply(null, step.dist.map(c => c[1]));
+  const forky = step.fork || top < 0.6;
+  entropy.className = "entropy " + (forky ? "fork" : "sure");
+  entropy.innerHTML = forky
+    ? "A real fork - several tokens are plausible, so two runs can pick differently right here."
+    : "Near-certain - the top token is ~" + Math.round(top * 100) + "%, so every run picks it. No real choice.";
+
+  // the sentence so far (this run)
+  let html = "";
+  for (let k = 0; k <= i; k++) {
+    const t = STEPS[k].dist[STEPS[k][run]][0];
+    const cls = "stok" + (k === i ? " new" : "") + (STEPS[k].fork ? " fork " + run : "");
+    html += `<span class="${cls}">${esc(t)}</span>`;
+  }
+  if (!last) html += `<span class="caret">&#9612;</span>`;
+  sentence.innerHTML = html;
+
+  last ? showCompare() : compare.classList.remove("on");
+}
+
+function showCompare() {
+  const fi = STEPS.findIndex(s => s.fork);
+  const line = run => STEPS.map((s, k) => {
+    const t = s.dist[s[run]][0];
+    return k === fi ? `<b class="fk ${run}">${esc(t)}</b>` : esc(t);
+  }).join("");
+  compare.innerHTML =
+    `<div class="cmp-h">Same prompt, same settings - two runs:</div>
+     <div class="cmp-row"><span class="cmp-tag a">Run A</span><span>${line("a")}</span></div>
+     <div class="cmp-row"><span class="cmp-tag b">Run B</span><span>${line("b")}</span></div>
+     <div class="cmp-note">They agree on every near-certain token and diverge only at the fork.
+     That single sampled token is the whole reason the same prompt gives different answers.</div>`;
+  compare.classList.add("on");
+}
+
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "token " + (i + 1) + " / " + STEPS.length });
+
+document.querySelectorAll(".runbtn").forEach(b => b.onclick = () => {
+  state.run = b.dataset.run.toLowerCase();
+  document.querySelectorAll(".runbtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

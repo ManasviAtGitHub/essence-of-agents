@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ship it - Essence of Agents</title>
+<style>
+  :root {
+    --bg:#0f1216; --panel:#171b21; --panel2:#1b2028; --line:#2a2f38;
+    --ink:#e9ebee; --dim:#98a2b0; --faint:#6b7480;
+    --blue:#58c4dd; --gold:#ffd35c; --red:#fc6255; --green:#83c167;
+    --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body { display:flex; overflow:hidden; background:var(--bg); color:var(--ink);
+         font:15.5px/1.65 system-ui,-apple-system,Segoe UI,sans-serif; }
+
+  /* sidebar */
+  #side { width:280px; flex:none; background:#0c0f13; border-right:1px solid var(--line);
+          overflow:auto; padding:22px 0 40px; }
+  .brand { font-family:var(--serif); font-size:20px; font-weight:600; padding:0 22px; letter-spacing:.2px; }
+  .brand .dot { color:var(--gold); }
+  .navback { display:block; padding:4px 22px; color:var(--dim); font-size:12.5px; text-decoration:none; }
+  .navback:hover { color:var(--blue); }
+  .navback.course { color:var(--gold); }
+  .navback.course:hover { filter:brightness(1.1); }
+  .gh { color:var(--faint); font-size:11px; text-transform:uppercase; letter-spacing:.14em;
+        padding:16px 22px 6px; }
+  .navlink { display:flex; gap:10px; align-items:baseline; width:100%; text-align:left; border:0;
+             background:none; cursor:pointer; font:inherit; color:var(--dim);
+             padding:7px 22px 7px 22px; border-left:2px solid transparent; }
+  .navlink .n { color:var(--faint); font:12px var(--mono); min-width:16px; }
+  .navlink:hover { color:var(--ink); background:#12161c; }
+  .navlink.active { color:var(--ink); border-left-color:var(--blue); background:#12171e; }
+  .navlink.active .n { color:var(--blue); }
+
+  /* content */
+  main { flex:1; overflow:auto; }
+  .content { max-width:760px; margin:0 auto; padding:46px 34px 90px; }
+  .kicker { color:var(--blue); font:12px var(--mono); letter-spacing:.12em; text-transform:uppercase; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:31px; line-height:1.2; margin:6px 0 4px; }
+  h2 { font-family:var(--serif); font-weight:600; font-size:20px; margin:30px 0 8px; }
+  p { margin:12px 0; color:#d3d8de; }
+  .lead { font-size:17px; color:var(--ink); }
+  b { color:#fff; font-weight:600; }
+  .dim { color:var(--dim); }
+  a { color:var(--blue); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  code { font:13px var(--mono); background:#0b0e12; border:1px solid var(--line);
+         padding:1px 6px; border-radius:4px; color:var(--gold); }
+  pre { background:#0b0e12; border:1px solid var(--line); border-radius:10px; padding:14px 16px;
+        overflow:auto; font:13px/1.55 var(--mono); color:#cdd3da; margin:12px 0; }
+
+  /* symptom / fix pills */
+  .pill { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600;
+          padding:5px 12px; border-radius:999px; margin:2px 0; }
+  .pill.break { background:rgba(252,98,85,.12); color:var(--red); border:1px solid rgba(252,98,85,.35); }
+  .pill.fix   { background:rgba(131,193,103,.12); color:var(--green); border:1px solid rgba(131,193,103,.35); }
+  .pill.start { background:rgba(88,196,221,.12); color:var(--blue); border:1px solid rgba(88,196,221,.35); }
+  .pill .x { font:12px var(--mono); }
+
+  .fixline { display:flex; gap:10px; align-items:flex-start; margin:16px 0 4px; }
+  .fixline .arrow { color:var(--green); font:16px var(--mono); line-height:1.5; }
+
+  /* interactive break/fix demo */
+  .demo { border:1px solid var(--line); border-radius:12px; overflow:hidden; margin:20px 0; background:var(--panel); }
+  .demo-tabs { display:flex; gap:0; border-bottom:1px solid var(--line); background:#0c0f13; }
+  .dt { flex:1; border:0; background:none; cursor:pointer; font:inherit; font-size:13.5px; font-weight:600;
+        color:var(--dim); padding:11px 12px; border-bottom:2px solid transparent; }
+  .dt:first-child.active { color:var(--red); border-bottom-color:var(--red); background:rgba(252,98,85,.06); }
+  .dt:last-child.active  { color:var(--green); border-bottom-color:var(--green); background:rgba(131,193,103,.06); }
+  .demo-body { padding:16px 18px; }
+  .demo-view.fixed { display:none; }
+  .trace { margin:0; border:0; background:transparent; padding:0; font:12.5px/1.7 var(--mono); }
+  .trace .t-bad  { color:var(--red); }
+  .trace .t-good { color:var(--green); }
+  .trace .t-dim  { color:var(--faint); }
+  .caption { color:var(--dim); font-size:13px; margin:12px 0 0; }
+
+  /* in-the-code pointer */
+  .incode { display:flex; gap:10px; align-items:baseline; margin:18px 0 0; padding:12px 14px;
+            border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:8px; background:#0e1319; }
+  .incode .lbl { color:var(--gold); font:11px var(--mono); text-transform:uppercase; letter-spacing:.1em; flex:none; }
+  .incode .f { font:13px var(--mono); color:var(--ink); }
+
+  /* diagram */
+  .diagram { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:18px;
+             font:12.5px/1.7 var(--mono); color:#cdd3da; white-space:pre; overflow:auto; }
+  .diagram .b { color:var(--blue); } .diagram .g { color:var(--gold); }
+
+  /* progress dots between chapters */
+  .navnext { display:flex; justify-content:space-between; margin-top:40px; padding-top:20px; border-top:1px solid var(--line); }
+  .navnext button { background:none; border:1px solid var(--line); color:var(--ink); font:inherit;
+                    padding:9px 16px; border-radius:8px; cursor:pointer; }
+  .navnext button:hover { border-color:var(--blue); color:var(--blue); }
+  .navnext button:disabled { opacity:.3; cursor:default; }
+
+  .btn { display:inline-block; margin:14px 8px 4px 0; padding:10px 18px; background:var(--blue); color:#04222a;
+         font-weight:600; border-radius:8px; }
+  .btn:hover { text-decoration:none; filter:brightness(1.08); }
+  .btn.ghost { background:none; border:1px solid var(--line); color:var(--ink); }
+
+  table { border-collapse:collapse; width:100%; margin:10px 0; }
+  td { border-bottom:1px solid var(--line); padding:9px 8px; vertical-align:top; color:#d3d8de; }
+  td.k { font:12.5px var(--mono); color:var(--blue); white-space:nowrap; }
+
+  /* characters */
+  .chr svg { width:60px; height:60px; vertical-align:middle; }
+  .scene { display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin:22px 0 10px;
+           padding:22px 20px; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  .actor { display:flex; flex-direction:column; align-items:center; gap:6px; width:132px; flex:none; }
+  .actor .chr svg { width:100px; height:100px; }
+  .actor .who { font:11px var(--mono); letter-spacing:.05em; }
+  .actor .who.c { color:var(--blue); } .actor .who.b { color:var(--gold); }
+  .speech { flex:1; min-width:220px; display:flex; flex-direction:column; gap:10px; }
+  .bubble { background:#0e1319; border:1px solid var(--line); border-radius:12px;
+            padding:9px 14px; color:#d8dde3; font-size:14.5px; }
+  .bubble.c { border-left:3px solid var(--blue); }
+  .bubble.b { border-left:3px solid var(--gold); }
+  .bubble .nm { font:11px var(--mono); text-transform:uppercase; letter-spacing:.08em; display:block; margin-bottom:1px; }
+  .bubble.c .nm { color:var(--blue); } .bubble.b .nm { color:var(--gold); }
+  /* reaction inside a demo view */
+  .react { display:flex; gap:12px; align-items:center; margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
+  .react .chr svg { width:50px; height:50px; flex:none; }
+  .react .line { font-size:14px; font-style:italic; }
+  .demo-view.broken .react .line { color:var(--red); }
+  .demo-view.fixed  .react .line { color:var(--green); }
+  iframe.scene-embed { width:100%; height:560px; border:1px solid var(--line); border-radius:12px; background:var(--bg); margin:16px 0; display:block; }
+</style>
+</head>
+<body>
+<nav id="side"></nav>
+<main><div class="content" id="content"></div></main>
+
+<script src="../assets/cast.js"></script>
+<script>
+/* Each chapter = one real production failure, shown breaking, then fixed.
+   The story picks up exactly where the course ends: a working toy agent. */
+const CH = [
+  { id:"start", n:"", label:"Where we start", group:"The story",
+    html:`
+    <div class="kicker">Ship it</div>
+    <h1>You have a working agent. Now let real users hit it.</h1>
+    <p class="lead">First, meet the two who will walk you through all of this.</p>
+    <div class="scene">
+      <div class="actor"><span class="chr" data-c="bit" data-e="happy"></span><span class="who b">BIT &middot; you</span></div>
+      <div class="speech">
+        <div class="bubble b"><span class="nm">Bit</span>I've got a genius on tap &mdash; Cortex. Ask it anything and it reasons brilliantly.</div>
+        <div class="bubble c"><span class="nm">Cortex</span>...who are you? I don't recall us ever talking. Also &mdash; I appear to have no hands.</div>
+        <div class="bubble b"><span class="nm">Bit</span>That's the catch. It forgets everything between messages and can't touch the world. So I build it a memory, some tools, and a loop.</div>
+      </div>
+      <div class="actor"><span class="chr" data-c="cortex" data-e="confused"></span><span class="who c">CORTEX &middot; the model</span></div>
+    </div>
+    <p>That's the whole course in one scene. It ended with a <b>30-line agent loop</b>: Cortex talks,
+    it asks for a tool, Bit's code runs the tool and hands the result back &mdash; repeat until it answers.
+    On your laptop, with one user and a good network, it's perfect.</p>
+    <span class="pill start"><span class="x">-&gt;</span> Then you deploy it, and reality shows up.</span>
+    <p>This section is that reality, one failure at a time. Each chapter breaks the toy on purpose,
+    then adds the one piece that fixes it &mdash; with Cortex and Bit reacting the whole way. By the end
+    the toy is production-grade, and you'll know <i>why</i> every piece is there.</p>
+    <div class="diagram"><span class="b">you</span>  -&gt;  [ agent loop ]  &lt;-&gt;  [ model ]
+                    |
+               [ tools ]   <span class="g">calculate . read_file . list_dir</span>
+
+the whole toy, before production. six things go wrong. let's watch.</div>
+    <div class="incode"><span class="lbl">recap</span><span class="f">this is Module 0. If it feels fuzzy, replay that widget first.</span></div>`
+  },
+
+  { id:"retries", n:"1", label:"It crashes on a blip", group:"The story",
+    html:`
+    <div class="kicker">Chapter 1 &middot; reliability</div>
+    <h1>The network hiccups, and your agent dies.</h1>
+    <span class="pill break"><span class="x">x</span> Symptom: the API returns a 529 (overloaded), an exception bubbles up, the whole run is gone.</span>
+    <p>On your laptop this happens once a week. With real traffic it happens <b>constantly</b> &mdash;
+    a transient blip mid-loop shouldn't lose the user's whole conversation.</p>
+    <iframe class="scene-embed" src="scenes/retries/index.html" title="retries failure/fix scene" loading="lazy"></iframe>
+    <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> wrap the model call in exponential backoff. Retry the
+    <i>retryable</i> errors (429, 5xx, timeouts), give up on the rest, cap the attempts.</div></div>`
+  },
+
+  { id:"budget", n:"2", label:"It loops forever", group:"The story",
+    html:`
+    <div class="kicker">Chapter 2 &middot; reliability</div>
+    <h1>A confused model loops forever. Your bill does not have to.</h1>
+    <span class="pill break"><span class="x">x</span> Symptom: the model keeps calling a tool, reading the result, calling again... a $40 run from one prompt.</span>
+    <p>Nothing in the toy loop says <i>stop</i>. Two independent limits fix that: a hard <b>step cap</b>
+    (never more than N turns) and a <b>spend budget</b> (stop when the run has cost $X).</p>
+    <iframe class="scene-embed" src="scenes/budget/index.html" title="budget failure/fix scene" loading="lazy"></iframe>
+    <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> count every step and every token; enforce both ceilings; return a clean
+    "hit the limit" result instead of running (and billing) unbounded.</div></div>`
+  },
+
+  { id:"guardrail", n:"3", label:"It runs something dangerous", group:"The story",
+    html:`
+    <div class="kicker">Chapter 3 &middot; safety</div>
+    <h1>The model decides to do something you would never allow.</h1>
+    <span class="pill break"><span class="x">x</span> Symptom: given a shell tool, the model calls it with <code>rm -rf</code> &mdash; and the toy loop just... runs it.</span>
+    <p>The toy trusts every tool call. In production you need a <b>gate</b>: some tools run freely,
+    some need a human "yes," some are flat-out denied. Plus a <b>guardrail</b> that scans tool output
+    for injected instructions before it re-enters the model.</p>
+    <iframe class="scene-embed" src="scenes/guardrail/index.html" title="guardrail failure/fix scene" loading="lazy"></iframe>
+    <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> a per-tool policy (allow / ask / deny) with an approval callback, and an
+    input guardrail on tool results.</div></div>`
+  },
+
+  { id:"observe", n:"4", label:"You can't see inside", group:"The story",
+    html:`
+    <div class="kicker">Chapter 4 &middot; observability</div>
+    <h1>It gave a weird answer. What did it actually do?</h1>
+    <span class="pill break"><span class="x">x</span> Symptom: a user reports a bad answer. You have the answer and nothing else. Black box.</span>
+    <p>The toy loop throws away everything between "question" and "answer." In production you record
+    <b>every step</b>: which tools ran, with what args, how many tokens, how much it cost, how long it took.</p>
+    <iframe class="scene-embed" src="scenes/tracing/index.html" title="tracing failure/fix scene" loading="lazy"></iframe>
+    <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> emit a structured event per step and roll them into metrics (and OpenTelemetry-shaped
+    spans) you can log, chart, and alert on.</div></div>`
+  },
+
+  { id:"eval", n:"5", label:"It gets dumber silently", group:"The story",
+    html:`
+    <div class="kicker">Chapter 5 &middot; not regressing</div>
+    <h1>You improve the prompt. It gets subtly worse. Nobody notices for a week.</h1>
+    <span class="pill break"><span class="x">x</span> Symptom: a one-word prompt tweak quietly drops accuracy from 100% to 67%. It ships. Users suffer.</span>
+    <p>You can't eyeball this &mdash; agents fail on the <i>edge</i> cases you weren't looking at.
+    You need a fixed test set with a pass bar that <b>blocks the change in CI</b> before it ever ships.</p>
+    <iframe class="scene-embed" src="scenes/evalgate/index.html" title="evalgate failure/fix scene" loading="lazy"></iframe>
+    <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> an eval set + a baseline, run on every change, non-zero exit on regression.</div></div>
+    <p class="caption">This one is not hypothetical &mdash; an eval gate <b>caught a real bug</b> in this very project
+    while it was being built. That's the whole point of it.</p>`
+  },
+
+  { id:"compact", n:"6", label:"Long chats overflow", group:"The story",
+    html:`
+    <div class="kicker">Chapter 6 &middot; the long haul</div>
+    <h1>A long conversation overflows the context window.</h1>
+    <span class="pill break"><span class="x">x</span> Symptom: after 40 turns the message list is too big for the model. Hard error, chat dead.</span>
+    <p>Memory <i>is</i> the message list (Module 2). Left unbounded it grows past the window.
+    The fix is <b>compaction</b>: once the history crosses a threshold, summarize the old turns into a
+    compact note and keep going &mdash; the same trick this very session uses.</p>
+    <iframe class="scene-embed" src="scenes/compaction/index.html" title="compaction failure/fix scene" loading="lazy"></iframe>
+    <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> a compactor that triggers past a size threshold and folds old history into a summary.</div></div>`
+  },
+
+  { id:"whole", n:"", label:"The whole system", group:"The story",
+    html:`
+    <div class="kicker">Putting it together</div>
+    <h1>Six failures later, the toy is production-grade.</h1>
+    <p>Every piece below is one chapter you just walked through. Same loop at the center &mdash; everything
+    around it is what real users forced you to add.</p>
+    <div class="diagram">  you  -&gt;  [ <span class="b">agent loop</span> ]  &lt;-&gt;  [ model ]
+                     |
+                [ tools ]
+                     |
+  <span class="g">retries</span> . <span class="g">budget + caps</span> . <span class="g">guardrail + approval</span> . <span class="g">tracing</span> . <span class="g">compaction</span>
+                     |
+                <span class="g">eval gate</span> (blocks bad changes)</div>
+    <p>And here is that same picture <b>alive</b> - one request walking the real call graph, function by
+    function (then the scaled-out version with workers and MCP):</p>
+    <iframe class="scene-embed" src="scenes/callgraph/index.html" title="live call graph scene" loading="lazy"></iframe>
+    <div class="scene">
+      <div class="actor"><span class="chr" data-c="bit" data-e="happy"></span><span class="who b">BIT</span></div>
+      <div class="speech">
+        <div class="bubble b"><span class="nm">Bit</span>Same loop we started with &mdash; now it survives bad networks, runaway costs, dangerous calls, and long conversations.</div>
+        <div class="bubble c"><span class="nm">Cortex</span>And I remember who you are now. Mostly. Let's go &mdash; talk to me.</div>
+      </div>
+      <div class="actor"><span class="chr" data-c="cortex" data-e="happy"></span><span class="who c">CORTEX</span></div>
+    </div>`
+  },
+
+  { id:"multiagent", n:"7", label:"One context isn't enough", group:"Scale it",
+    html:`
+    <div class="kicker">Chapter 7 &middot; scale</div>
+    <h1>Three codebases walk into one context window.</h1>
+    <span class="pill break"><span class="x">x</span> Symptom: one agent audits three services in one context; compaction quietly eats the middle one; the audit "passes".</span>
+    <p>Module 8 said a team earns its cost when it buys <b>context isolation, specialization, or
+    parallelism</b>. Production is where you feel it: this audit is parallel and isolatable, and one
+    context simply cannot hold it. The fix is a <b>supervisor with isolated workers</b> &mdash; and the
+    operational details are the real lesson: per-worker budgets, retrying a failed worker <i>alone</i>,
+    and merging <b>summaries, never contexts</b>.</p>
+    <iframe class="scene-embed" src="scenes/multiagent/index.html" title="multi-agent failure/fix scene" loading="lazy"></iframe>
+    <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> fan out one worker per isolatable subtask, each with its own
+    context and budget; retry failures per-worker; the supervisor merges short reports.</div></div>
+    <p class="caption">Corollary from Module 8: when the task is sequential and fits one context,
+    skip all of this &mdash; one good agent wins and the team is pure coordination tax.</p>`
+  },
+
+  { id:"mcp", n:"8", label:"Every tool is a redeploy", group:"Scale it",
+    html:`
+    <div class="kicker">Chapter 8 &middot; scale</div>
+    <h1>Your agent's hands are hard-coded. The world's tools are not.</h1>
+    <span class="pill break"><span class="x">x</span> Symptom: every new integration is bespoke glue plus a redeploy &mdash; multiplied by every agent you run.</span>
+    <p>In Module 1 the tool menu was code you wrote by hand. <b>MCP</b> (the Model Context Protocol) is
+    an open standard that turns the menu into something <b>servers publish and agents discover at
+    runtime</b>: one protocol for "list your tools" and "run this tool". The physics don't change &mdash;
+    tools are still descriptions in the context, a runtime still executes the call &mdash; but the plug is
+    standard, so a new capability is <i>connect a server</i>, not <i>ship a release</i>.</p>
+    <iframe class="scene-embed" src="scenes/mcp/index.html" title="MCP failure/fix scene" loading="lazy"></iframe>
+    <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> speak the protocol: discover tools at runtime from MCP servers
+    instead of baking each one into the agent.</div></div>
+    <p class="caption">The catch: a server's tool descriptions and results are <b>untrusted text entering
+    your context</b> &mdash; so the Chapter 3 guardrail and approval gate apply to MCP tools exactly as to
+    your own.</p>`
+  },
+
+  { id:"serve", n:"", label:"Serve it", group:"Use it",
+    html:`
+    <div class="kicker">Use it &middot; serving</div>
+    <h1>First, make it reachable.</h1>
+    <p>A loop that only runs in your terminal is not a product &mdash; nobody but you can reach it. Wrap it
+    in an <b>HTTP server</b> and stream each step back to the browser, so anyone with the link can use it
+    and watch the loop think. Step through how that works:</p>
+    <iframe class="scene-embed" src="scenes/serve/index.html" title="serving scene" loading="lazy"></iframe>`
+  },
+
+  { id:"chat", n:"", label:"Talk to it", group:"Use it",
+    html:`
+    <div class="kicker">Use it</div>
+    <h1>Talk to the finished agent.</h1>
+    <p>Give Cortex a task and watch the loop happen &mdash; think -&gt; reach for a tool -&gt; read the
+    result -&gt; answer &mdash; with the message-list memory growing beside it. It runs as a deterministic
+    <b>simulation</b>: keyless, step through it at your own pace, nothing calls a model.</p>
+    <iframe class="scene-embed" src="web/index.html" title="the agent stage" loading="lazy" style="height:840px"></iframe>`
+  },
+];
+
+/* Cortex and Bit come from the shared cast.js (window.Cast). */
+const side = document.getElementById("side");
+const content = document.getElementById("content");
+
+/* build sidebar grouped */
+let html = `<div class="brand">Essence of Agents<span class="dot">.</span></div>`
+         + `<a class="navback course" href="../agentic-course/index.html">&larr; Back to the course</a>`
+         + `<a class="navback" href="../index.html">all tracks</a>`;
+let lastGroup = null;
+CH.forEach(c => {
+  if (c.group !== lastGroup) { html += `<div class="gh">${c.group}</div>`; lastGroup = c.group; }
+  html += `<button class="navlink" data-id="${c.id}"><span class="n">${c.n||"&bull;"}</span><span>${c.label}</span></button>`;
+});
+side.innerHTML = html;
+
+function idx(id){ return Math.max(0, CH.findIndex(c => c.id === id)); }
+
+/* Each embedded simulation reports its content height (via postMessage in cast.js);
+   size its iframe to match so it sits flush in the page with no nested scrollbar.
+   (Works with file:// too, where cross-origin blocks reading the iframe directly.) */
+addEventListener("message", e => {
+  const h = e.data && e.data.__embHeight;
+  if (!h || !e.source) return;
+  content.querySelectorAll("iframe.scene-embed").forEach(f => {
+    if (f.contentWindow === e.source && !/web\/index\.html/.test(f.getAttribute("src") || "")) f.style.height = h + "px";
+  });
+});
+
+function show(id) {
+  const i = idx(id), c = CH[i];
+  const prev = CH[i-1], next = CH[i+1];
+  content.innerHTML = c.html + `<div class="navnext">
+    <button ${prev?`data-go="${prev.id}"`:"disabled"}>${prev?"&larr; "+prev.label:"&larr;"}</button>
+    <button ${next?`data-go="${next.id}"`:"disabled"}>${next?next.label+" &rarr;":"&rarr;"}</button></div>`;
+  Cast.render(content);
+  content.parentElement.scrollTop = 0;
+  location.hash = c.id;
+  document.querySelectorAll(".navlink").forEach(b => b.classList.toggle("active", b.dataset.id === c.id));
+}
+
+/* delegated: nav links, prev/next, and break/fix demo tabs */
+side.addEventListener("click", e => { const b = e.target.closest(".navlink"); if (b) show(b.dataset.id); });
+content.addEventListener("click", e => {
+  const go = e.target.closest("[data-go]");
+  if (go) return show(go.dataset.go);
+  const tab = e.target.closest(".dt");
+  if (tab) {
+    const demo = tab.closest("[data-demo]");
+    demo.querySelectorAll(".dt").forEach(b => b.classList.toggle("active", b === tab));
+    const fixed = tab.dataset.state === "fixed";
+    demo.querySelector(".demo-view.broken").style.display = fixed ? "none" : "block";
+    demo.querySelector(".demo-view.fixed").style.display  = fixed ? "block" : "none";
+  }
+});
+
+show(location.hash ? location.hash.slice(1) : CH[0].id);
+</script>
+</body>
+</html>

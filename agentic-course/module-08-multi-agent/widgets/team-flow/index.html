@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The shape of the team</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:840px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+
+  .wrap { display:flex; gap:18px; align-items:stretch; }
+  .diag { width:360px; height:240px; flex:none; border:1px solid var(--line); border-radius:12px; background:#0b0e12; }
+  #dSingle { display:flex; align-items:center; gap:12px; padding:14px; }
+  #dTeam { position:relative; }
+
+  #dSingle .solo { display:flex; flex-direction:column; align-items:center; gap:3px; flex:none; }
+  #dSingle .solo .chr svg { width:76px; height:76px; }
+  #dSingle .lbl { font:10px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+  .ctxbox { flex:1; min-width:0; border:1px solid var(--line); border-radius:9px; background:var(--panel); padding:8px 9px; }
+  .ctxbox.crowd { border-color:var(--gold); }
+  .ctxh { font:9.5px var(--mono); text-transform:uppercase; letter-spacing:.05em; color:var(--faint); margin-bottom:6px; }
+  .item { display:flex; align-items:center; gap:7px; font:11.5px var(--mono); color:var(--faint); padding:3px 0; }
+  .item .dot { width:9px; height:9px; border-radius:50%; background:#2a3a44; flex:none; }
+  .item.active { color:var(--gold); } .item.active .dot { background:var(--gold); box-shadow:0 0 7px var(--gold); }
+  .item.done { color:var(--green); } .item.done .dot { background:var(--green); }
+
+  svg.edges { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .edge { stroke:#2a3a44; stroke-width:2; fill:none; transition:stroke .18s; }
+  .edge.disp.on { stroke:var(--gold); stroke-width:3; filter:drop-shadow(0 0 3px var(--gold)); }
+  .edge.coll.on { stroke:var(--green); stroke-width:3; filter:drop-shadow(0 0 3px var(--green)); }
+  .edge.sync { stroke-dasharray:5 4; }
+  .edge.sync.on { stroke:var(--red); stroke-width:3; filter:drop-shadow(0 0 4px var(--red)); }
+
+  .node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column;
+          align-items:center; gap:2px; z-index:2; }
+  .node .chr svg { width:58px; height:58px; }
+  .node .lbl { font:9.5px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.05em; }
+  .node.sup.active .chr svg { filter:drop-shadow(0 0 6px var(--gold)); }
+  .node.spec .box { border:1px solid var(--line); background:var(--panel); border-radius:8px;
+                    padding:5px 8px; font:11px var(--mono); color:var(--faint); white-space:nowrap; transition:all .18s; }
+  .node.spec.lit .box { border-color:var(--gold); color:var(--gold); box-shadow:0 0 9px rgba(255,211,92,.4); }
+  .node.spec.tax .box { border-color:var(--red); color:var(--red); box-shadow:0 0 9px rgba(252,98,85,.4); }
+  .node.spec.done .box { border-color:var(--green); color:var(--green); }
+
+  .side { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .col-h { color:var(--faint); font:11px var(--mono); text-transform:uppercase; letter-spacing:.12em; margin:0 0 10px; }
+  .stat { display:flex; align-items:center; gap:9px; margin-bottom:12px; }
+  .stat .k { font:11px var(--mono); color:var(--faint); min-width:82px; }
+  .bar { flex:1; height:9px; border-radius:6px; background:#1b2028; overflow:hidden; }
+  .bar > div { height:100%; width:0; background:var(--blue); transition:width .45s ease, background .2s; }
+  .bar.slow > div { background:var(--red); } .bar.fast > div { background:var(--green); }
+  .stat .v { font:12px var(--mono); color:var(--ink); }
+  .stat .v.hot { color:var(--red); }
+  .ctxnote { font:11.5px var(--mono); color:var(--dim); border-left:2px solid var(--line); padding-left:9px; margin:2px 0 12px; }
+  .verdict { margin-top:auto; padding:8px 11px; border-radius:8px; border:1px solid var(--line); font-size:13px; min-height:20px; }
+  .verdict.win { border-color:var(--green); color:var(--green); background:rgba(131,193,103,.07); }
+  .verdict.lose { border-color:var(--red); color:var(--red); background:rgba(252,98,85,.08); }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:14px 0 2px; flex-wrap:wrap; }
+  .mlbl { font:11px var(--mono); color:var(--faint); min-width:44px; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:14px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .wrap { flex-direction:column; }
+    .stage { width:100%; }
+    .diag { width:100%; max-width:100%; }
+  }
+</style>
+</head>
+<body>
+<h1>The shape of the team</h1>
+<p class="sub">More agents is not better - the right <b>shape</b> is. Messages travel as arrows between
+agent nodes. Watch when fanning out wins, and when it just buys coordination tax.</p>
+
+<div class="wrap">
+  <div class="stage" role="group" aria-label="Team shape diagram">
+    <div id="dSingle" class="diag">
+      <div class="solo"><span class="chr" id="soloChr" data-c="cortex" data-e="neutral"></span><span class="lbl">agent</span></div>
+      <div class="ctxbox" id="ctxbox"><div class="ctxh">its one context</div><div id="items"></div></div>
+    </div>
+
+    <div id="dTeam" class="diag" style="display:none">
+      <svg class="edges">
+        <defs>
+          <marker id="ah"  markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#ffd35c"/></marker>
+          <marker id="ahg" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#83c167"/></marker>
+        </defs>
+        <line class="edge disp" data-g="disp" x1="165" y1="80" x2="82"  y2="158" marker-end="url(#ah)"/>
+        <line class="edge disp" data-g="disp" x1="180" y1="84" x2="180" y2="156" marker-end="url(#ah)"/>
+        <line class="edge disp" data-g="disp" x1="195" y1="80" x2="278" y2="158" marker-end="url(#ah)"/>
+        <line class="edge coll" data-g="coll" x1="96"  y1="158" x2="174" y2="84"  marker-end="url(#ahg)"/>
+        <line class="edge coll" data-g="coll" x1="186" y1="156" x2="186" y2="86"  marker-end="url(#ahg)"/>
+        <line class="edge coll" data-g="coll" x1="284" y1="158" x2="190" y2="84"  marker-end="url(#ahg)"/>
+        <line class="edge sync" data-g="sync" x1="96"  y1="188" x2="154" y2="188"/>
+        <line class="edge sync" data-g="sync" x1="206" y1="188" x2="264" y2="188"/>
+      </svg>
+      <div class="node sup" id="supNode" style="left:180px;top:52px"><span class="chr" id="supChr" data-c="cortex" data-e="neutral"></span><span class="lbl">supervisor</span></div>
+      <div class="node spec" id="sp1" style="left:70px;top:188px"><span class="box">spec 1</span></div>
+      <div class="node spec" id="sp2" style="left:180px;top:188px"><span class="box">spec 2</span></div>
+      <div class="node spec" id="sp3" style="left:290px;top:188px"><span class="box">spec 3</span></div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="col-h">how it went</div>
+    <div class="stat"><span class="k">wall-clock</span><div class="bar" id="timeBar"><div id="timeFill"></div></div></div>
+    <div class="stat"><span class="k">coordination</span><span class="v" id="coordV">0 msgs</span></div>
+    <div class="ctxnote" id="ctxNote"></div>
+    <div class="verdict" id="verdict"></div>
+  </div>
+</div>
+
+<div class="modes">
+  <span class="mlbl">shape</span>
+  <button class="modebtn" data-shape="single">1 agent</button>
+  <button class="modebtn on" data-shape="team">supervisor + 3 specialists</button>
+</div>
+<div class="modes">
+  <span class="mlbl">task</span>
+  <button class="modebtn on" data-task="audit">audit 4 independent files</button>
+  <button class="modebtn" data-task="bug">fix 1 tangled bug</button>
+  <span class="modehint">switch either toggle and re-step to compare</span>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const LEN = 7;
+
+const ITEMS = {
+  audit: ["auth.py", "cache.py", "api.py", "db.py"],
+  bug:   ["reproduce it", "trace the tangle", "find shared state", "land the fix"],
+};
+const SPECS = {
+  audit: ["auth.py", "cache.py", "api + db"],
+  bug:   ["module A", "module B", "module C"],
+};
+// coordination messages by step
+const COORD = {
+  single: [0, 0, 0, 0, 0, 0, 0],
+  team_audit: [0, 3, 3, 6, 6, 6, 6],
+  team_bug:   [0, 3, 8, 11, 14, 14, 14],
+};
+// final wall-clock (%) per combo - the bar grows toward it
+const TIME = { single_audit: 100, single_bug: 48, team_audit: 30, team_bug: 92 };
+const CTXNOTE = {
+  single_audit: "1 context holding all 4 files - crowded",
+  single_bug:   "1 coherent context - holds the whole tangle",
+  team_audit:   "3 isolated contexts - one file each",
+  team_bug:     "3 contexts that must keep re-syncing",
+};
+const WIN = { single_audit: false, single_bug: true, team_audit: true, team_bug: false };
+const CAPS = {
+  single_audit: [
+    "One agent. Four independent files to audit - queued up.",
+    "It opens the first file. Serial: one at a time.",
+    "Second file - the same single context now holds two.",
+    "Third file. The one context is getting crowded.",
+    "Fourth file, at last. Four files serialized = four times the wait.",
+    "It stitches the findings together.",
+    "Slow and crowded. Independent files beg to be parallelized - the team wins here.",
+  ],
+  single_bug: [
+    "One agent. One tangled bug - its pieces are all connected.",
+    "It reproduces the bug.",
+    "It traces the tangle across modules - all in one head.",
+    "It spots the shared state that links them.",
+    "It lands the fix - no hand-offs, nothing to sync.",
+    "Done. One coherent context held the whole tangle.",
+    "A win: nothing to parallelize, nothing to coordinate. One mind, one context.",
+  ],
+  team_audit: [
+    "Supervisor + 3 specialists, idle. Four independent files to audit.",
+    "Supervisor fans the work out - three dispatches at once.",
+    "All three specialists audit in PARALLEL, each in its own clean context.",
+    "They report back - three results collected.",
+    "Supervisor merges the findings.",
+    "Done - in roughly one round instead of four.",
+    "A win: independent work fans out cleanly - parallel and isolated.",
+  ],
+  team_bug: [
+    "Supervisor + 3 specialists, idle. But it is ONE tangled bug.",
+    "Supervisor splits the tangle across three specialists.",
+    "The pieces are connected - specialists must keep syncing. Coordination piles up.",
+    "Conflicting edits come back; the supervisor has to reconcile.",
+    "Re-split, re-sync, re-merge. The tax keeps climbing.",
+    "Done at last - far slower than one agent would have been.",
+    "Coordination tax for nothing. A single agent would have been faster.",
+  ],
+};
+
+const soloChr = $("soloChr"), supChr = $("supChr"), supNode = $("supNode"), ctxbox = $("ctxbox"),
+      itemsEl = $("items"), timeBar = $("timeBar"), timeFill = $("timeFill"), coordV = $("coordV"),
+      ctxNote = $("ctxNote"), verdict = $("verdict"), caption = $("caption"), insight = $("insight");
+const specs = [$("sp1"), $("sp2"), $("sp3")];
+const state = { shape: "team", task: "audit" };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderStep(i, dir) {
+  const shape = state.shape, task = state.task;
+  const combo = shape + "_" + task;
+  const win = WIN[combo];
+
+  $("dSingle").style.display = shape === "single" ? "flex" : "none";
+  $("dTeam").style.display = shape === "team" ? "block" : "none";
+
+  if (shape === "single") {
+    // work items done/active/pending
+    const active = i >= 1 && i <= 4 ? i - 1 : -1;
+    itemsEl.innerHTML = ITEMS[task].map((t, k) => {
+      let cls = "item";
+      if (i >= 5 || k < active) cls += " done";
+      else if (k === active) cls += " active";
+      return '<div class="' + cls + '"><span class="dot"></span>' + t + '</div>';
+    }).join("");
+    ctxbox.classList.toggle("crowd", task === "audit" && i >= 3);
+    soloChr.dataset.e = i === 0 ? "neutral" : i <= 3 ? "think" : i === 4 ? "read"
+                       : i === 5 ? (win ? "happy" : "think") : (win ? "happy" : "confused");
+    Cast.render($("dSingle"));
+  } else {
+    // team: edges + specialists
+    document.querySelectorAll("#dTeam .edge").forEach(e => {
+      const g = e.dataset.g;
+      let on = false;
+      if (g === "disp") on = i >= 1;
+      else if (g === "coll") on = i >= 3;
+      else if (g === "sync") on = task === "bug" && i >= 2;
+      e.classList.toggle("on", on);
+    });
+    specs.forEach((n, k) => {
+      n.className = "node spec";
+      n.querySelector(".box").textContent = SPECS[task][k];
+      if (i >= 5) n.classList.add("done");
+      else if (i >= 1 && i <= 4) n.classList.add(task === "bug" && i >= 2 ? "tax" : "lit");
+    });
+    supNode.classList.toggle("active", i === 1 || i === 3 || i === 4);
+    supChr.dataset.e = i === 0 ? "neutral" : i === 1 ? "reach" : i === 2 ? (task === "bug" ? "confused" : "think")
+                      : i === 3 ? "read" : i === 4 ? "think" : (win ? "happy" : "confused");
+    Cast.render($("dTeam"));
+  }
+
+  // metrics
+  const target = TIME[combo];
+  timeBar.className = "bar " + (target >= 80 ? "slow" : target <= 40 ? "fast" : "");
+  const w = Math.round(target * (i / (LEN - 1)));
+  if (dir <= 0 || Anim.reduced()) { timeFill.style.transition = "none"; timeFill.style.width = w + "%"; void timeFill.offsetWidth; timeFill.style.transition = ""; }
+  else timeFill.style.width = w + "%";
+  const coord = COORD[shape === "single" ? "single" : "team_" + task][i];
+  coordV.textContent = coord + " msgs";
+  coordV.className = "v" + (coord >= 8 ? " hot" : "");
+  ctxNote.textContent = i === 0 ? "" : CTXNOTE[combo];
+
+  // verdict only at the end
+  if (i >= 6) {
+    verdict.className = "verdict " + (win ? "win" : "lose");
+    verdict.innerHTML = win ? "&#10003; this shape fits the task" : "&#10007; wrong shape - paying tax for nothing";
+  } else { verdict.className = "verdict"; verdict.textContent = ""; }
+
+  caption.textContent = CAPS[combo][i];
+  insight.innerHTML = i >= 6
+    ? "Parallel agents help when the work is independent; they only add coordination tax when it is not. <b>Match the team shape to the task.</b>"
+    : "Watch the arrows and the coordination counter: more agents only help if the work can actually split.";
+}
+
+const tl = new Anim.Timeline({ length: LEN, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + LEN });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  if (b.dataset.shape) {
+    state.shape = b.dataset.shape;
+    document.querySelectorAll("[data-shape]").forEach(x => x.classList.toggle("on", x === b));
+  } else {
+    state.task = b.dataset.task;
+    document.querySelectorAll("[data-task]").forEach(x => x.classList.toggle("on", x === b));
+  }
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

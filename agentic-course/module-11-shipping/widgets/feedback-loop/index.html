@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Close the loop</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:860px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .wrap { display:flex; gap:20px; align-items:stretch; }
+  .diagram { position:relative; width:380px; height:300px; flex:none;
+             border:1px solid var(--line); border-radius:12px; background:#0b0e12; }
+  svg.edges { position:absolute; inset:0; width:100%; height:100%; overflow:visible; color:#5a6b74; }
+  .edge { stroke:#2a3a44; stroke-width:2.5; fill:none; }
+  .edge.active { stroke:var(--gold); stroke-width:3; filter:drop-shadow(0 0 4px var(--gold)); }
+  .edge.feedback.active { stroke:var(--red); filter:drop-shadow(0 0 5px var(--red)); }
+  .edge.closed { stroke:var(--green); stroke-width:3; filter:drop-shadow(0 0 4px var(--green)); }
+  .edge-lbl { fill:var(--faint); font:9.5px var(--mono); }
+  .edge-lbl.hot { fill:var(--red); }
+
+  .node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column;
+          align-items:center; gap:3px; z-index:2; }
+  .node .box { border:1px solid var(--line); background:var(--panel); border-radius:9px;
+               padding:6px 11px; font:12px var(--mono); color:var(--ink); white-space:nowrap; transition:all .2s; }
+  .node .lbl { font:9.5px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+  .node .chr svg { width:60px; height:60px; }
+  .node.active .box { border-color:var(--gold); color:var(--gold); box-shadow:0 0 10px rgba(255,211,92,.4); }
+  .node.eval.grown .box { border-color:var(--green); color:var(--green); }
+  .badge { font:9.5px var(--mono); border-radius:999px; padding:1px 7px; border:1px solid var(--line); color:var(--faint); }
+  .badge.grown { color:var(--green); border-color:var(--green); }
+  .chip { font:9.5px var(--mono); border-radius:999px; padding:1px 7px; margin-top:2px; }
+  .chip.fail { color:var(--red); border:1px solid var(--red); background:rgba(252,98,85,.12); }
+  .chip.ok { color:var(--green); border:1px solid var(--green); }
+
+  .packet { position:absolute; top:0; left:0; width:16px; height:16px; border-radius:50%;
+            background:var(--gold); box-shadow:0 0 14px var(--gold); z-index:3;
+            transition:transform .65s ease; }
+  .packet.bad { background:var(--red); box-shadow:0 0 15px var(--red); }
+  .packet.good { background:var(--green); box-shadow:0 0 15px var(--green); }
+
+  .side { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .col-h { color:var(--faint); font:11px var(--mono); text-transform:uppercase; letter-spacing:.1em; margin:0 0 8px; }
+  #elist { flex:1; border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:10px; min-height:230px; }
+  .ecase { display:flex; align-items:center; gap:9px; border-radius:8px; padding:7px 10px; margin-bottom:7px;
+           font-size:12.5px; background:#0b0e12; border-left:3px solid var(--line); }
+  .ecase .dot { width:9px; height:9px; border-radius:50%; flex:none; }
+  .ecase.pass { border-left-color:var(--green); } .ecase.pass .dot { background:var(--green); }
+  .ecase.fail { border-left-color:var(--red); } .ecase.fail .dot { background:var(--red); }
+  .ecase .nm { color:#cdd3da; } .ecase .stt { margin-left:auto; font:10px var(--mono); text-transform:uppercase; letter-spacing:.05em; }
+  .ecase.pass .stt { color:var(--green); } .ecase.fail .stt { color:var(--red); }
+  .ecase.new { background:#12171e; animation:landin .4s ease; }
+  .reduce .ecase.new { animation:none; }
+  @keyframes landin { from { transform:translateX(-14px); opacity:0; } to { transform:none; opacity:1; } }
+  .enote { color:var(--faint); font-size:12px; margin-top:8px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:14px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .wrap { flex-direction:column; }
+    .diagram { width:100%; max-width:100%; }
+  }
+</style>
+</head>
+<body>
+<h1>Close the loop</h1>
+<p class="sub">A shipped agent is the dev loop with one edge soldered on: every real failure in production
+flows back into your eval set as a new test. Step through one full turn of the loop.</p>
+
+<div class="wrap">
+  <div class="diagram" id="diagram" role="group" aria-label="Feedback loop diagram">
+    <svg class="edges">
+      <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 z" fill="#5a6b74"/></marker></defs>
+      <line class="edge" id="e-dev_eval"  x1="80"  y1="138" x2="168" y2="72"  marker-end="url(#ah)"/>
+      <line class="edge" id="e-eval_ship" x1="212" y1="72"  x2="304" y2="138" marker-end="url(#ah)"/>
+      <line class="edge" id="e-ship_prod" x1="304" y1="162" x2="212" y2="234" marker-end="url(#ah)"/>
+      <line class="edge feedback" id="e-prod_eval" x1="176" y1="236" x2="176" y2="74" marker-end="url(#ah)"/>
+      <text class="edge-lbl" id="fblbl" x="90" y="152">failure -&gt; new test</text>
+    </svg>
+    <div class="node eval" id="nEval" style="left:190px;top:52px"><span class="box">eval set</span><span class="badge" id="evalBadge">4 cases</span></div>
+    <div class="node ship" id="nShip" style="left:320px;top:150px"><span class="box">ship</span><span class="lbl">deploy</span></div>
+    <div class="node prod" id="nProd" style="left:190px;top:250px"><span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span><span class="lbl">production</span><span class="chip" id="prodChip" style="display:none"></span></div>
+    <div class="node dev" id="nDev" style="left:60px;top:150px"><span class="chr" id="bitChr" data-c="bit" data-e="happy"></span><span class="lbl">dev (you)</span></div>
+    <div class="packet" id="packet"></div>
+  </div>
+
+  <div class="side">
+    <div class="col-h">the eval set (regression tests)</div>
+    <div id="elist"></div>
+    <div class="enote">every captured incident stays here - the set only grows</div>
+  </div>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+// Node centres within the 380x300 diagram.
+const P = { eval:[190,55], ship:[320,150], prod:[190,250], dev:[60,150] };
+const BASE = ["empty input", "long document", "code block", "non-English text"];
+const NEWCASE = "emoji-only message";
+
+// where the packet sits at each step
+function packetPos(i) {
+  return [P.eval, P.ship, P.prod, P.prod, P.eval, P.eval, P.eval][i];
+}
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const diagram = $("diagram"), packet = $("packet"), elist = $("elist"),
+      evalBadge = $("evalBadge"), prodChip = $("prodChip"),
+      cortexChr = $("cortexChr"), bitChr = $("bitChr"),
+      caption = $("caption"), insight = $("insight"), fblbl = $("fblbl");
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function setPacket(x, y, animate) {
+  packet.style.transition = animate ? "" : "none";
+  packet.style.transform = "translate(" + x + "px," + y + "px) translate(-50%,-50%)";
+  if (!animate) void packet.offsetWidth;
+}
+
+function renderStep(i, dir) {
+  // ---- eval set list (grows by one at step 4) ----
+  let cases = BASE.map(n => ({ nm:n, pass:true, isNew:false }));
+  if (i === 4) cases.push({ nm:NEWCASE, pass:false, isNew:true });
+  else if (i >= 5) cases.push({ nm:NEWCASE, pass:true, isNew:true });
+  elist.innerHTML = cases.map((c, idx) => {
+    const isNew = c.isNew && dir >= 0 && idx === cases.length - 1;
+    return '<div class="ecase ' + (c.pass ? "pass" : "fail") + (isNew ? " new" : "") + '">' +
+           '<span class="dot"></span><span class="nm">' + esc(c.nm) + '</span>' +
+           '<span class="stt">' + (c.pass ? "pass" : "fail") + '</span></div>';
+  }).join("");
+  const grown = i >= 4;
+  evalBadge.textContent = (grown ? 5 : 4) + " cases";
+  evalBadge.className = "badge" + (grown ? " grown" : "");
+  $("nEval").classList.toggle("grown", i >= 5);
+
+  // ---- prod failure chip ----
+  if (i === 3 || i === 4) { prodChip.style.display = ""; prodChip.className = "chip fail"; prodChip.textContent = "! new failure"; }
+  else if (i >= 5) { prodChip.style.display = ""; prodChip.className = "chip ok"; prodChip.textContent = "covered now"; }
+  else { prodChip.style.display = "none"; }
+
+  // ---- edges ----
+  const EDGES = { 0:"dev_eval", 1:"eval_ship", 2:"ship_prod", 4:"prod_eval" };
+  document.querySelectorAll(".edge").forEach(e => e.classList.remove("active", "closed"));
+  if (EDGES[i]) $("e-" + EDGES[i]).classList.add("active");
+  fblbl.classList.toggle("hot", i === 4);
+  if (i === 6) document.querySelectorAll(".edge").forEach(e => e.classList.add("closed"));
+
+  // ---- node highlight ----
+  ["nEval","nShip","nProd","nDev"].forEach(id => $(id).classList.remove("active"));
+  const NODEHI = { 0:"nDev", 1:"nShip", 2:"nProd", 3:"nProd", 4:"nEval", 5:"nEval", 6:"nEval" };
+  if (NODEHI[i]) $(NODEHI[i]).classList.add("active");
+
+  // ---- packet travel (forward only), colour by phase ----
+  packet.classList.toggle("bad", i === 3 || i === 4);
+  packet.classList.toggle("good", i >= 5);
+  const [tx, ty] = packetPos(i);
+  if (dir > 0 && !Anim.reduced()) {
+    const [fx, fy] = packetPos(i - 1);
+    if (fx !== tx || fy !== ty) { setPacket(fx, fy, false); requestAnimationFrame(() => setPacket(tx, ty, true)); }
+    else setPacket(tx, ty, false);
+  } else {
+    setPacket(tx, ty, false);
+  }
+
+  // ---- characters + caption + insight ----
+  const BIT = ["happy","neutral","neutral","panic","think","think","happy"];
+  const COR = ["neutral","neutral","neutral","confused","confused","read","happy"];
+  const CAP = [
+    "Your dev loop produced an eval set: 4 cases, all green. Confidence is high - so you ship.",
+    "All green, so you deploy the agent to production.",
+    "Real users hit the agent in production, all day long.",
+    "A user sends something your tests never imagined - and the agent fails in the wild.",
+    "You capture that failure and add it straight to the eval set as case 5. It starts red.",
+    "You fix the bug and re-run the evals. The new case now passes - and so do the original 4.",
+    "The loop is closed. That incident is now a permanent test the agent can never regress on again.",
+  ];
+  bitChr.dataset.e = BIT[i]; cortexChr.dataset.e = COR[i]; Cast.render(diagram);
+  caption.textContent = CAP[i];
+  insight.innerHTML = i === 6
+    ? "A real production failure becomes a permanent test. The loop closes - every incident makes the agent harder to break next time."
+    : "Production is your dev loop plus one edge: every real failure flows back in as a new test. Follow the packet around.";
+}
+
+const tl = new Anim.Timeline({ length: 7, onStep: renderStep, autoMs: 1350 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / 7" });
+tl.render(0);
+</script>
+</body>
+</html>

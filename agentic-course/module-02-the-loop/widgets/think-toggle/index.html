@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Delete the think step - Module 2</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  :root { --good:var(--green); --bad:var(--red); }
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:720px; margin:40px auto; padding:0 20px; }
+  h1 { font-size:19px; margin-bottom:4px; }
+  .sub { color:var(--dim); margin-top:0; }
+  .locked { background:var(--panel); border-radius:8px; padding:12px 14px; margin:16px 0; font-size:14px; }
+  .toggle { display:inline-flex; gap:8px; align-items:center; margin:6px 0 4px; }
+  .switch { font:inherit; padding:6px 14px; border:1px solid #2a2f38; border-radius:999px;
+            background:#171b21; cursor:pointer; }
+  .switch.on  { background:var(--bright); color:#04222a; border-color:var(--bright); }
+  .switch.off { background:#171b21; color:var(--ink); }
+  .thinking { color:var(--dim); font-style:italic; margin:10px 0; white-space:pre-wrap; }
+  .thinking .label { font-style:normal; font-variant:small-caps; margin-right:6px; }
+  .answer { margin:10px 0; font-size:17px; }
+  .answer.good { color:var(--good); }
+  .answer.bad  { color:var(--bad); }
+  .verdict { font-weight:600; margin-left:6px; }
+  .caption { color:var(--dim); font-size:14px; margin-top:12px; }
+  button.run { font:inherit; padding:8px 18px; border:0; border-radius:8px;
+               background:var(--bright); color:#04222a; cursor:pointer; margin-top:12px; }
+  button.run:disabled { opacity:.5; cursor:default; }
+  .cursor { color:var(--bright); }
+  @media (max-width:640px) {
+    body { padding:0 14px; }
+    img, svg, pre { max-width:100%; }
+    .locked { word-break:break-word; }
+    .toggle { flex-wrap:wrap; }
+    .react { flex-wrap:wrap; }
+  }
+</style>
+</head>
+<body>
+<h1>Delete the think step</h1>
+<p class="sub">Same model, same prompt. The only change is whether it gets to think first.</p>
+<div id="widget" role="group" aria-label="Delete the think step - reasoning toggle demo" aria-live="polite"></div>
+
+<script>
+// Hand-authored replay data (illustrative; regenerate from real runs later).
+// The bat-and-ball problem: the intuitive answer ($0.10) is wrong; the algebra gives $0.05.
+const TRACE = {
+  prompt: "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost?",
+  variants: {
+    think: {
+      reasoning: [
+        { t_ms:160, text:"Let the ball cost x dollars. " },
+        { t_ms:440, text:"Then the bat costs x + 1.00. " },
+        { t_ms:760, text:"Together: x + (x + 1.00) = 1.10, so 2x = 0.10, x = 0.05." }
+      ],
+      answer: "The ball costs $0.05.",
+      correct: true
+    },
+    nothink: {
+      reasoning: [],
+      answer: "The ball costs $0.10.",
+      correct: false
+    }
+  }
+};
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function* replay(chunks) { let p=0; for (const c of chunks){ await sleep((c.t_ms-p)); p=c.t_ms; yield c.text; } }
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+
+const el = document.getElementById("widget");
+const state = { thinkOn:true, busy:false, reasoning:"", answer:null, correct:null };
+
+function render() {
+  let html = `<div class="locked">&#128274; prompt: ${esc(TRACE.prompt)}</div>`;
+  html += `<div class="toggle">Reasoning:
+      <button class="switch ${state.thinkOn ? "on" : "off"}" id="toggle">
+        ${state.thinkOn ? "ON" : "OFF"}</button></div>`;
+
+  if (state.reasoning)
+    html += `<div class="thinking"><span class="label">thinking</span>${esc(state.reasoning)}` +
+            `${state.busy ? '<span class="cursor">&#9612;</span>' : ""}</div>`;
+
+  if (state.answer !== null) {
+    const cls = state.correct ? "good" : "bad";
+    const mark = state.correct ? "&#10003; correct" : "&#10007; wrong (the intuitive trap)";
+    html += `<div class="answer ${cls}">${esc(state.answer)}<span class="verdict">${mark}</span></div>`;
+    if (!state.correct)
+      html += `<div class="react bad"><span class="chr" data-c="cortex" data-e="panic"></span><span class="line">No room to think - I just blurt the first thing that comes out.</span></div>`;
+  }
+
+  html += `<button class="run" id="run" ${state.busy ? "disabled" : ""}>&#9654; Run</button>`;
+  if (state.answer !== null && !state.busy)
+    html += `<div class="caption">Flip the switch and run again. Nothing else changed.</div>`;
+
+  el.innerHTML = html;
+  document.getElementById("toggle").onclick = () => {
+    if (state.busy) return;
+    state.thinkOn = !state.thinkOn;
+    state.reasoning = ""; state.answer = null; state.correct = null;
+    render();
+  };
+  document.getElementById("run").onclick = run;
+  if (window.Cast) Cast.render(el);
+}
+
+async function run() {
+  state.busy = true; state.reasoning = ""; state.answer = null; state.correct = null;
+  render();
+  const v = state.thinkOn ? TRACE.variants.think : TRACE.variants.nothink;
+  for await (const t of replay(v.reasoning)) { state.reasoning += t; render(); }
+  await sleep(state.thinkOn ? 250 : 350);
+  state.answer = v.answer; state.correct = v.correct; state.busy = false;
+  render();
+}
+
+render();
+</script>
+<script src="../../../../assets/cast.js"></script>
+<script>Cast.render(document);</script>
+</body>
+</html>

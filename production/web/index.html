@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cortex - the agent, on stage</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171b21; --panel2:#1b2028; --line:#2a2f38;
+    --ink:#e9ebee; --dim:#98a2b0; --faint:#6b7480;
+    --blue:#58c4dd; --gold:#ffd35c; --red:#fc6255; --green:#83c167;
+    --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif;
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);
+       font:15.5px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+         padding:12px 20px;border-bottom:1px solid var(--line);background:#0c0f13;}
+  .htitle b{font-family:var(--serif);font-size:19px;} .htitle b .dot{color:var(--gold);}
+  .htitle span{color:var(--dim);font-size:13px;margin-left:8px;}
+  .tabs{display:flex;gap:6px;}
+  .tab{border:1px solid var(--line);background:none;color:var(--dim);font:inherit;font-size:13.5px;
+       padding:7px 14px;border-radius:8px;cursor:pointer;}
+  .tab.active{color:var(--ink);border-color:var(--blue);background:#12171e;}
+
+  .panel{flex:1;overflow:auto;}
+  .banner{max-width:960px;margin:14px auto 0;padding:8px 14px;border-radius:8px;font-size:13px;
+          border:1px solid var(--line);color:var(--dim);background:var(--panel);}
+  .banner b{color:var(--gold);}
+
+  /* ---- the stage ---- */
+  #stage{position:relative;max-width:960px;margin:18px auto;padding:10px 20px;
+         display:grid;grid-template-columns:170px 1fr 300px;gap:18px;align-items:stretch;}
+  .col-h{color:var(--faint);font:11px var(--mono);text-transform:uppercase;letter-spacing:.12em;margin:0 0 10px;}
+
+  .tools{padding-top:6px;}
+  .tool{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;
+        padding:10px 12px;margin-bottom:10px;font:13px var(--mono);color:var(--dim);background:var(--panel);
+        transition:all .15s;}
+  .tool::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none;}
+  .tool.active{color:var(--gold);border-color:var(--gold);background:rgba(255,211,92,.08);
+               transform:translateX(6px) scale(1.04);}
+  .tool.active::before{background:var(--gold);box-shadow:0 0 10px var(--gold);}
+
+  .cortexwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+              border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:22px 16px;min-height:280px;}
+  #cortex svg{width:150px;height:150px;transition:transform .2s;}
+  #cortex.busy svg{transform:translateY(-2px);}
+  .say{max-width:280px;text-align:center;color:#d8dde3;font-size:14.5px;min-height:44px;
+       background:#0e1319;border:1px solid var(--line);border-radius:12px;padding:8px 14px;}
+  .say.think{color:var(--blue);} .say.done{color:var(--green);}
+
+  /* Cortex's reaching arm (drawn between the chip and the tool) */
+  #arm{position:absolute;height:0;border-top:3px dashed var(--gold);transform-origin:0 0;
+       display:none;pointer-events:none;opacity:.9;}
+  #arm .hand{position:absolute;right:-6px;top:-6px;width:12px;height:12px;border-radius:50%;
+             background:var(--gold);box-shadow:0 0 8px var(--gold);}
+
+  /* memory = the message list */
+  .memory{display:flex;flex-direction:column;min-height:280px;}
+  #mlist{flex:1;overflow:auto;border:1px solid var(--line);border-radius:12px;background:#0b0e12;padding:10px;}
+  .mcard{border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:13px;border-left:3px solid var(--line);background:var(--panel);}
+  .mcard .ml{font:10px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--faint);display:block;margin-bottom:1px;}
+  .mcard.user{border-left-color:var(--gold);} .mcard.user .ml{color:var(--gold);}
+  .mcard.assistant{border-left-color:var(--blue);} .mcard.assistant .ml{color:var(--blue);}
+  .mcard.tool_use,.mcard.tool_result{font:12px var(--mono);color:#cdd3da;}
+  .mcard.tool_use{border-left-color:var(--dim);} .mcard.tool_result{border-left-color:var(--green);}
+  .mcard.flag{border-left-color:var(--red);color:var(--red);font-size:12px;}
+  .memnote{color:var(--faint);font-size:12px;margin-top:8px;text-align:center;}
+
+  .status{max-width:960px;margin:0 auto 10px;padding:10px 20px;color:var(--dim);font:13px var(--mono);}
+  .status .k{color:var(--blue);}
+
+  /* answer */
+  #answer{max-width:960px;margin:0 auto 20px;padding:0 20px;}
+  .answerbox{border:1px solid var(--line);border-left:3px solid var(--green);border-radius:12px;
+             background:var(--panel);padding:14px 16px;font-size:17px;white-space:pre-wrap;}
+  .answerbox .metrics{color:var(--dim);font:12px var(--mono);margin-top:8px;}
+
+  /* plain chat tab */
+  #chatlog{max-width:760px;margin:0 auto;padding:18px;}
+  .turn{margin:16px 0;} .cu{background:#12171e;border:1px solid var(--line);padding:10px 14px;border-radius:10px;white-space:pre-wrap;}
+  .cs{margin:8px 0 0 6px;border-left:2px solid var(--line);padding:2px 0 2px 12px;color:var(--dim);font:13px/1.7 var(--mono);}
+  .cb{margin-top:8px;background:var(--panel);border:1px solid var(--line);padding:10px 14px;border-radius:10px;white-space:pre-wrap;font-size:17px;}
+
+  /* dock */
+  .exrow{max-width:960px;margin:0 auto;padding:0 20px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .exlbl{color:var(--faint);font-size:12.5px;}
+  .ex{font:inherit;font-size:13.5px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;
+      background:var(--panel);color:var(--dim);cursor:pointer;}
+  .ex:hover{border-color:var(--blue);color:var(--blue);}
+  .dock{display:flex;align-items:center;gap:12px;max-width:960px;width:100%;margin:0 auto;
+        padding:12px 20px;border-top:1px solid var(--line);background:#0c0f13;}
+  .dock .chr svg{width:40px;height:40px;}
+  #f{flex:1;display:flex;gap:8px;}
+  #q{flex:1;font:inherit;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:#0e1319;color:var(--ink);}
+  #run,#step{font:inherit;font-weight:600;border:0;border-radius:9px;cursor:pointer;padding:11px 18px;}
+  #run{background:var(--blue);color:#04222a;} #run:disabled{opacity:.5;cursor:default;}
+  #step{background:var(--gold);color:#2a2205;display:none;}
+  #step.on{display:inline-block;}
+  .footwrap{background:#0c0f13;border-top:1px solid var(--line);}
+  /* shared-engine scrubber (offline simulation) */
+  #scrub.scrub{display:flex;align-items:center;gap:8px;max-width:960px;margin:0 auto 14px;padding:0 20px;}
+  .scrub-btn{font:14px/1 var(--mono);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:6px 11px;cursor:pointer;}
+  .scrub-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .scrub-btn.play.on{color:var(--blue);border-color:var(--blue);}
+  .scrub-range{flex:1;accent-color:var(--blue);height:4px;}
+  .scrub-count{font:12px var(--mono);color:var(--faint);min-width:96px;text-align:right;}
+  .scrub-note{font:11px var(--mono);color:var(--faint);border:1px solid var(--line);border-radius:999px;padding:2px 8px;margin-left:4px;cursor:help;white-space:nowrap;}
+</style>
+</head>
+<body>
+<header>
+  <div class="htitle"><b>Cortex<span class="dot">.</span></b><span>the agent, live on stage</span></div>
+  <div class="tabs"><button class="tab active" data-tab="stage">Stage</button><button class="tab" data-tab="chat">Plain chat</button></div>
+</header>
+
+<div id="panel-stage" class="panel">
+  <div class="banner" id="banner"></div>
+  <div id="stage">
+    <div id="arm"><span class="hand"></span></div>
+    <div class="tools">
+      <div class="col-h">Tools (its hands)</div>
+      <div class="tool" data-t="calculate">calculate</div>
+      <div class="tool" data-t="read_file">read_file</div>
+      <div class="tool" data-t="list_dir">list_dir</div>
+    </div>
+    <div>
+      <div class="col-h" style="text-align:center">Cortex (the model)</div>
+      <div class="cortexwrap"><div class="chr" id="cortex"></div><div class="say" id="say">Give me a task and watch me work.</div></div>
+    </div>
+    <div class="memory">
+      <div class="col-h">Memory (the message list)</div>
+      <div id="mlist"></div>
+      <div class="memnote">every turn is appended here - this <i>is</i> the agent's memory</div>
+    </div>
+  </div>
+  <div class="status" id="status">idle</div>
+  <div id="answer"></div>
+  <div id="scrub" style="display:none"></div>
+</div>
+
+<div id="panel-chat" class="panel" hidden><div id="chatlog"></div></div>
+
+<div class="footwrap">
+  <div class="exrow"><span class="exlbl">Try:</span><span id="examples"></span></div>
+  <div class="dock">
+    <span class="chr" id="bitface" data-c="bit" data-e="neutral"></span>
+    <form id="f" autocomplete="off"><input id="q" placeholder="Give Cortex a task, or click one above..." /><button id="run" type="submit">Run</button></form>
+  </div>
+</div>
+
+<script src="../../assets/cast.js"></script>
+<script src="../../assets/anim.js"></script>
+<script>
+/* Cortex and Bit come from the shared cast.js (window.Cast). */
+// Simulation by default (deterministic, keyless, scrubbable). Opt into a real
+// model call only with ?live in the URL (advanced; needs the server + a key).
+const LIVE = new URLSearchParams(location.search).has("live");
+const $=id=>document.getElementById(id);
+const cortexEl=$("cortex"), sayEl=$("say"), mlist=$("mlist"), statusEl=$("status"),
+      answerEl=$("answer"), armEl=$("arm"), qEl=$("q"), runBtn=$("run");
+$("bitface").innerHTML=Cast.bit("neutral");
+
+let stepNo=0;
+function setMood(m,cls){ cortexEl.innerHTML=Cast.cortex(m); cortexEl.classList.toggle("busy",m!=="neutral"&&m!=="happy"); }
+function say(t,cls){ sayEl.textContent=t; sayEl.className="say"+(cls?" "+cls:""); }
+function status(html){ statusEl.innerHTML=html; }
+function esc(s){ return (s+"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function fmtArgs(a){ try{return JSON.stringify(a);}catch(e){return "";} }
+function dur(v){ return v==="replay"?"replay":((v==null?"-":v)+"ms"); }
+
+function addMem(type,label,text){
+  const c=document.createElement("div"); c.className="mcard "+type;
+  c.innerHTML=`<span class="ml">${label}</span>${esc(text)}`;
+  mlist.appendChild(c); mlist.scrollTop=mlist.scrollHeight;
+}
+function tool(name){ return document.querySelector(`.tool[data-t="${name}"]`); }
+function activateTool(name){ document.querySelectorAll(".tool").forEach(t=>t.classList.remove("active")); const t=tool(name); if(t){t.classList.add("active"); window._at=t;} }
+function clearTool(){ document.querySelectorAll(".tool").forEach(t=>t.classList.remove("active")); window._at=null; armEl.style.display="none"; }
+function drawArm(){
+  const t=window._at; if(!t){armEl.style.display="none";return;}
+  const stage=$("stage"), sr=stage.getBoundingClientRect(), cr=cortexEl.getBoundingClientRect(), tr=t.getBoundingClientRect();
+  const x1=cr.left-sr.left+cr.width*0.30, y1=cr.top-sr.top+cr.height*0.60;
+  const x2=tr.right-sr.left, y2=tr.top-sr.top+tr.height/2;
+  const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy), ang=Math.atan2(dy,dx)*180/Math.PI;
+  armEl.style.display="block"; armEl.style.left=x1+"px"; armEl.style.top=y1+"px";
+  armEl.style.width=len+"px"; armEl.style.transform="rotate("+ang+"deg)";
+}
+
+/* one handler renders both stage + plain-chat from the same event kinds */
+let chatSteps=null, chatBot=null;
+function resetStage(task){
+  stepNo=0; mlist.innerHTML=""; answerEl.innerHTML=""; $("chatlog").innerHTML=""; clearTool();
+  addMem("user","You",task);
+  setMood("think"); say("Let me think about that...","think");
+  const turn=document.createElement("div"); turn.className="turn";
+  turn.innerHTML=`<div class="cu">${esc(task)}</div>`;
+  chatSteps=document.createElement("div"); chatSteps.className="cs"; turn.appendChild(chatSteps);
+  chatBot=document.createElement("div"); chatBot.className="cb"; chatBot.textContent="..."; turn.appendChild(chatBot);
+  $("chatlog").appendChild(turn);
+}
+function applyEvent(ev){
+  if(ev.kind==="model_reply"){ stepNo++; setMood("think"); say("Thinking about the next move...","think");
+    status(`<span class="k">step ${stepNo}</span> Cortex is thinking`); chatSteps.appendChild(line("- model step")); }
+  else if(ev.kind==="tool_use"){ activateTool(ev.tool); setMood("reach"); requestAnimationFrame(drawArm);
+    say(`I need the ${ev.tool} tool.`); addMem("tool_use","tool call","-> "+ev.tool+"("+fmtArgs(ev.args)+")");
+    status(`<span class="k">step ${stepNo}</span> reaching for <b>${ev.tool}</b>`);
+    chatSteps.appendChild(line("-> "+ev.tool+"("+fmtArgs(ev.args)+")")); }
+  else if(ev.kind==="tool_result"){ setMood("read"); clearTool();
+    say("Reading what it gave me...");
+    addMem("tool_result","result",ev.result!=null?("= "+ev.result):(ev.is_error?"! tool error":"(returned)"));
+    status(`<span class="k">step ${stepNo}</span> ${ev.tool||"tool"} returned`);
+    chatSteps.appendChild(line("  "+(ev.tool||"tool")+" returned")); }
+  else if(ev.kind==="guardrail_flag"){ addMem("flag","guardrail","! flagged "+ev.tool+" output");
+    chatSteps.appendChild(line("! guardrail flagged "+ev.tool)); }
+  else if(ev.kind==="answer"){ setMood("happy"); say("Done!","done"); clearTool();
+    addMem("assistant","Cortex",ev.text); showAnswer(ev.text,ev.metrics);
+    if(chatBot) chatBot.textContent=ev.text;
+    const m=ev.metrics||{}; status(`<span class="k">done</span> ${m.steps||stepNo} steps . ${m.tool_calls||0} tool calls . ${m.input_tokens||"-"}/${m.output_tokens||"-"} tok . ${dur(m.duration_ms)}`); }
+  else if(ev.kind==="error"){ setMood("panic"); say("Something went wrong."); showAnswer("error: "+ev.error);
+    if(chatBot) chatBot.textContent="error: "+ev.error; status("error"); }
+}
+function line(t){ const d=document.createElement("div"); d.textContent=t; return d; }
+function showAnswer(text,m){
+  const box=document.createElement("div"); box.className="answerbox"; box.textContent=text;
+  if(m){ const mm=document.createElement("div"); mm.className="metrics";
+    mm.textContent=`${m.steps} steps . ${m.tool_calls} tool calls . ${m.input_tokens}/${m.output_tokens} tokens . ${dur(m.duration_ms)}`;
+    box.appendChild(mm); }
+  answerEl.innerHTML=""; answerEl.appendChild(box);
+}
+
+/* ---- offline demo (step through) vs live (SSE) ---- */
+function scriptFor(task){
+  if(/file|list|read|folder|dir/i.test(task)) return [
+    {kind:"model_reply"},
+    {kind:"tool_use",tool:"list_dir",args:{path:"."}},
+    {kind:"tool_result",tool:"list_dir",result:"agent_pro.py, server.py, web/, router.py, README.md"},
+    {kind:"model_reply"},
+    {kind:"answer",text:"This folder is the production agent: the hardened loop (agent_pro.py), the HTTP server, this web UI, and supporting pieces.",metrics:{steps:2,tool_calls:1,input_tokens:160,output_tokens:38,duration_ms:"replay"}},
+  ];
+  return [
+    {kind:"model_reply"},
+    {kind:"tool_use",tool:"calculate",args:{expression:"2**20 + 17*23"}},
+    {kind:"tool_result",tool:"calculate",result:"1048967"},
+    {kind:"model_reply"},
+    {kind:"answer",text:"2**20 + 17*23 = 1048967.",metrics:{steps:2,tool_calls:1,input_tokens:143,output_tokens:24,duration_ms:"replay"}},
+  ];
+}
+// Offline simulation runs on the shared engine: renderStage(i) rebuilds the whole
+// stage by replaying events 0..i-1, so it is fully scrubbable (play / step / drag).
+let evs = null, offlineTL = null;
+function renderStage(i, dir){
+  resetStage(evs.task);
+  for (let k = 0; k < i; k++) applyEvent(evs.list[k]);
+  if (i === 0){ setMood("think"); say("You asked. Cortex is about to think...","think"); status('<span class="k">move 0</span> task received'); }
+}
+
+function run(task){
+  task=(task||"").trim(); if(!task) return;
+  qEl.value="";
+  if(LIVE){
+    runBtn.disabled=true;
+    resetStage(task);
+    status("running against the live model...");
+    const es=new EventSource("/chat/stream?task="+encodeURIComponent(task));
+    es.onmessage=m=>{ const ev=JSON.parse(m.data); if(ev.kind==="done"){es.close();runBtn.disabled=false;return;} applyEvent(ev); };
+    es.onerror=()=>{ es.close(); runBtn.disabled=false; if(chatBot&&chatBot.textContent==="...")chatBot.textContent="connection error"; say("Can't reach the server."); status("connection error - is the server running?"); };
+  }else{
+    evs={ task, list: scriptFor(task) };
+    offlineTL=new Anim.Timeline({ length: evs.list.length+1, onStep: renderStage, autoMs: 1500 });
+    Anim.scrubber($("scrub"), offlineTL, { label:i => "move " + i + " / " + evs.list.length });
+    $("scrub").style.display="flex";
+    offlineTL.render(0);
+  }
+}
+$("f").onsubmit=e=>{ e.preventDefault(); run(qEl.value); };
+
+/* examples */
+const EX=["What is 2**20 + 17*23?","List the files in this folder","What is 17 * 23?"];
+$("examples").innerHTML=EX.map(t=>`<button class="ex">${esc(t)}</button>`).join("");
+document.querySelectorAll(".ex").forEach(b=>b.onclick=()=>run(b.textContent));
+
+/* tabs */
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===t));
+  $("panel-stage").hidden = t.dataset.tab!=="stage";
+  $("panel-chat").hidden  = t.dataset.tab!=="chat";
+});
+
+/* init */
+setMood("neutral");
+$("banner").innerHTML = LIVE
+  ? "<b>Live (advanced).</b> Talking to a real model with your key - each step streams in as it happens."
+  : "<b>Simulation.</b> Step through the agent loop one move at a time - deterministic, no key, no server. Watch it think, call a tool, and answer.";
+</script>
+</body>
+</html>

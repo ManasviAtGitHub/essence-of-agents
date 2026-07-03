@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scene template</title>
+<!-- Paths assume this file lives at agentic-course/module-XX/.../widgets/NAME/index.html.
+     Copy it there, then edit STEPS + renderStep. See /assets/README.md for the recipe. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:760px; margin:36px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+  .stage { display:flex; gap:16px; align-items:center; border:1px solid var(--line);
+           border-radius:12px; background:var(--panel); padding:18px; min-height:150px; }
+  .stage .chr svg { width:90px; height:90px; }
+  .caption { font-size:15px; margin:12px 0; }
+</style>
+</head>
+<body>
+<h1>Scene title</h1>
+<p class="sub">One line on what this scene makes you see.</p>
+
+<div class="stage">
+  <span class="chr" data-c="cortex" data-e="think"></span>
+  <div class="caption" id="caption"></div>
+</div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+// 1) Your scene data -- one entry per scrubbable step.
+const STEPS = [
+  { text: "Step one: the setup.", mood: "think" },
+  { text: "Step two: the thing moves.", mood: "reach" },
+  { text: "Step three: the aha.", mood: "happy" },
+];
+
+const caption = document.getElementById("caption");
+const chr = document.querySelector(".stage .chr");
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+// 2) Draw step i. Use dir > 0 to trigger forward-only animations (CSS transitions).
+function renderStep(i, dir) {
+  const s = STEPS[i];
+  caption.textContent = s.text;
+  chr.dataset.e = s.mood;
+  Cast.render(chr.parentElement);   // redraw faces after any change
+}
+
+// 3) Wire the shared timeline + scrubber.
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: renderStep, autoMs: 1200 });
+Anim.scrubber(document.getElementById("scrub"), tl, { label: i => "step " + (i + 1) + " / " + STEPS.length });
+tl.render(0);
+</script>
+</body>
+</html>

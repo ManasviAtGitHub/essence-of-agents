@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Plan, fail, re-plan - Module 5</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  :root { --good:var(--green); --bad:var(--red); }
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:740px; margin:40px auto; padding:0 20px; }
+  h1 { font-size:19px; margin-bottom:4px; }
+  .sub { color:var(--dim); margin-top:0; }
+  .locked { background:var(--panel); border-radius:8px; padding:10px 14px; margin:14px 0; font-size:14px; }
+  .row { display:flex; align-items:center; gap:10px; margin:10px 0; }
+  .rl { width:90px; color:var(--dim); font-variant:small-caps; flex:none; }
+  .switch { font:inherit; padding:6px 14px; border:1px solid #2a2f38; border-radius:999px; background:#171b21; cursor:pointer; }
+  .switch.on { background:var(--bright); color:#04222a; border-color:var(--bright); }
+  button.run { font:inherit; padding:8px 18px; border:0; border-radius:8px; background:var(--bright);
+               color:#04222a; cursor:pointer; margin:8px 0; }
+  button.run:disabled { opacity:.5; cursor:default; }
+  .step { display:flex; gap:10px; align-items:flex-start; padding:6px 2px; }
+  .mark { width:18px; flex:none; text-align:center; }
+  .step.ok .mark { color:var(--good); }
+  .step.fail .mark { color:var(--bad); }
+  .step.fail .txt { color:var(--bad); }
+  .err { color:var(--bad); font-size:13px; margin-left:28px; }
+  .banner { color:var(--bright); font-style:italic; margin:8px 0 4px 2px; }
+  .verdict { margin-top:12px; font-weight:600; }
+  .verdict.good { color:var(--good); }
+  .verdict.bad { color:var(--bad); }
+  .caption { color:var(--dim); font-size:14px; margin-top:6px; }
+  @media (max-width:640px) {
+    body { padding:0 14px; }
+    img, svg, pre { max-width:100%; }
+    .locked, .step, .err { word-break:break-word; }
+    .react { flex-wrap:wrap; }
+  }
+</style>
+</head>
+<body>
+<h1>Plan, fail, re-plan</h1>
+<p class="sub">A perfect-looking plan vs. a plan that survives contact with reality.</p>
+<div id="widget" role="group" aria-label="Plan, fail, re-plan demo" aria-live="polite"></div>
+
+<script>
+const TASK = "Add a /health endpoint and get the tests passing.";
+const RIGID = [
+  { step:"Add the /health route", ok:true },
+  { step:"Run the tests", ok:false, err:"ImportError: app not found - the plan assumed a layout that isn't there." },
+];
+const REPLAN = [
+  { step:"Read the project layout", ok:true },
+  { step:"Fix the import path", ok:true },
+  { step:"Run the tests", ok:true, note:"pass" },
+];
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const el = document.getElementById("widget");
+const state = { replan:true, busy:false, items:[], verdict:null };
+
+function render() {
+  let html = `<div class="locked">&#128274; task: ${esc(TASK)}</div>`;
+  html += `<div class="row"><span class="rl">re-plan on fail</span>
+      <button class="switch ${state.replan ? "on" : "off"}" id="replan">${state.replan ? "ON" : "OFF"}</button></div>`;
+  html += `<button class="run" id="run" ${state.busy ? "disabled" : ""}>&#9654; Run</button>`;
+
+  state.items.forEach(it => {
+    if (it.banner) { html += `<div class="banner">&#8635; re-planning from the new state&hellip;</div>`; return; }
+    const cls = it.status, mark = it.status === "ok" ? "&#10003;" : "&#10007;";
+    html += `<div class="step ${cls}"><span class="mark">${mark}</span><span class="txt">${esc(it.text)}${it.note ? " ("+esc(it.note)+")" : ""}</span></div>`;
+    if (it.err) html += `<div class="err">${esc(it.err)}</div>`;
+  });
+
+  if (state.verdict) {
+    html += `<div class="verdict ${state.verdict.good ? "good" : "bad"}">${esc(state.verdict.text)}</div>`;
+    html += `<div class="caption">The first plan was wrong by step 2. Re-planning from the error beat following the stale plan.</div>`;
+    if (state.verdict.good) html += `<div class="react good"><span class="chr" data-c="cortex" data-e="read"></span><span class="line">First plan hit a wall - so we make a new one and keep going.</span></div>`;
+  }
+
+  el.innerHTML = html;
+  document.getElementById("replan").onclick = () => { if (!state.busy) { state.replan = !state.replan; state.items = []; state.verdict = null; render(); } };
+  document.getElementById("run").onclick = run;
+  if (window.Cast) Cast.render(el);
+}
+
+async function run() {
+  state.busy = true; state.items = []; state.verdict = null; render();
+
+  const seq = [];
+  for (const s of RIGID) {
+    seq.push({ text:s.step, status:s.ok ? "ok" : "fail", err:s.err });
+    if (!s.ok) break;
+  }
+  const failed = seq[seq.length - 1].status === "fail";
+  if (failed && state.replan) {
+    seq.push({ banner:true });
+    for (const s of REPLAN) seq.push({ text:s.step, status:s.ok ? "ok" : "fail", note:s.note });
+  }
+
+  for (const item of seq) { state.items.push(item); render(); await sleep(280); }
+
+  state.verdict = (failed && state.replan)
+    ? { good:true,  text:"Done - re-planned around the failure." }
+    : { good:false, text:"Stuck - the plan didn't survive contact with reality." };
+  state.busy = false; render();
+}
+
+render();
+</script>
+<script src="../../../../assets/cast.js"></script>
+<script>Cast.render(document);</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{
+  "id": "m0-nondeterminism",
+  "recorded_at": "2026-06-22T10:14:03",
+  "_note": "Illustrative sample - replace by running record_trace.py against the real API.",
+  "input": {
+    "model": "one pinned LLM",
+    "system": "Answer in exactly two sentences. No preamble.",
+    "prompt": "Read your own source and explain how you work, in two sentences.",
+    "max_tokens": 400
+  },
+  "runs": [
+    {
+      "run_id": 1,
+      "text": "I read my own source code with a read_file tool, then summarized how I work. I loop: call the model, run any tool it requests, feed the result back, until it has a final answer.",
+      "chunks": [
+        { "t_ms": 120, "text": "I read my own source code" },
+        { "t_ms": 270, "text": " with a read_file tool, then summarized how I work." },
+        { "t_ms": 690, "text": " I loop: call the model, run any tool it requests, feed the result back, until it has a final answer." }
+      ]
+    },
+    {
+      "run_id": 2,
+      "text": "I read my own source code, then explained the loop and the one tool I call. Each turn I resend the whole message history, execute any tool the model asks for, and continue until it stops.",
+      "chunks": [
+        { "t_ms": 110, "text": "I read my own source code" },
+        { "t_ms": 250, "text": ", then explained the loop and the one tool I call." },
+        { "t_ms": 640, "text": " Each turn I resend the whole message history, execute any tool the model asks for, and continue until it stops." }
+      ]
+    },
+    {
+      "run_id": 3,
+      "text": "I read my own source code and described the read_file tool and the loop around it. The loop keeps calling the model and running requested tools until the model returns a final answer instead of a tool request.",
+      "chunks": [
+        { "t_ms": 130, "text": "I read my own source code" },
+        { "t_ms": 280, "text": " and described the read_file tool and the loop around it." },
+        { "t_ms": 720, "text": " The loop keeps calling the model and running requested tools until the model returns a final answer instead of a tool request." }
+      ]
+    }
+  ]
+}

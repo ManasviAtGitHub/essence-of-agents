@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Inside the model vs outside in the loop</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:840px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+
+  .banner { border:1px solid var(--line); border-radius:10px; background:var(--panel);
+            padding:9px 13px; font:13px var(--mono); color:var(--ink); margin-bottom:14px; }
+  .banner b { color:var(--gold); }
+
+  .cols { display:flex; gap:16px; align-items:stretch; }
+  .panel { flex:1; min-width:0; border:1px solid var(--line); border-radius:12px; background:#0b0e12;
+           padding:12px 13px; display:flex; flex-direction:column; transition:border-color .2s, opacity .2s; }
+  .panel.active { border-color:var(--blue); box-shadow:0 0 12px rgba(88,196,221,.18); }
+  .panel.win { border-color:var(--green); }
+  .panel.lose { opacity:.5; }
+  .ph { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:2px; }
+  .ph .t { font:12px var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--ink); }
+  .panel.inside .ph .t { color:var(--blue); } .panel.outside .ph .t { color:var(--gold); }
+  .badge { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; padding:2px 7px; border-radius:999px; border:1px solid transparent; opacity:0; }
+  .badge.right { color:var(--green); border-color:var(--green); opacity:1; }
+  .badge.wrong { color:var(--red); border-color:var(--red); opacity:1; }
+  .ph2 { font-size:12px; color:var(--dim); margin-bottom:10px; }
+
+  .think-row { display:flex; gap:10px; align-items:flex-start; min-height:120px; }
+  .think-row .chr svg { width:64px; height:64px; flex:none; }
+  .bubble { flex:1; min-width:0; border:1px dashed #33414c; border-radius:12px; padding:8px 10px; background:#0e141a; }
+  .bubble .bh { font:9.5px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:5px; }
+  .tok { display:block; font:11.5px var(--mono); color:#cdd3da; padding:3px 7px; margin:3px 0; border-radius:6px;
+         background:#141b22; border-left:2px solid var(--blue); }
+  .tok.new { animation:fade .3s ease; } @keyframes fade { from { opacity:0; transform:translateY(4px);} to { opacity:1; } }
+  .reduce .tok.new { animation:none; }
+  .tok.ans { border-left-color:var(--ink); color:var(--ink); font-weight:600; margin-top:6px; }
+
+  .flow { display:flex; flex-direction:column; gap:6px; min-height:120px; justify-content:center; }
+  .fbox { font:11.5px var(--mono); border:1px solid var(--line); border-radius:8px; padding:6px 9px; background:var(--panel); color:#cdd3da; }
+  .fbox.model { border-left:2px solid var(--gold); }
+  .fbox.call { border-left:2px solid var(--gold); color:var(--gold); opacity:0; transition:opacity .3s; }
+  .fbox.res  { border-left:2px solid var(--green); color:var(--green); opacity:0; transition:opacity .3s; }
+  .fbox.res.bad { border-left-color:var(--red); color:var(--red); }
+  .fbox.show { opacity:1; }
+  .farr { text-align:center; color:var(--faint); font:11px var(--mono); }
+
+  .cost { font:10.5px var(--mono); color:var(--faint); margin-top:8px; min-height:14px; }
+  .res { margin-top:8px; font:12px var(--mono); min-height:20px; padding:5px 9px; border-radius:7px; border:1px solid transparent; }
+  .res.ok  { color:var(--green); border-color:var(--green); background:rgba(131,193,103,.07); }
+  .res.bad { color:var(--red); border-color:var(--red); background:rgba(252,98,85,.08); }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:16px 0 2px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .cols { flex-direction:column; }
+    .panel { width:100%; max-width:100%; }
+  }
+</style>
+</head>
+<body>
+<h1>Inside the model vs outside in the loop</h1>
+<p class="sub">Two ways to spend effort: think harder <b>inside</b> the model (reasoning tokens), or add
+a step <b>outside</b> in the loop (a tool). Same task, both approaches - watch which one fits.</p>
+
+<div class="banner" id="banner"></div>
+
+<div class="cols" role="group" aria-label="Inside the model versus outside in the loop comparison">
+  <div class="panel inside" id="pInside">
+    <div class="ph"><span class="t">INSIDE the model</span><span class="badge" id="bInside"></span></div>
+    <div class="ph2">think harder - spend reasoning tokens, call no tool</div>
+    <div class="think-row">
+      <span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
+      <div class="bubble"><div class="bh">reasoning tokens</div><div id="tokens"></div></div>
+    </div>
+    <div class="cost" id="costIn"></div>
+    <div class="res" id="resIn"></div>
+  </div>
+
+  <div class="panel outside" id="pOutside">
+    <div class="ph"><span class="t">OUTSIDE in the loop</span><span class="badge" id="bOutside"></span></div>
+    <div class="ph2">add a step - call a tool that acts on the world</div>
+    <div class="flow">
+      <div class="fbox model">model: "I need a step here"</div>
+      <div class="farr">|<br>v</div>
+      <div class="fbox call" id="fCall"></div>
+      <div class="fbox res" id="fRes"></div>
+    </div>
+    <div class="cost" id="costOut"></div>
+    <div class="res" id="resOut"></div>
+  </div>
+</div>
+
+<div class="modes">
+  <button class="modebtn on" data-task="0">A logic puzzle</button>
+  <button class="modebtn" data-task="1">A fact it never saw</button>
+  <span class="modehint">pick a task - switch and re-step to compare</span>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+const TASKS = [
+  { // 0 - logic puzzle: deliberation-bound. INSIDE wins.
+    banner: 'TASK: a logic puzzle (knights and knaves) - <b>needs deliberation</b>',
+    inside: {
+      tokens: ["A claims: \"B always lies\"", "assume A is truthful", "then B does lie - as A said", "no contradiction: it holds"],
+      ans: "A tells the truth, B lies",
+      ok: true,
+      note: "Careful step-by-step reasoning cracks it. The missing ingredient was deliberation - which lives inside the model." },
+    outside: {
+      call: "search_docs('knights and knaves')",
+      result: "no matching entry - nothing to retrieve",
+      resbad: true,
+      ans: "tool returns nothing usable",
+      ok: false,
+      note: "A tool can only fetch or act. There is no fact to look up here - it cannot do the reasoning for you." },
+    right: "inside" },
+  { // 1 - a fact the model never saw. OUTSIDE wins.
+    banner: 'TASK: your team\'s Q3 refund SLA - <b>a fact the model never saw</b>',
+    inside: {
+      tokens: ["this is not in my training", "typical SLAs are ~30 days", "that feels about right", "answering to stay helpful"],
+      ans: "\"refunds within 30 days\"  (invented)",
+      ok: false,
+      note: "Confident - and wrong. No amount of thinking conjures a fact the model never saw; it just hallucinates a plausible one." },
+    outside: {
+      call: "search_docs('refund SLA')",
+      result: "policy.md: 'refunds honored within 14 days'",
+      resbad: false,
+      ans: "\"refunds within 14 days\"  (from the doc)",
+      ok: true,
+      note: "One lookup supplies the missing fact. The loop - not the thinking - was the fix." },
+    right: "outside" },
+];
+
+const $ = id => document.getElementById(id);
+const banner = $("banner"), cortexChr = $("cortexChr"), tokensEl = $("tokens"),
+      costIn = $("costIn"), resIn = $("resIn"), fCall = $("fCall"), fRes = $("fRes"),
+      costOut = $("costOut"), resOut = $("resOut"), pInside = $("pInside"), pOutside = $("pOutside"),
+      bInside = $("bInside"), bOutside = $("bOutside"), caption = $("caption"), insight = $("insight");
+const state = { task: 0 };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+const LEN = 7;
+function renderStep(i, dir) {
+  const t = TASKS[state.task];
+  banner.innerHTML = t.banner;
+
+  const verdict = i >= 6;
+  const nTok = i < 1 ? 0 : i < 2 ? 2 : 4;
+  const insideDone = i >= 3;
+  const showCall = i >= 4;
+  const showRes = i >= 5;
+
+  // panel emphasis
+  pInside.className = "panel inside" + (verdict ? (t.right === "inside" ? " win" : " lose") : (i >= 1 && i <= 3 ? " active" : ""));
+  pOutside.className = "panel outside" + (verdict ? (t.right === "outside" ? " win" : " lose") : (i >= 4 && i <= 5 ? " active" : ""));
+
+  // verdict badges
+  bInside.className = "badge" + (verdict ? (t.right === "inside" ? " right" : " wrong") : "");
+  bInside.textContent = verdict ? (t.right === "inside" ? "right tool" : "wrong lever") : "";
+  bOutside.className = "badge" + (verdict ? (t.right === "outside" ? " right" : " wrong") : "");
+  bOutside.textContent = verdict ? (t.right === "outside" ? "right tool" : "wrong lever") : "";
+
+  // reasoning tokens accumulate
+  let html = "";
+  for (let k = 0; k < nTok; k++) html += '<span class="tok' + (dir >= 0 && k === nTok - 1 && !insideDone ? " new" : "") + '">' + t.inside.tokens[k] + '</span>';
+  if (insideDone) html += '<span class="tok ans">= ' + t.inside.ans + '</span>';
+  tokensEl.innerHTML = html;
+  costIn.textContent = nTok ? ("cost: ~" + (nTok * 34) + " reasoning tokens - slower to think") : "";
+  resIn.className = "res" + (insideDone ? (t.inside.ok ? " ok" : " bad") : "");
+  resIn.innerHTML = insideDone ? ((t.inside.ok ? "&#10003; " : "&#10007; ") + (t.inside.ok ? "solved by thinking" : "hallucinated - looks confident, is wrong")) : "";
+
+  // outside flow
+  fCall.textContent = "-> " + t.outside.call;
+  fCall.classList.toggle("show", showCall);
+  fRes.textContent = "<- " + t.outside.result;
+  fRes.className = "fbox res" + (t.outside.resbad ? " bad" : "") + (showRes ? " show" : "");
+  costOut.textContent = showCall ? "cost: 1 tool call - a round-trip in the loop" : "";
+  resOut.className = "res" + (showRes ? (t.outside.ok ? " ok" : " bad") : "");
+  resOut.innerHTML = showRes ? ((t.outside.ok ? "&#10003; " : "&#10007; ") + t.outside.ans) : "";
+
+  // Cortex mood
+  const mood = i === 0 ? "neutral" : i <= 2 ? "think" : i === 3 ? (t.inside.ok ? "happy" : "confused")
+             : i === 4 ? "reach" : i === 5 ? (t.outside.ok ? "happy" : "confused") : "happy";
+  cortexChr.dataset.e = mood; Cast.render(cortexChr.parentElement);
+
+  // caption + insight
+  const caps = [
+    "The task is set. Two ways to spend effort: think harder INSIDE, or add a step OUTSIDE.",
+    "INSIDE: spend reasoning tokens - deliberate, call no tool.",
+    "More reasoning tokens accumulate. Effort goes into thinking, not fetching.",
+    t.inside.note,
+    "OUTSIDE: add a step in the loop - call a tool that acts on the world.",
+    t.outside.note,
+    "The right tool for this task: " + (t.right === "inside" ? "think harder INSIDE." : "a step OUTSIDE (a tool)."),
+  ];
+  caption.textContent = caps[i];
+  insight.innerHTML = verdict
+    ? "Reasoning models think harder inside; tools act outside. <b>Neither is 'better' - match the approach to the task.</b>"
+    : "Same task, two levers: reasoning tokens spent <b>inside</b> vs a tool step added <b>outside</b>.";
+}
+
+const tl = new Anim.Timeline({ length: LEN, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + LEN });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  state.task = +b.dataset.task;
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

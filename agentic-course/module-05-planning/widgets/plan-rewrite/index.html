@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Plan, crack, re-plan</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:840px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .scene { display:flex; gap:18px; align-items:flex-start; }
+  .model { flex:none; width:120px; display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:30px; }
+  .model .chr svg { width:88px; height:88px; }
+  .model .mnote { color:var(--faint); font:10px var(--mono); text-transform:uppercase; letter-spacing:.08em; }
+
+  .planbox { flex:1; min-width:0; }
+  .task { font:13px var(--mono); color:var(--dim); border:1px solid var(--line); border-radius:10px;
+          background:var(--panel); padding:9px 13px; margin-bottom:12px; }
+  .task b { color:var(--gold); font-weight:600; }
+  .plan-h { font:10px var(--mono); text-transform:uppercase; letter-spacing:.1em; color:var(--faint); margin-bottom:6px; }
+
+  .plan { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
+  .prow { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-left:3px solid var(--line);
+          border-radius:9px; background:var(--panel); padding:8px 12px; }
+  .prow .pico { width:18px; height:18px; flex:none; display:flex; align-items:center; justify-content:center; }
+  .prow .pico .ic { width:16px; height:16px; }
+  .prow .ic-pending { width:12px; height:12px; border:2px solid #4a5560; border-radius:50%; box-sizing:border-box; }
+  .prow .pnum { font:11px var(--mono); color:var(--faint); min-width:14px; }
+  .prow .ptext { flex:1; font-size:14px; color:var(--dim); }
+  .prow .pstat { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); }
+  .prow.done   { border-left-color:var(--green); } .prow.done .ptext   { color:var(--ink); } .prow.done .pstat   { color:var(--green); }
+  .prow.failed { border-left-color:var(--red); background:rgba(252,98,85,.08); } .prow.failed .ptext { color:var(--ink); } .prow.failed .pstat { color:var(--red); }
+  .prow.pending .pstat { color:var(--faint); }
+
+  .prow.new   { animation:slidein .34s ease both; }
+  .prow.just  { animation:flash .55s ease; }
+  .prow.crack { animation:crack .42s ease; }
+  @keyframes slidein { from { transform:translateY(-8px); opacity:0; } to { transform:none; opacity:1; } }
+  @keyframes flash { from { background:#1a2230; } to { } }
+  @keyframes crack { 0%,100% { transform:none; } 20% { transform:translateX(-5px); } 40% { transform:translateX(5px); }
+                     60% { transform:translateX(-3px); } 80% { transform:translateX(3px); } }
+  .reduce .prow.new, .reduce .prow.just, .reduce .prow.crack { animation:none; }
+
+  .banner { min-height:22px; margin-top:12px; font:12.5px var(--mono); padding:8px 12px; border-radius:8px;
+            border:1px solid transparent; }
+  .banner.bad  { color:var(--red);   border-color:rgba(252,98,85,.4);  background:rgba(252,98,85,.07); }
+  .banner.warn { color:var(--gold);  border-color:rgba(255,211,92,.4); background:rgba(255,211,92,.07); }
+  .banner.good { color:var(--green); border-color:rgba(131,193,103,.4); background:rgba(131,193,103,.08); }
+
+  .caption { color:#d8dde3; font-size:15px; margin:14px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .scene { flex-direction:column; }
+    .model { width:100%; max-width:100%; padding-top:0; }
+  }
+</style>
+</head>
+<body>
+<h1>Plan, crack, re-plan</h1>
+<p class="sub">A plan is a <b>hypothesis</b>, not a script. When a step meets reality and breaks, a
+planning agent doesn't give up - it rewrites the plan and keeps going. Step through one that breaks.</p>
+
+<div class="scene">
+  <div class="model">
+    <span class="chr" id="cortexChr" data-c="cortex" data-e="think"></span>
+    <span class="mnote">the agent</span>
+  </div>
+  <div class="planbox">
+    <div class="task">Task &mdash; <b>Add a /health endpoint and get the tests passing.</b></div>
+    <div class="plan-h">plan</div>
+    <ol class="plan" id="plan" role="group" aria-label="The agent's plan - a list of steps with their status"></ol>
+    <div class="banner" id="banner"></div>
+  </div>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+const S1 = "read app.py", S2 = "add /health route", S3 = "run tests",
+      S4 = "fix the import", S5 = "re-run tests";
+
+// Each step is a full snapshot of the plan: rows [id, text, status], plus which row changed / is new.
+const STEPS = [
+  { rows:[[1,S1,"pending"],[2,S2,"pending"],[3,S3,"pending"]], just:null, news:[], mood:"think", banner:null,
+    cap:"The agent drafts a plan FIRST: three steps. This is a hypothesis about what should work.",
+    ins:"Planning = write the steps up front, then execute them one at a time." },
+  { rows:[[1,S1,"done"],[2,S2,"pending"],[3,S3,"pending"]], just:1, news:[], mood:"read", banner:null,
+    cap:"Step 1: read app.py to see how routes are wired. Done.",
+    ins:"Each step runs, then its status is recorded on the plan." },
+  { rows:[[1,S1,"done"],[2,S2,"done"],[3,S3,"pending"]], just:2, news:[], mood:"read", banner:null,
+    cap:"Step 2: add the /health route. Done - so far the plan is holding up.",
+    ins:"Two greens in a row. The plan looks right... but it hasn't met the tests yet." },
+  { rows:[[1,S1,"done"],[2,S2,"done"],[3,S3,"failed"]], just:3, news:[], mood:"panic",
+    banner:{ cls:"bad", txt:"$ pytest  ->  ImportError: cannot import name 'app'" },
+    cap:"Step 3: run the tests - and the plan CRACKS. A step just failed: the import is wrong.",
+    ins:"This is the moment that matters: reality broke the hypothesis." },
+  { rows:[[1,S1,"done"],[2,S2,"done"],[3,S3,"failed"],[4,S4,"pending"],[5,S5,"pending"]], just:null, news:[4,5], mood:"think",
+    banner:{ cls:"warn", txt:"re-plan: route is fine, the import was wrong - add a fix, then re-run" },
+    cap:"Cortex does NOT quit. It re-plans: keep what worked, and add new steps to fix the real problem.",
+    ins:"Re-planning: read the failure, then revise the remaining steps - here, two new ones slide in." },
+  { rows:[[1,S1,"done"],[2,S2,"done"],[3,S3,"failed"],[4,S4,"done"],[5,S5,"pending"]], just:4, news:[], mood:"reach",
+    banner:null,
+    cap:"Step 4: fix the import. Done. The revised plan is now underway.",
+    ins:"The failed step stays in the record (red) - the agent works around it, it doesn't erase history." },
+  { rows:[[1,S1,"done"],[2,S2,"done"],[3,S3,"failed"],[4,S4,"done"],[5,S5,"done"]], just:5, news:[], mood:"happy", done:true,
+    banner:{ cls:"good", txt:"$ pytest  ->  3 passed in 0.12s" },
+    cap:"Step 5: re-run the tests - all green. The revised plan works.",
+    ins:"The first plan meets reality and breaks. A planning agent doesn't quit - it revises the plan and continues." },
+];
+
+const CHECK = '<svg viewBox="0 0 16 16" class="ic"><path d="M3,8.5 l3.2,3.2 l6.8,-8" fill="none" stroke="#83c167" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CROSS = '<svg viewBox="0 0 16 16" class="ic"><path d="M4,4 l8,8 M12,4 l-8,8" fill="none" stroke="#fc6255" stroke-width="2.4" stroke-linecap="round"/></svg>';
+const ICON = { pending:'<span class="ic-pending"></span>', done:CHECK, failed:CROSS };
+const WORD = { pending:"todo", done:"done", failed:"FAIL" };
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const plan = $("plan"), banner = $("banner"), caption = $("caption"), insight = $("insight"), cortexChr = $("cortexChr");
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderStep(i, dir) {
+  const s = STEPS[i];
+  const animate = dir > 0 && !Anim.reduced();
+
+  plan.innerHTML = s.rows.map(r => {
+    const [id, text, status] = r;
+    let cls = "prow " + status;
+    if (animate && s.news.indexOf(id) >= 0) cls += " new";
+    if (animate && s.just === id) cls += (status === "failed" ? " crack" : " just");
+    return '<li class="' + cls + '"><span class="pico">' + ICON[status] + '</span>' +
+           '<span class="pnum">' + id + '</span><span class="ptext">' + esc(text) + '</span>' +
+           '<span class="pstat">' + WORD[status] + '</span></li>';
+  }).join("");
+
+  if (s.banner) { banner.className = "banner " + s.banner.cls; banner.textContent = s.banner.txt; }
+  else { banner.className = "banner"; banner.textContent = ""; }
+
+  cortexChr.dataset.e = s.mood; Cast.render(document);
+  caption.textContent = s.cap;
+  insight.innerHTML = "<b>" + (s.done ? "The aha:" : "Note:") + "</b> " + s.ins;
+}
+
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: renderStep, autoMs: 1350 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + STEPS.length });
+tl.render(0);
+</script>
+</body>
+</html>

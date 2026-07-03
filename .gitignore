@@ -1,0 +1,22 @@
+# secrets -- never commit
+.env
+*.key
+
+# local tool settings
+.claude/
+
+# python
+__pycache__/
+*.pyc
+
+# node / playwright
+node_modules/
+
+# generated / throwaway artifacts
+tools/shot-*.png
+tools/gallery/
+*.trace.json
+agentic-course/module-11-shipping/evalset.json
+
+# built static site
+dist/

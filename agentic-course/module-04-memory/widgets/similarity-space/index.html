@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Retrieval: the similarity space</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:860px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .scene { display:flex; gap:18px; align-items:flex-start; }
+  .space { position:relative; width:400px; height:300px; flex:none; border:1px solid var(--line);
+           border-radius:12px; background:#0b0e12; overflow:visible; }
+  svg.lines { position:absolute; inset:0; width:100%; height:100%; overflow:visible; transition:opacity .3s; }
+  .lines line { stroke:#3a4a55; stroke-width:1.5; stroke-dasharray:3 3; }
+  .lines line.near { stroke:var(--blue); stroke-width:2; stroke-dasharray:none; opacity:.8; }
+
+  .qpoint { position:absolute; z-index:4; transition:opacity .3s; }
+  .qpoint .di { position:absolute; left:0; top:0; width:14px; height:14px; transform:translate(-50%,-50%) rotate(45deg);
+                background:var(--gold); box-shadow:0 0 12px var(--gold); border-radius:2px; }
+  .qpoint .ql { position:absolute; left:0; top:12px; transform:translateX(-50%); white-space:nowrap;
+                font:10px var(--mono); color:var(--gold); }
+
+  .dot { position:absolute; z-index:3; opacity:1; transition:transform .6s ease, opacity .5s ease; }
+  .dot .pt { position:absolute; left:0; top:0; width:18px; height:18px; border-radius:50%;
+             transform:translate(-50%,-50%); background:#4a5560;
+             transition:width .4s ease, height .4s ease, background .4s ease, box-shadow .3s ease; }
+  .dot .dl { position:absolute; left:20px; top:-8px; white-space:nowrap; font:10px var(--mono); color:var(--faint); transition:color .3s; }
+  .dot.l .dl { left:auto; right:20px; }
+  .dot.bright .pt { background:var(--blue); box-shadow:0 0 12px rgba(88,196,221,.6); }
+  .dot.bright .dl { color:var(--blue); }
+  .dot.dim .pt { background:#2c343d; }
+  .dot.dim .dl { color:#525b66; }
+  .dot.sel .pt { background:var(--blue); box-shadow:0 0 0 4px rgba(88,196,221,.35), 0 0 16px var(--blue); }
+  .dot.sel .dl { color:var(--ink); }
+  .dot.faded { opacity:.35; }
+  .space.snap * { transition:none !important; }
+
+  .side { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; }
+  .q { border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:8px; background:var(--panel);
+       padding:9px 12px; font-size:13px; color:var(--dim); }
+  .q .ql2 { font:10px var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--gold); display:block; margin-bottom:2px; }
+  .q b { color:var(--ink); font-size:15px; }
+  .ctx-h { font:10px var(--mono); text-transform:uppercase; letter-spacing:.1em; color:var(--faint); }
+  .ctx { border:1px dashed var(--line); border-radius:10px; background:#0b0e12; padding:10px; min-height:96px;
+         display:flex; flex-direction:column; gap:7px; }
+  .ctx-empty { font:12px var(--mono); color:var(--faint); font-style:italic; }
+  .ccard { border-radius:8px; padding:7px 10px; font-size:13px; border-left:3px solid var(--blue);
+           background:var(--panel); color:#dfe4ea; }
+  .ccard.key { border-left-color:var(--gold); background:rgba(255,211,92,.07); }
+  .ccard.new { animation:slidein .34s ease both; }
+  @keyframes slidein { from { transform:translateX(10px); opacity:0; } to { transform:none; opacity:1; } }
+  .reduce .ccard.new { animation:none; }
+
+  .ans { display:flex; gap:10px; align-items:center; border:1px solid var(--line); border-radius:10px;
+         background:var(--panel); padding:8px 12px; }
+  .ans .chr svg { width:56px; height:56px; flex:none; }
+  .ans .aline { font-size:14px; color:#d8dde3; }
+  .ans .aline.good { color:var(--green); }
+
+  .caption { color:#d8dde3; font-size:15px; margin:14px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 10px 48px; }
+    .scene { flex-direction:column; }
+    .space { zoom:0.9; }
+    .side { width:100%; }
+  }
+</style>
+</head>
+<body>
+<h1>Retrieval: the similarity space</h1>
+<p class="sub">Your notes live in a space where <b>similar meanings sit close together</b>. Retrieval
+answers a question by pulling the few notes nearest to it - and putting only those in the context.</p>
+
+<div class="scene">
+  <div class="space" id="space" role="group" aria-label="A meaning-space of note dots scattered around the question point">
+    <svg class="lines" id="lines"></svg>
+    <div class="qpoint" id="qpoint" style="left:112px;top:150px">
+      <span class="di"></span><span class="ql">the question</span>
+    </div>
+  </div>
+  <div class="side">
+    <div class="q"><span class="ql2">query</span><b>When does Heron launch?</b></div>
+    <div class="ctx-h">context - what the model actually sees</div>
+    <div class="ctx" id="ctx"></div>
+    <div class="ans" id="ans">
+      <span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
+      <span class="aline" id="aline"></span>
+    </div>
+  </div>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+const Q = { x:112, y:150 };
+// 7 notes scattered by meaning. Higher score = closer to the question "When does Heron launch?".
+const NOTES = [
+  { x:165, y:120, score:.95, full:"Heron launch date is Mar 3", lbl:"Heron launch = Mar 3", side:"r" },
+  { x:150, y:216, score:.72, full:"Heron is a data pipeline",   lbl:"Heron = data pipeline", side:"r" },
+  { x:52,  y:104, score:.55, full:"Dana leads Heron",           lbl:"Dana leads Heron",      side:"r" },
+  { x:292, y:90,  score:.24, full:"Q3 budget is 2M",            lbl:"Q3 budget = 2M",        side:"l" },
+  { x:298, y:232, score:.16, full:"Tuesday lunch is risotto",   lbl:"lunch: risotto",         side:"r" },
+  { x:62,  y:52,  score:.12, full:"office wifi password",       lbl:"wifi password",         side:"r" },
+  { x:305, y:152, score:.09, full:"parking is level 2",         lbl:"parking level 2",       side:"l" },
+];
+const TOP2 = [0, 1], NEAR3 = [0, 1, 2];
+
+const STEPS = [
+  { phase:"cloud",  mood:"neutral", aline:"Cortex waits - which notes matter?",
+    cap:"Your memory is just a pile of notes, scattered so that similar meanings sit near each other.",
+    ins:"Notes near each other mean similar things. Position stands in for meaning." },
+  { phase:"query",  mood:"think", aline:"Cortex waits - which notes matter?",
+    cap:"A question arrives and lands in the same space: \"When does Heron launch?\" (the gold point).",
+    ins:"The question is turned into a point in the same meaning-space as the notes." },
+  { phase:"score",  mood:"think", aline:"scoring every note by closeness...",
+    cap:"Score every note by CLOSENESS in meaning. Heron-launch notes grow and brighten; unrelated notes shrink and fade.",
+    ins:"Similarity is just distance here: near the question = high score, far = low score." },
+  { phase:"pick",   mood:"read", aline:"keeping only the nearest few...",
+    cap:"Keep only the few NEAREST. The top-2 light up; everything else stays out - even mildly-related notes.",
+    ins:"You pick a small k (here k=2). More is not better: junk in the context only distracts the model." },
+  { phase:"fetch",  mood:"reach", aline:"inserting the retrieved notes...",
+    cap:"The top-2 fly OUT of the cloud and INTO the context - only those two notes, nothing else.",
+    ins:"Retrieval builds the context on the fly: fetch the nearest notes, insert just those." },
+  { phase:"answer", mood:"happy", done:true, aline:"Heron launches Mar 3.",
+    cap:"Cortex reads just those notes and answers, grounded. Without retrieval it would have to guess from thin air.",
+    ins:"You don't dump everything into the context - you retrieve the few notes nearest the question in meaning, and insert only those." },
+];
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const space = $("space"), lines = $("lines"), qpoint = $("qpoint"), ctx = $("ctx"),
+      caption = $("caption"), insight = $("insight"), cortexChr = $("cortexChr"), aline = $("aline");
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+// Build dots once.
+const dotEls = NOTES.map((n, idx) => {
+  const d = document.createElement("div");
+  d.className = "dot" + (n.side === "l" ? " l" : "");
+  d.style.left = n.x + "px"; d.style.top = n.y + "px";
+  d.innerHTML = '<span class="pt"></span><span class="dl">' + esc(n.lbl) + '</span>';
+  space.appendChild(d);
+  return d;
+});
+
+function renderStep(i, dir) {
+  const s = STEPS[i], ph = s.phase;
+  const animate = dir > 0 && !Anim.reduced();
+  space.classList.toggle("snap", !animate);
+
+  const scored = ph === "score" || ph === "pick" || ph === "fetch" || ph === "answer";
+  const picked = ph === "pick" || ph === "fetch" || ph === "answer";
+  const flew   = ph === "fetch" || ph === "answer";
+  const showLines = ph === "score" || ph === "pick";
+
+  qpoint.style.opacity = i >= 1 ? 1 : 0;
+
+  // distance lines from the question to the nearest notes
+  lines.style.opacity = showLines ? 1 : 0;
+  lines.innerHTML = NEAR3.map(idx => {
+    const n = NOTES[idx];
+    return '<line class="' + (TOP2.indexOf(idx) >= 0 ? "near" : "") + '" x1="' + Q.x + '" y1="' + Q.y +
+           '" x2="' + n.x + '" y2="' + n.y + '"/>';
+  }).join("");
+
+  // dots: size by score, brighten relevant, dim the rest, select top-2, fly on fetch
+  NOTES.forEach((n, idx) => {
+    const el = dotEls[idx], pt = el.querySelector(".pt");
+    const isTop = TOP2.indexOf(idx) >= 0;
+    const r = scored ? (6 + n.score * 11) : 9;
+    pt.style.width = pt.style.height = (r * 2) + "px";
+    el.classList.toggle("bright", scored && !picked && n.score >= 0.5);
+    el.classList.toggle("dim", scored && n.score < 0.5);
+    el.classList.toggle("sel", picked && isTop);
+    el.classList.toggle("faded", picked && !isTop);
+    if (flew && isTop) {
+      el.style.transform = "translate(" + (394 - n.x) + "px," + (18 - n.y) + "px) scale(.35)";
+      el.style.opacity = 0;
+    } else {
+      el.style.transform = "none";
+      el.style.opacity = 1;
+    }
+  });
+
+  if (!animate) void space.offsetWidth;  // commit snapped styles without transitioning
+
+  // context box
+  if (flew) {
+    ctx.innerHTML = TOP2.map((idx, k) => {
+      const n = NOTES[idx];
+      return '<div class="ccard' + (animate ? " new" : "") + (ph === "answer" && idx === 0 ? " key" : "") +
+             '" style="animation-delay:' + (k * 90) + 'ms">' + esc(n.full) + '</div>';
+    }).join("");
+  } else {
+    ctx.innerHTML = '<span class="ctx-empty">nothing retrieved yet</span>';
+  }
+
+  // Cortex + captions
+  cortexChr.dataset.e = s.mood; Cast.render(document);
+  aline.className = "aline" + (s.done ? " good" : "");
+  aline.textContent = s.done ? "\"" + s.aline + "\"" : s.aline;
+  caption.textContent = s.cap;
+  insight.innerHTML = "<b>" + (s.done ? "The aha:" : "Note:") + "</b> " + s.ins;
+}
+
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: renderStep, autoMs: 1400 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + STEPS.length });
+tl.render(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Serve it - reach the agent from a browser</title>
+<link rel="stylesheet" href="../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:820px; margin:30px auto; padding:0 20px 50px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:21px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .stage { position:relative; height:180px; border:1px solid var(--line); border-radius:12px;
+           background:#0b0e12; overflow:hidden; }
+  svg.wire { position:absolute; inset:0; width:100%; height:100%; }
+  .wire line { stroke:#2a3a44; stroke-width:2; }
+  .node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column;
+          align-items:center; gap:4px; z-index:2; text-align:center; }
+  .node .chr svg { width:58px; height:58px; }
+  .node .box { border:1px solid var(--line); background:var(--panel); border-radius:9px;
+               padding:7px 12px; font:12px var(--mono); color:var(--ink); white-space:nowrap; transition:all .3s; }
+  .node .lbl { font:10px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+  #server { opacity:.25; transition:opacity .4s; }
+  #server.on { opacity:1; }
+  #server.on .box { border-color:var(--blue); color:var(--blue); box-shadow:0 0 12px rgba(88,196,221,.35); }
+  .browser .bar { display:flex; gap:3px; margin-bottom:3px; }
+  .browser .bar i { width:6px; height:6px; border-radius:50%; background:var(--faint); }
+
+  .packet { position:absolute; top:0; left:0; width:14px; height:14px; border-radius:50%;
+            background:var(--gold); box-shadow:0 0 12px var(--gold); z-index:3; opacity:0;
+            transition:transform .7s ease, opacity .2s; }
+  .packet.sse { background:var(--green); box-shadow:0 0 12px var(--green); }
+
+  .reachnote { position:absolute; left:14px; bottom:10px; font:11px var(--mono); z-index:4; }
+  .reachnote.bad { color:var(--red); } .reachnote.good { color:var(--green); }
+
+  .caption { color:#d8dde3; font-size:15px; margin:14px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 10px 40px; }
+    .stage { height:150px; }
+    .node .chr svg { width:46px; height:46px; }
+    .node .box { padding:5px 8px; font-size:11px; }
+  }
+</style>
+</head>
+<body>
+<h1>Serve it - so anyone can reach the agent</h1>
+<p class="sub">A loop in your terminal only you can run is not a product. Wrap it in an HTTP server,
+and stream each step back to the browser. Step through it.</p>
+
+<div class="stage" id="stage" role="group" aria-label="Serving diagram - browser, server, and agent">
+  <svg class="wire"><line x1="70" y1="90" x2="450" y2="90" /></svg>
+  <div class="node browser" id="browser" style="left:70px;top:90px">
+    <div class="box"><div class="bar"><i></i><i></i><i></i></div>browser</div>
+    <div class="lbl">a user</div>
+  </div>
+  <div class="node" id="server" style="left:260px;top:90px">
+    <div class="box">HTTP server</div><div class="lbl">routes + SSE</div>
+  </div>
+  <div class="node" id="agent" style="left:450px;top:90px">
+    <span class="chr" id="agentChr" data-c="cortex" data-e="neutral"></span><div class="lbl">agent loop</div>
+  </div>
+  <div class="packet" id="packet"></div>
+  <div class="reachnote" id="reachnote"></div>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../assets/cast.js"></script>
+<script src="../../../assets/anim.js"></script>
+<script>
+const P = { browser:[70,90], server:[260,90], agent:[450,90] };
+const STEPS = [
+  { server:false, reach:["x terminal only - no way in","bad"], mood:"neutral",
+    cap:"Right now the agent runs only in your terminal - one user, you.",
+    ins:"A script on your laptop is not a product. Nobody else can reach it." },
+  { server:true, mood:"neutral",
+    cap:"Wrap the loop in an HTTP server - a front door into the agent.",
+    ins:"The server is thin: take a request, run the loop, stream the result back." },
+  { server:true, packet:["browser","server"], mood:"neutral",
+    cap:"A browser anywhere sends a request to the server.",
+    ins:"Now anyone with the link can reach it - not just your terminal." },
+  { server:true, packet:["server","agent"], mood:"think",
+    cap:"The server hands the task to the same agent loop you built.",
+    ins:"The loop does not change - the server just wraps it." },
+  { server:true, packet:["agent","browser"], sse:true, mood:"reach",
+    cap:"Each loop step streams back to the browser as it happens (Server-Sent Events).",
+    ins:"SSE pushes every step live - think, call a tool, read the result, answer." },
+  { server:true, atBrowser:true, reach:["ok anyone can reach it, and watch it think","good"], mood:"happy",
+    cap:"The browser renders the live loop. Anyone with the link can use it now.",
+    ins:"A stdlib HTTP server + SSE turns your terminal script into a product people can reach - and watch work." },
+];
+
+const $ = id => document.getElementById(id);
+const packet = $("packet"), reachnote = $("reachnote"), caption = $("caption"),
+      insight = $("insight"), server = $("server"), agentChr = $("agentChr"), agentNode = $("agent");
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function place(x, y, animate) {
+  packet.style.transition = animate ? "" : "none";
+  packet.style.transform = "translate(" + x + "px," + y + "px) translate(-50%,-50%)";
+  if (!animate) void packet.offsetWidth;
+}
+
+function renderStep(i, dir) {
+  const s = STEPS[i];
+  server.classList.toggle("on", !!s.server);
+  agentChr.dataset.e = s.mood; Cast.render(agentNode);
+
+  packet.classList.toggle("sse", !!s.sse);
+  if (s.packet) {
+    const [f, t] = s.packet, [fx, fy] = P[f], [tx, ty] = P[t];
+    if (dir > 0 && !Anim.reduced()) { place(fx, fy, false); packet.style.opacity = "1"; requestAnimationFrame(() => place(tx, ty, true)); }
+    else { place(tx, ty, false); packet.style.opacity = "1"; }
+  } else if (s.atBrowser) {
+    place(P.browser[0], P.browser[1], false); packet.style.opacity = "1"; packet.classList.add("sse");
+  } else {
+    packet.style.opacity = "0";
+  }
+
+  if (s.reach) { reachnote.className = "reachnote " + s.reach[1]; reachnote.textContent = s.reach[0]; }
+  else { reachnote.className = "reachnote"; reachnote.textContent = ""; }
+
+  caption.textContent = s.cap;
+  insight.textContent = s.ins;
+}
+
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: renderStep, autoMs: 1400 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + STEPS.length });
+tl.render(0);
+</script>
+</body>
+</html>

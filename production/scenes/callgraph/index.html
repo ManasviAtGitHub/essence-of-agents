@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Under the hood: the call graph</title>
+<!-- Production scene: the live call graph - who calls whom, drawn as it happens.
+     Node labels are the REAL functions in this repo. Keyless, deterministic, scrubbable. -->
+<link rel="stylesheet" href="../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:860px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .stage { position:relative; width:820px; max-width:100%; height:400px;
+           border:1px solid var(--line); border-radius:12px; background:#0b0e12; overflow:hidden; }
+  svg.edges { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .edge { stroke:#2a3a44; stroke-width:2; fill:none; }
+  .edge.call { stroke:var(--blue); stroke-width:3; filter:drop-shadow(0 0 4px var(--blue));
+               stroke-dasharray:7 5; animation:flow .7s linear infinite; }
+  .edge.ret  { stroke:var(--green); stroke-width:3; filter:drop-shadow(0 0 4px var(--green));
+               stroke-dasharray:7 5; animation:flow .7s linear infinite reverse; }
+  .edge.bad  { stroke:var(--red); stroke-width:3; filter:drop-shadow(0 0 4px var(--red)); }
+  @keyframes flow { to { stroke-dashoffset:-12; } }
+  .reduce .edge.call, .reduce .edge.ret { animation:none; }
+
+  .node { position:absolute; transform:translate(-50%,-50%); z-index:2;
+          display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .node .chr svg { width:56px; height:56px; }
+  .bx { border:1px solid var(--line); border-radius:9px; background:var(--panel);
+        padding:6px 10px; text-align:center; transition:border-color .2s, box-shadow .2s; }
+  .bx .f1 { font:11.5px var(--mono); color:var(--ink); display:block; white-space:nowrap; }
+  .bx .f2 { font:10px var(--mono); color:var(--faint); display:block; white-space:nowrap; }
+  .node.on .bx { border-color:var(--blue); box-shadow:0 0 10px rgba(88,196,221,.25); }
+  .node.on .bx .f2 { color:var(--blue); }
+  .node.ok .bx { border-color:var(--green); box-shadow:0 0 10px rgba(131,193,103,.25); }
+  .node.err .bx { border-color:var(--red); box-shadow:0 0 10px rgba(252,98,85,.3); }
+  .node.err .bx .f2 { color:var(--red); }
+  .nl { font:9.5px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+
+  .chips { position:absolute; display:flex; gap:6px; transform:translate(-50%,-50%); z-index:2; }
+  .chip { font:9.5px var(--mono); border:1px solid var(--line); border-radius:999px;
+          padding:2px 8px; color:var(--faint); background:var(--panel); transition:all .2s; white-space:nowrap; }
+  .chip.on { color:var(--gold); border-color:var(--gold); box-shadow:0 0 8px rgba(255,211,92,.25); }
+
+  .log { margin-top:12px; min-height:120px; }
+  .ln { font:12px/1.6 var(--mono); color:#cdd3da; padding:2px 7px; margin:2px 0; border-radius:5px;
+        border-left:2px solid var(--line); word-break:break-word; }
+  .ln.act  { border-left-color:var(--blue); }
+  .ln.bad  { border-left-color:var(--red); color:#ffbdb7; background:rgba(252,98,85,.08); }
+  .ln.good { border-left-color:var(--green); color:#c8e6b8; }
+  .ln.dim  { color:var(--dim); }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:16px 0 2px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:42px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 10px 48px; }
+  }
+</style>
+</head>
+<body>
+<h1>Under the hood: the call graph</h1>
+<p class="sub">Who calls whom, drawn live. Every box on the core path is a <b>real function in this
+repo</b> - blue edges are calls going down, green edges are results coming back.</p>
+
+<div class="stage" id="stage" role="group" aria-label="Live call graph of one request through the production stack">
+
+  <!-- ============ MODE A: one request through the core loop ============ -->
+  <div id="gA">
+    <svg class="edges">
+      <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 z" fill="#5a6b74"/></marker></defs>
+      <line class="edge" id="a_us" x1="100" y1="205" x2="160" y2="205" marker-end="url(#ah)"/>
+      <line class="edge" id="a_sl" x1="292" y1="205" x2="342" y2="205" marker-end="url(#ah)"/>
+      <line class="edge" id="a_lm" x1="478" y1="182" x2="580" y2="122" marker-end="url(#ah)"/>
+      <line class="edge" id="a_lt" x1="478" y1="228" x2="578" y2="288" marker-end="url(#ah)"/>
+    </svg>
+    <div class="node" id="a_user" style="left:70px;top:205px"><span class="chr" data-c="bit" data-e="neutral"></span><span class="nl">you (browser)</span></div>
+    <div class="node" id="a_srv" style="left:226px;top:205px"><div class="bx"><span class="f1">server.py</span><span class="f2">Handler._chat_stream()</span></div><span class="nl">http + sse</span></div>
+    <div class="node" id="a_loop" style="left:412px;top:205px"><div class="bx"><span class="f1">agent_pro.py</span><span class="f2">ProAgent.run()</span></div><span class="nl">the loop</span></div>
+    <div class="node" id="a_model" style="left:648px;top:100px"><span class="chr" id="a_modelChr" data-c="cortex" data-e="neutral"></span><span class="nl">the model &middot; _call() -&gt; API</span></div>
+    <div class="node" id="a_tool" style="left:648px;top:308px"><div class="bx"><span class="f1">read_file(path)</span><span class="f2">a plain function</span></div><span class="nl">a tool</span></div>
+    <div class="chips" style="left:412px;top:330px">
+      <span class="chip" id="a_cb">Usage.add()</span>
+      <span class="chip" id="a_cg">injection_guardrail()</span>
+      <span class="chip" id="a_ct">on_event() -&gt; trace</span>
+    </div>
+  </div>
+
+  <!-- ============ MODE B: scaled out - workers + MCP ============ -->
+  <div id="gB" style="display:none">
+    <svg class="edges">
+      <defs><marker id="ah2" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 z" fill="#5a6b74"/></marker></defs>
+      <line class="edge" id="b_us" x1="100" y1="205" x2="160" y2="205" marker-end="url(#ah2)"/>
+      <line class="edge" id="b_sl" x1="292" y1="195" x2="345" y2="150" marker-end="url(#ah2)"/>
+      <line class="edge" id="b_sm" x1="480" y1="115" x2="588" y2="95" marker-end="url(#ah2)"/>
+      <line class="edge" id="b_w1" x1="382" y1="162" x2="322" y2="268" marker-end="url(#ah2)"/>
+      <line class="edge" id="b_w2" x1="416" y1="162" x2="470" y2="268" marker-end="url(#ah2)"/>
+      <line class="edge" id="b_w3" x1="450" y1="162" x2="618" y2="268" marker-end="url(#ah2)"/>
+      <line class="edge" id="b_mcp" x1="700" y1="300" x2="716" y2="300" marker-end="url(#ah2)"/>
+    </svg>
+    <div class="node" id="b_user" style="left:70px;top:205px"><span class="chr" data-c="bit" data-e="neutral"></span><span class="nl">you (browser)</span></div>
+    <div class="node" id="b_srv" style="left:226px;top:205px"><div class="bx"><span class="f1">server.py</span><span class="f2">Handler._chat_stream()</span></div><span class="nl">http + sse</span></div>
+    <div class="node" id="b_sup" style="left:412px;top:130px"><div class="bx"><span class="f1">ProAgent.run()</span><span class="f2">supervisor</span></div><span class="nl">plan + merge</span></div>
+    <div class="node" id="b_model" style="left:650px;top:85px"><span class="chr" id="b_modelChr" data-c="cortex" data-e="neutral"></span><span class="nl">the model</span></div>
+    <div class="node" id="b_wk1" style="left:314px;top:300px"><div class="bx"><span class="f1">worker_1</span><span class="f2">svc-auth &middot; own context</span></div></div>
+    <div class="node" id="b_wk2" style="left:470px;top:300px"><div class="bx"><span class="f1">worker_2</span><span class="f2">svc-db &middot; own context</span></div></div>
+    <div class="node" id="b_wk3" style="left:626px;top:300px"><div class="bx"><span class="f1">worker_3</span><span class="f2">svc-api &middot; own context</span></div></div>
+    <div class="node" id="b_mcpN" style="left:762px;top:300px"><div class="bx"><span class="f1">jira-server</span><span class="f2">MCP</span></div></div>
+  </div>
+
+</div>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="a">One request (the core loop)</button>
+  <button class="modebtn" data-mode="b">Scaled out (workers + MCP)</button>
+  <span class="modehint">switch and re-step -- same graph grammar, more nodes</span>
+</div>
+
+<div class="log" id="log"></div>
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../assets/cast.js"></script>
+<script src="../../../assets/anim.js"></script>
+<script>
+// Each step: edges {id:cls}, nodes {id:cls}, chips [ids], cumulative log lines (at), caption.
+const A = {
+  logs: [
+    { at:1, t:'browser -> GET /chat/stream?task="summarize notes.txt"', cls:'act' },
+    { at:2, t:'server.py: do_GET() -> _chat_stream() -> handle(task)', cls:'act' },
+    { at:2, t:'agent_pro.py: ProAgent.run(task, on_event=emit)   # SSE stays open', cls:'act' },
+    { at:3, t:'ProAgent._call(messages)   # retries + backoff live here (ch.1)', cls:'act' },
+    { at:4, t:'<- model: tool_use read_file("notes.txt")', cls:'good' },
+    { at:4, t:'Usage.add(): +412 tokens - budget check ok (ch.2)', cls:'dim' },
+    { at:5, t:'ProAgent._tool("read_file") -> read_file("notes.txt")', cls:'act' },
+    { at:6, t:'<- "...file contents..."', cls:'good' },
+    { at:6, t:'injection_guardrail(output) -> clean (ch.3); on_event(tool_result) -> trace (ch.4)', cls:'dim' },
+    { at:7, t:'ProAgent._call(messages)   # model call #2, file now in context', cls:'act' },
+    { at:7, t:'<- model: final text', cls:'good' },
+    { at:8, t:'server: SSE data:{"kind":"final",...} -> browser renders it', cls:'good' },
+  ],
+  steps: [
+    { e:{}, n:{}, c:[], m:'neutral',
+      cap:'The map. Left to right: you, the server, the loop, and the two things the loop calls - the model and a plain function.' },
+    { e:{a_us:'call'}, n:{a_user:'on',a_srv:'on'}, c:[], m:'neutral',
+      cap:'A request arrives. From here down, every arrow is a function call you could put a breakpoint on.' },
+    { e:{a_sl:'call'}, n:{a_srv:'on',a_loop:'on'}, c:[], m:'neutral',
+      cap:'The server hands the task to ProAgent.run() and keeps a stream open back to your browser.' },
+    { e:{a_lm:'call'}, n:{a_loop:'on',a_model:'on'}, c:[], m:'think',
+      cap:'The loop calls the model - through _call(), the Chapter 1 retry wrapper. This is the only edge that leaves your machine.' },
+    { e:{a_lm:'ret'}, n:{a_loop:'on',a_model:'ok'}, c:['a_cb'], m:'reach',
+      cap:'The model answers with a tool REQUEST, not an action. The budget meter ticks on the way in (Chapter 2).' },
+    { e:{a_lt:'call'}, n:{a_loop:'on',a_tool:'on'}, c:[], m:'reach',
+      cap:'Dispatch is a dict lookup and a plain function call. That is all a "tool" is - your code, running.' },
+    { e:{a_lt:'ret'}, n:{a_loop:'on',a_tool:'ok'}, c:['a_cg','a_ct'], m:'read',
+      cap:'The result passes the guardrail (Chapter 3) and gets recorded (Chapter 4) before it may enter the context.' },
+    { e:{a_lm:'call'}, n:{a_loop:'on',a_model:'on'}, c:['a_cb'], m:'happy',
+      cap:'Round two: with the file in its context, the model answers for real.' },
+    { e:{a_us:'ret',a_sl:'ret'}, n:{a_user:'ok',a_srv:'ok',a_loop:'ok'}, c:['a_ct'], m:'happy',
+      cap:'The answer streams back up the same edges it came down. Every hop you just watched was also written to the trace.' },
+  ],
+  fin: 'This drawing is not a metaphor: every blue edge fired an <b>on_event(...)</b>, so the trace (Chapter 4) can replay exactly this graph for any run in production.',
+};
+
+const B = {
+  logs: [
+    { at:1, t:'browser -> GET /chat/stream?task="audit svc-auth, svc-db, svc-api"', cls:'act' },
+    { at:2, t:'supervisor ProAgent.run(): plan -> 3 isolatable subtasks (ch.7)', cls:'act' },
+    { at:3, t:'spawn worker_1..3 - each the same loop, own context + own Usage budget', cls:'act' },
+    { at:4, t:'worker_3: call_tool("jira.search") over MCP -> jira-server executes (ch.8)', cls:'act' },
+    { at:4, t:'<- results: untrusted text -> injection_guardrail() at the door', cls:'dim' },
+    { at:5, t:'worker_2: 529 from provider -> _retryable() -> backoff (ch.1)', cls:'bad' },
+    { at:6, t:'supervisor: retry worker_2 ALONE - workers 1 and 3 unaffected', cls:'act' },
+    { at:7, t:'<- 3 short summaries (never 3 raw contexts)', cls:'good' },
+    { at:7, t:'supervisor: ProAgent._call() -> final synthesis', cls:'act' },
+    { at:8, t:'server: SSE -> browser: one report, one critical finding', cls:'good' },
+  ],
+  steps: [
+    { e:{}, n:{}, c:[], m:'neutral',
+      cap:'Same grammar, more nodes. The loop in the middle is now a supervisor - a loop whose tools happen to be other loops.' },
+    { e:{b_us:'call'}, n:{b_user:'on',b_srv:'on'}, c:[], m:'neutral',
+      cap:'A bigger task arrives: audit three services.' },
+    { e:{b_sl:'call'}, n:{b_srv:'on',b_sup:'on'}, c:[], m:'think',
+      cap:'The supervisor plans: three subtasks, parallel and isolatable - the Module 8 test for when a team earns its cost.' },
+    { e:{b_w1:'call',b_w2:'call',b_w3:'call'}, n:{b_sup:'on',b_wk1:'on',b_wk2:'on',b_wk3:'on'}, c:[], m:'think',
+      cap:'Fan-out. Each worker edge is just ProAgent.run() called again with a clean context and its own budget.' },
+    { e:{b_mcp:'call'}, n:{b_wk3:'on',b_mcpN:'on'}, c:[], m:'think',
+      cap:'Worker 3 reaches through MCP for a tool it never shipped with (Chapter 8). The guardrail still sits at its door.' },
+    { e:{b_w2:'bad'}, n:{b_wk2:'err',b_wk1:'on',b_wk3:'on'}, c:[], m:'confused',
+      cap:'Worker 2 hits a transient 529. Look at the graph: the failure is one edge wide. Nothing else even notices.' },
+    { e:{b_w2:'call'}, n:{b_sup:'on',b_wk2:'on'}, c:[], m:'think',
+      cap:'The supervisor retries that one edge. Isolation is what makes the retry this cheap.' },
+    { e:{b_w1:'ret',b_w2:'ret',b_w3:'ret',b_sm:'call'}, n:{b_sup:'on',b_wk1:'ok',b_wk2:'ok',b_wk3:'ok',b_model:'on'}, c:[], m:'read',
+      cap:'Summaries flow up - short reports, never raw contexts - and the supervisor asks the model to synthesize.' },
+    { e:{b_us:'ret',b_sl:'ret'}, n:{b_user:'ok',b_srv:'ok',b_sup:'ok'}, c:[], m:'happy',
+      cap:'One report streams back. Every node you saw is a loop, a function, or a server; every edge is a call - or text entering a context.' },
+  ],
+  fin: 'Honest note: the single-request path is literally <b>server.py + agent_pro.py</b>; the supervisor and MCP nodes are the Chapter 7-8 pattern, simulated. The grammar is identical either way.',
+};
+
+const $ = id => document.getElementById(id);
+const stage = $("stage"), gA = $("gA"), gB = $("gB"), logEl = $("log"),
+      caption = $("caption"), insight = $("insight");
+const state = { mode: "a" };
+if (Anim.reduced()) document.body.classList.add("reduce");
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+
+const A_EDGES = ["a_us","a_sl","a_lm","a_lt"], A_NODES = ["a_user","a_srv","a_loop","a_model","a_tool"],
+      A_CHIPS = ["a_cb","a_cg","a_ct"];
+const B_EDGES = ["b_us","b_sl","b_sm","b_w1","b_w2","b_w3","b_mcp"],
+      B_NODES = ["b_user","b_srv","b_sup","b_model","b_wk1","b_wk2","b_wk3","b_mcpN"];
+
+function renderStep(i, dir) {
+  const a = state.mode === "a";
+  gA.style.display = a ? "block" : "none";
+  gB.style.display = a ? "none" : "block";
+  const D = a ? A : B, s = D.steps[i];
+
+  (a ? A_EDGES : B_EDGES).forEach(id => { $(id).setAttribute("class", "edge" + (s.e[id] ? " " + s.e[id] : "")); });
+  (a ? A_NODES : B_NODES).forEach(id => { $(id).className = "node" + (s.n[id] ? " " + s.n[id] : ""); });
+  if (a) A_CHIPS.forEach(id => { $(id).className = "chip" + (s.c.indexOf(id) >= 0 ? " on" : ""); });
+
+  const chr = $(a ? "a_modelChr" : "b_modelChr");
+  chr.dataset.e = s.m; Cast.render(stage);
+
+  logEl.innerHTML = D.logs.filter(l => l.at <= i).map(l =>
+    '<div class="ln ' + l.cls + '">' + esc(l.t) + '</div>').join("");
+  caption.textContent = s.cap;
+  insight.innerHTML = i >= 8 ? D.fin
+    : 'Every node is one of three things: <b>a loop, a function, or a server</b>. Every edge is <b>a call - or text entering a context</b>.';
+}
+
+// The stage is a fixed 820px canvas (absolute-positioned graph). Scale it to
+// whatever width we actually get (narrow iframe, phone) so nothing is clipped.
+function fitStage() {
+  const avail = document.body.clientWidth - 40;   // minus body padding
+  stage.style.zoom = Math.min(1, avail / 820);
+}
+addEventListener("resize", fitStage);
+fitStage();
+
+const tl = new Anim.Timeline({ length: 9, onStep: renderStep, autoMs: 1500 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / 9" });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  state.mode = b.dataset.mode;
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

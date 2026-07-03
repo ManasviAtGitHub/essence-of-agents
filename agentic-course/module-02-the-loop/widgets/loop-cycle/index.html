@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Watch the loop turn</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:820px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .wrap { display:flex; gap:20px; align-items:stretch; }
+  .diagram { position:relative; width:380px; height:290px; flex:none;
+             border:1px solid var(--line); border-radius:12px; background:#0b0e12; }
+  svg.edges { position:absolute; inset:0; width:100%; height:100%; overflow:visible; color:#5a6b74; }
+  .edge { stroke:#2a3a44; stroke-width:2; fill:none; }
+  .edge.active { stroke:var(--gold); stroke-width:3; filter:drop-shadow(0 0 4px var(--gold)); }
+  .edge-lbl { fill:var(--faint); font:10px ui-monospace,Consolas,monospace; }
+
+  .node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column;
+          align-items:center; gap:3px; z-index:2; }
+  .node .box { border:1px solid var(--line); background:var(--panel); border-radius:9px;
+               padding:6px 11px; font:12px var(--mono); color:var(--ink); white-space:nowrap; transition:all .15s; }
+  .node .lbl { font:10px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+  .node .chr svg { width:66px; height:66px; }
+  .node.you .chr svg { width:52px; height:52px; }
+  .node.tool.active .box { border-color:var(--gold); color:var(--gold); box-shadow:0 0 10px rgba(255,211,92,.4); }
+  .node.answer.active .box { border-color:var(--green); color:var(--green); }
+
+  .packet { position:absolute; top:0; left:0; width:15px; height:15px; border-radius:50%;
+            background:var(--gold); box-shadow:0 0 14px var(--gold); z-index:3;
+            transition:transform .6s ease; }
+
+  .side { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .col-h { color:var(--faint); font:11px var(--mono); text-transform:uppercase; letter-spacing:.12em; margin:0 0 8px; }
+  #mlist { flex:1; overflow:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:10px; min-height:220px; }
+  .mcard { border-radius:8px; padding:6px 10px; margin-bottom:7px; font-size:12.5px; border-left:3px solid var(--line); background:#0b0e12; }
+  .mcard .ml { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); display:block; margin-bottom:1px; }
+  .mcard.user { border-left-color:var(--gold); } .mcard.user .ml { color:var(--gold); }
+  .mcard.assistant { border-left-color:var(--blue); } .mcard.assistant .ml { color:var(--blue); }
+  .mcard.tool_use, .mcard.tool_result { font-family:var(--mono); color:#cdd3da; }
+  .mcard.tool_result { border-left-color:var(--green); }
+  .mcard.new { background:#12171e; }
+  .memnote { color:var(--faint); font-size:12px; margin-top:8px; }
+
+  .laprow { display:flex; align-items:center; gap:10px; margin:14px 0 2px; }
+  .lap { font:12px var(--mono); color:var(--gold); border:1px solid var(--gold); border-radius:999px; padding:3px 10px; }
+  .caption { color:#d8dde3; font-size:15px; }
+  .insight { margin:8px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 8px 48px; }
+    .wrap { flex-direction:column; }
+    .diagram { width:100%; max-width:380px; }
+    .side { width:100%; }
+  }
+</style>
+</head>
+<body>
+<h1>Watch the loop turn</h1>
+<p class="sub">The agent is a loop: the model talks, you run any tool it asks for, feed the result
+back, and repeat - until it answers instead of calling a tool. Step through two laps.</p>
+
+<div class="wrap">
+  <div class="diagram" id="diagram" role="group" aria-label="Agent loop diagram - you, model, tool, and answer nodes">
+    <svg class="edges">
+      <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 z" fill="#5a6b74"/></marker></defs>
+      <line class="edge" id="e-you_model" x1="79" y1="58" x2="158" y2="103" marker-end="url(#ah)"/>
+      <line class="edge" id="e-model_tool" x1="228" y1="112" x2="286" y2="112" marker-end="url(#ah)"/>
+      <text class="edge-lbl" x="240" y="105">call</text>
+      <line class="edge" id="e-tool_model" x1="286" y1="128" x2="228" y2="128" marker-end="url(#ah)"/>
+      <text class="edge-lbl" x="236" y="141">result</text>
+      <line class="edge" id="e-model_answer" x1="190" y1="152" x2="190" y2="222" marker-end="url(#ah)"/>
+    </svg>
+    <div class="node you" style="left:55px;top:45px"><span class="chr" data-c="bit" data-e="happy"></span><span class="lbl">you</span></div>
+    <div class="node model" id="modelNode" style="left:190px;top:120px"><span class="chr" id="modelChr" data-c="cortex" data-e="neutral"></span></div>
+    <div class="node tool" id="toolNode" style="left:320px;top:120px"><span class="box">calculate</span><span class="lbl">tool</span></div>
+    <div class="node answer" id="answerNode" style="left:190px;top:252px"><span class="box">answer</span></div>
+    <div class="packet" id="packet"></div>
+  </div>
+
+  <div class="side">
+    <div class="col-h">Memory (the message list)</div>
+    <div id="mlist"></div>
+    <div class="memnote">every turn is appended here - the loop's growing memory</div>
+  </div>
+</div>
+
+<div class="laprow"><span class="lap" id="lap">entering</span><span class="caption" id="caption" aria-live="polite"></span></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+// Node centres (px within the 380x290 diagram).
+const P = { you:[55,45], model:[190,120], tool:[320,120], answer:[190,252] };
+
+// Task: 2**10, then add 5 -> two laps through the loop.
+const STEPS = [
+  { edge:"you_model", from:"you", to:"model", mood:"think", lap:0,
+    mem:["user","You","compute 2**10, then add 5"],
+    cap:"You hand Cortex a task. It enters the loop." },
+  { edge:"model_tool", from:"model", to:"tool", mood:"reach", lap:1,
+    mem:["tool_use","tool call",'-> calculate("2**10")'],
+    cap:"Cortex can't do math itself, so it asks to run a tool." },
+  { edge:"tool_model", from:"tool", to:"model", mood:"read", lap:1,
+    mem:["tool_result","result","= 1024"],
+    cap:"Your code runs the tool and feeds the result back." },
+  { edge:"", from:"model", to:"model", mood:"think", lap:2,
+    cap:"Cortex reads 1024 and thinks: not done yet - I still have to add 5." },
+  { edge:"model_tool", from:"model", to:"tool", mood:"reach", lap:2,
+    mem:["tool_use","tool call",'-> calculate("1024 + 5")'],
+    cap:"Round the loop again: a second tool call." },
+  { edge:"tool_model", from:"tool", to:"model", mood:"read", lap:2,
+    mem:["tool_result","result","= 1029"],
+    cap:"The result returns. That was lap two." },
+  { edge:"model_answer", from:"model", to:"answer", mood:"happy", lap:2, done:true,
+    mem:["assistant","Cortex","2**10 + 5 = 1029"],
+    cap:"This time Cortex answers instead of calling a tool -> end_turn. The loop stops." },
+];
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const packet = $("packet"), mlist = $("mlist"), caption = $("caption"), lap = $("lap"),
+      insight = $("insight"), modelNode = $("modelNode"), modelChr = $("modelChr"),
+      toolNode = $("toolNode"), answerNode = $("answerNode");
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function setPacket(x, y, animate) {
+  packet.style.transition = animate ? "" : "none";
+  packet.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`;
+  if (!animate) void packet.offsetWidth;  // reflow so the next animated move transitions
+}
+
+function renderStep(i, dir) {
+  const s = STEPS[i];
+
+  // edges + node highlights
+  document.querySelectorAll(".edge").forEach(e => e.classList.remove("active"));
+  if (s.edge) { const e = $("e-" + s.edge); if (e) e.classList.add("active"); }
+  toolNode.classList.toggle("active", s.edge === "model_tool" || s.edge === "tool_model");
+  answerNode.classList.toggle("active", s.edge === "model_answer");
+
+  // Cortex mood
+  modelChr.dataset.e = s.mood; Cast.render(modelNode);
+
+  // packet travels the active edge (forward only); otherwise snap
+  const [fx, fy] = P[s.from], [tx, ty] = P[s.to];
+  if (dir > 0 && !Anim.reduced() && s.from !== s.to) {
+    setPacket(fx, fy, false);
+    requestAnimationFrame(() => setPacket(tx, ty, true));
+  } else {
+    setPacket(tx, ty, false);
+  }
+
+  // memory: rebuild cards for steps 0..i that carry one
+  mlist.innerHTML = "";
+  for (let k = 0; k <= i; k++) {
+    const m = STEPS[k].mem;
+    if (!m) continue;
+    const c = document.createElement("div");
+    c.className = "mcard " + m[0] + (k === i ? " new" : "");
+    c.innerHTML = `<span class="ml">${m[1]}</span>${esc(m[2])}`;
+    mlist.appendChild(c);
+  }
+  mlist.scrollTop = mlist.scrollHeight;
+
+  // lap badge + caption
+  lap.textContent = s.done ? "done - 2 laps" : (s.lap ? "lap " + s.lap : "entering");
+  caption.textContent = s.cap;
+  insight.innerHTML = s.done
+    ? "That is the whole agent: a <b>while loop</b>. It keeps turning - model, tool, back to model - and only stops when the model returns an answer instead of a tool call."
+    : "Follow the gold dot: control flows <b>you -&gt; model -&gt; tool -&gt; back to model</b>, over and over.";
+}
+
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: renderStep, autoMs: 1400 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + STEPS.length });
+tl.render(0);
+</script>
+</body>
+</html>

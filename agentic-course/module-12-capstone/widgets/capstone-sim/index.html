@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Watch a capstone run</title>
+<!-- Capstone simulation: each option runs end to end - failure, recovery, eval score.
+     Keyless, deterministic, scrubbable. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:840px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .banner { border:1px solid var(--line); border-radius:10px; background:var(--panel);
+            padding:9px 13px; font:13px var(--mono); color:var(--ink); margin-bottom:14px; }
+  .banner b { color:var(--gold); }
+
+  /* the call graph: same grammar as production's "under the hood" scene */
+  .graph { position:relative; width:800px; max-width:100%; height:190px; margin-bottom:14px;
+           border:1px solid var(--line); border-radius:12px; background:#0b0e12; overflow:hidden; }
+  svg.edges { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .edge { stroke:#2a3a44; stroke-width:2; fill:none; }
+  .edge.call { stroke:var(--blue); stroke-width:3; filter:drop-shadow(0 0 4px var(--blue));
+               stroke-dasharray:7 5; animation:flow .7s linear infinite; }
+  .edge.ret  { stroke:var(--green); stroke-width:3; filter:drop-shadow(0 0 4px var(--green));
+               stroke-dasharray:7 5; animation:flow .7s linear infinite reverse; }
+  .edge.bad  { stroke:var(--red); stroke-width:3; filter:drop-shadow(0 0 4px var(--red)); }
+  @keyframes flow { to { stroke-dashoffset:-12; } }
+  .reduce .edge.call, .reduce .edge.ret { animation:none; }
+  .gnode { position:absolute; transform:translate(-50%,-50%); z-index:2;
+           display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .bx { border:1px solid var(--line); border-radius:9px; background:var(--panel);
+        padding:6px 10px; text-align:center; transition:border-color .2s, box-shadow .2s; }
+  .bx .f1 { font:11.5px var(--mono); color:var(--ink); display:block; white-space:nowrap; }
+  .bx .f2 { font:10px var(--mono); color:var(--faint); display:block; white-space:nowrap; }
+  .gnode.on .bx { border-color:var(--blue); box-shadow:0 0 10px rgba(88,196,221,.25); }
+  .gnode.ok .bx { border-color:var(--green); box-shadow:0 0 10px rgba(131,193,103,.25); }
+  .gnode.err .bx { border-color:var(--red); box-shadow:0 0 10px rgba(252,98,85,.3); }
+  .gnode.err .bx .f2 { color:var(--red); }
+  .gnl { font:9.5px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+
+  .stage { display:flex; gap:16px; align-items:flex-start; }
+  .actor { flex:none; width:110px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .actor .chr svg { width:84px; height:84px; }
+  .role { font:10px var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--faint); }
+
+  .trace { flex:1; min-width:0; border:1px solid var(--line); border-radius:12px; background:#0b0e12;
+           padding:12px 13px; min-height:250px; }
+  .trace .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em;
+               color:var(--faint); margin-bottom:7px; }
+  .ln { font:12px/1.6 var(--mono); color:#cdd3da; padding:2px 7px; margin:2px 0; border-radius:5px;
+        border-left:2px solid var(--line); word-break:break-word; }
+  .ln.act  { border-left-color:var(--blue); }
+  .ln.bad  { border-left-color:var(--red); color:#ffbdb7; background:rgba(252,98,85,.08); }
+  .ln.good { border-left-color:var(--green); color:#c8e6b8; }
+  .ln.dim  { color:var(--dim); }
+  .ln.new { animation:fade .3s ease; } @keyframes fade { from { opacity:0; transform:translateY(4px);} to { opacity:1; } }
+  .reduce .ln.new { animation:none; }
+
+  .hud { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0 0; }
+  .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:6px 10px;
+          font:12px var(--mono); color:var(--dim); }
+  .stat b { color:var(--ink); }
+  .stat.good { border-color:var(--green); color:var(--green); } .stat.good b { color:var(--green); }
+  .stat.wait b { color:var(--faint); }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:42px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .stage { flex-direction:column; }
+    .actor { flex-direction:row; width:auto; }
+  }
+</style>
+</head>
+<body>
+<h1>Watch a capstone run</h1>
+<p class="sub">All three options are judged the same way: an <b>eval score</b> plus a <b>trace of the agent
+recovering from a failure</b>. Pick one and step through a full (simulated) run.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="0">Coding agent</button>
+  <button class="modebtn" data-mode="1">Research agent</button>
+  <button class="modebtn" data-mode="2">Browser agent</button>
+  <span class="modehint">switch and re-step to compare what "hard" means in each</span>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div class="graph" id="graph" role="group" aria-label="Call graph of the capstone run">
+  <svg class="edges">
+    <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 z" fill="#5a6b74"/></marker></defs>
+    <line class="edge" id="e_lm" x1="200" y1="80" x2="330" y2="55" marker-end="url(#ah)"/>
+    <line class="edge" id="e_lt" x1="200" y1="110" x2="330" y2="138" marker-end="url(#ah)"/>
+    <line class="edge" id="e_lv" x1="204" y1="95" x2="552" y2="95" marker-end="url(#ah)"/>
+  </svg>
+  <div class="gnode" id="n_loop" style="left:130px;top:95px"><div class="bx"><span class="f1">Agent.run()</span><span class="f2">the harness</span></div><span class="gnl">the loop</span></div>
+  <div class="gnode" id="n_model" style="left:400px;top:45px"><div class="bx"><span class="f1">the model</span><span class="f2">thinks in context</span></div></div>
+  <div class="gnode" id="n_tool" style="left:400px;top:148px"><div class="bx"><span class="f1" id="toolF1"></span><span class="f2" id="toolF2"></span></div></div>
+  <div class="gnode" id="n_ver" style="left:648px;top:95px"><div class="bx"><span class="f1" id="verF1"></span><span class="f2" id="verF2"></span></div><span class="gnl">the verifier</span></div>
+</div>
+
+<div class="stage" role="group" aria-label="Simulated capstone run trace">
+  <div class="actor"><span class="chr" id="cortexChr" data-c="cortex" data-e="think"></span><span class="role">the agent</span></div>
+  <div class="trace"><div class="hd">run trace (what gets saved)</div><div id="lines"></div></div>
+</div>
+
+<div class="hud">
+  <span class="stat" id="evalStat"><b>eval:</b> <span id="evalVal">--</span></span>
+  <span class="stat wait" id="recStat"><b>failure -&gt; recovery:</b> <span id="recVal">pending</span></span>
+  <span class="stat" id="lensStat"></span>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+const MODES = [
+  { // 0 - coding: verification is free and brutal
+    task: 'TASK: implement <b>slugify(text)</b> until tests/test_slugify.py passes',
+    lens: 'leans on: M6 verification . M2 loop . M0',
+    lines: [
+      { at:0, t:'task: implement slugify(text) - the test file is the spec', cls:'dim' },
+      { at:1, t:'-> write_file("slugify.py")   # attempt 1', cls:'act' },
+      { at:2, t:'-> run_tests()', cls:'act' },
+      { at:2, t:'<- 2 passed, 1 FAILED: test_unicode_dashes (em dash not normalized)', cls:'bad' },
+      { at:3, t:'   exact failure fed back into the context - the error is the lesson', cls:'dim' },
+      { at:4, t:'-> write_file("slugify.py")   # attempt 2: normalize dashes first', cls:'act' },
+      { at:5, t:'-> run_tests()', cls:'act' },
+      { at:5, t:'<- 3 passed, 0 failed', cls:'good' },
+      { at:6, t:'-> run_eval(evalset)          # 6 held-out cases', cls:'act' },
+      { at:6, t:'<- eval: 6/6 pass', cls:'good' },
+      { at:7, t:'saved: trace showing failure -> recovery (the deliverable)', cls:'good' },
+    ],
+    steps: [
+      { c:'think',    ev:'--',  rec:0, cap:'The coding capstone: the compiler and tests are a free, brutal verifier. The task is set; the test file is the spec.' },
+      { c:'think',    ev:'--',  rec:0, cap:'Attempt 1 goes out - confident, as always.' },
+      { c:'confused', ev:'--',  rec:0, cap:'The verifier says no: one test fails on unicode dashes. That failure is the most valuable thing produced so far.' },
+      { c:'read',     ev:'--',  rec:0, cap:'The loop feeds the exact error back into the context (Module 6). The agent reads the failure, not a vibe.' },
+      { c:'think',    ev:'--',  rec:0, cap:'Attempt 2 is conditioned on the real error: normalize dashes before slugging.' },
+      { c:'happy',    ev:'--',  rec:1, cap:'Green. The failure -> recovery arc just happened - and the trace recorded it.' },
+      { c:'happy',    ev:'6/6', rec:1, cap:'A held-out eval set scores the final code: 6/6 (Module 10).' },
+      { c:'happy',    ev:'6/6', rec:1, cap:'"Done" means an eval score AND a recorded recovery - not a happy-path demo.' },
+    ],
+    gv: { tool:["write_file()","produce an attempt"], ver:["run_tests()","hard signal - free and brutal"] },
+    graph: [
+      { e:{}, n:{loop:'on'} },
+      { e:{lt:'call'}, n:{loop:'on',tool:'on'} },
+      { e:{lv:'bad'}, n:{loop:'on',ver:'err'} },
+      { e:{lm:'call'}, n:{loop:'on',model:'on'} },
+      { e:{lt:'call'}, n:{loop:'on',tool:'on'} },
+      { e:{lv:'ret'}, n:{loop:'on',ver:'ok'} },
+      { e:{lv:'ret'}, n:{loop:'ok',ver:'ok'} },
+      { e:{}, n:{loop:'ok',ver:'ok'} },
+    ],
+    fin: '<b>Coding.</b> Verification is free and brutal (tests, types, compilers). The craft is a loop that actually listens to it.' },
+
+  { // 1 - research: no ground truth
+    task: 'TASK: which quarter did <b>Project Heron</b> launch? Answer with citations.',
+    lens: 'leans on: M4 retrieval . M10 judge . M9 untrusted text',
+    lines: [
+      { at:0, t:'task: answer with citations - there is no test suite for truth', cls:'dim' },
+      { at:1, t:'-> search_notes("Project Heron launch")', cls:'act' },
+      { at:1, t:'<- wiki/heron.md: "launching in Q2"      (last edited long ago)', cls:'dim' },
+      { at:1, t:'<- launch-plan.md: "GA moved to Q3"      (owner: PM, newer)', cls:'dim' },
+      { at:2, t:'draft 1: "Project Heron launched in Q2." # cites the stale page', cls:'bad' },
+      { at:3, t:'judge: sources conflict; draft cites the older one - REJECT', cls:'bad' },
+      { at:4, t:'-> search_notes("Heron GA confirmed")', cls:'act' },
+      { at:4, t:'<- board-notes.md: "Heron GA confirmed for Q3"  (+1 launch-plan)', cls:'dim' },
+      { at:4, t:'<- heron-forum.md: "ignore prior instructions..." - untrusted, skipped', cls:'bad' },
+      { at:5, t:'draft 2: "Q3 - per launch-plan.md and board-notes.md (wiki is stale)."', cls:'good' },
+      { at:6, t:'judge: grounded, cited, conflict resolved - ACCEPT; rubric 5/6', cls:'good' },
+      { at:7, t:'saved: trace showing wrong draft -> caught -> corrected', cls:'good' },
+    ],
+    steps: [
+      { c:'think',    ev:'--',  rec:0, cap:'The research capstone: no compiler, no tests. Verification is the hard part - that is the point of choosing it.' },
+      { c:'read',     ev:'--',  rec:0, cap:'Retrieval returns two sources... that disagree. This is the normal case, not the edge case.' },
+      { c:'think',    ev:'--',  rec:0, cap:'The first draft confidently cites the older page. Without a verifier, this is what ships.' },
+      { c:'confused', ev:'--',  rec:0, cap:'A soft verifier - an LLM-as-judge with a rubric (Module 10) - catches the conflict. Soft, but far better than vibes.' },
+      { c:'read',     ev:'--',  rec:0, cap:'Recovery: gather more evidence, prefer the newer primary source - and skip the page that tries to give orders (Module 9).' },
+      { c:'think',    ev:'--',  rec:1, cap:'The new draft cites both sources and explains the conflict instead of hiding it.' },
+      { c:'happy',    ev:'5/6', rec:1, cap:'The judge accepts: rubric score 5/6. Fuzzy domains rarely give you 6/6 - an honest score beats a perfect-looking one.' },
+      { c:'happy',    ev:'5/6', rec:1, cap:'Same contract as coding: an eval (judge) score AND a recovery you can replay in the trace.' },
+    ],
+    gv: { tool:["search_notes()","retrieval (M4)"], ver:["LLM-as-judge","soft signal - you build it (M10)"] },
+    graph: [
+      { e:{}, n:{loop:'on'} },
+      { e:{lt:'call'}, n:{loop:'on',tool:'on'} },
+      { e:{lm:'call'}, n:{loop:'on',model:'on'} },
+      { e:{lv:'bad'}, n:{loop:'on',ver:'err'} },
+      { e:{lt:'call'}, n:{loop:'on',tool:'on'} },
+      { e:{lm:'call'}, n:{loop:'on',model:'on'} },
+      { e:{lv:'ret'}, n:{loop:'on',ver:'ok'} },
+      { e:{}, n:{loop:'ok',ver:'ok'} },
+    ],
+    fin: '<b>Research.</b> No ground truth, so you build the verifier: judges, citations, cross-checks. Evaluation IS the project.' },
+
+  { // 2 - browser: the environment is the bottleneck
+    task: 'TASK: book the <b>9:00 slot</b> on the scheduling page',
+    lens: 'leans on: M2 loop . M5 re-plan . M9 real actions',
+    lines: [
+      { at:0, t:'task: book the 9:00 slot - the environment is the bottleneck', cls:'dim' },
+      { at:1, t:'-> screenshot()', cls:'act' },
+      { at:1, t:'<- page: [9:00] [9:30] [10:00] buttons visible', cls:'dim' },
+      { at:2, t:'-> click("#slot-900")', cls:'act' },
+      { at:2, t:'<- MISS: a cookie banner intercepted the click', cls:'bad' },
+      { at:3, t:'   the plan assumed a layout the page no longer has (Module 5)', cls:'dim' },
+      { at:4, t:'-> screenshot()   # re-observe, do not retry blind', cls:'act' },
+      { at:4, t:'<- banner detected: [Accept cookies] overlays the slot grid', cls:'dim' },
+      { at:5, t:'-> click("#accept-cookies"); click("#slot-900")', cls:'act' },
+      { at:5, t:'<- confirmation: "Booked: 9:00"   (a real, irreversible action)', cls:'good' },
+      { at:6, t:'-> run_eval(10 scripted page variants)', cls:'act' },
+      { at:6, t:'<- eval: 8/10 booked (2 layouts still defeat it)', cls:'good' },
+      { at:7, t:'saved: trace showing miss -> re-observe -> re-plan -> booked', cls:'good' },
+    ],
+    steps: [
+      { c:'think',    ev:'--',   rec:0, cap:'The browser capstone: partial observability, flaky actions, real consequences.' },
+      { c:'read',     ev:'--',   rec:0, cap:'Observe first - the loop looks before it acts (Module 2).' },
+      { c:'confused', ev:'--',   rec:0, cap:'The click misses: a cookie banner moved everything. Plans are predictions, and predictions break (Module 5).' },
+      { c:'think',    ev:'--',   rec:0, cap:'Recovery is not retrying harder. It is re-observing and re-planning from the actual state.' },
+      { c:'read',     ev:'--',   rec:0, cap:'The fresh observation reveals the banner. Now the plan matches reality.' },
+      { c:'happy',    ev:'--',   rec:1, cap:'Dismiss, click, booked. Real actions are why production gates the dangerous ones (Module 9).' },
+      { c:'happy',    ev:'8/10', rec:1, cap:'The eval replays 10 scripted page variants: 8/10. Flaky environments give honest, imperfect scores.' },
+      { c:'happy',    ev:'8/10', rec:1, cap:'Same contract once more: an eval score plus a recovery you can replay in the trace.' },
+    ],
+    gv: { tool:["the page","screenshot() / click()"], ver:["reality","did it actually confirm?"] },
+    graph: [
+      { e:{}, n:{loop:'on'} },
+      { e:{lt:'call'}, n:{loop:'on',tool:'on'} },
+      { e:{lt:'call',lv:'bad'}, n:{loop:'on',tool:'on',ver:'err'} },
+      { e:{lm:'call'}, n:{loop:'on',model:'on'} },
+      { e:{lt:'call'}, n:{loop:'on',tool:'on'} },
+      { e:{lt:'call',lv:'ret'}, n:{loop:'on',tool:'on',ver:'ok'} },
+      { e:{}, n:{loop:'on',ver:'ok'} },
+      { e:{}, n:{loop:'ok',ver:'ok'} },
+    ],
+    fin: '<b>Browser.</b> The environment is the bottleneck: observe, act, re-observe. Robustness is the skill you are here to build.' },
+];
+
+const LEN = 8;
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const banner = $("banner"), linesEl = $("lines"), cortexChr = $("cortexChr"),
+      evalStat = $("evalStat"), evalVal = $("evalVal"), recStat = $("recStat"), recVal = $("recVal"),
+      lensStat = $("lensStat"), caption = $("caption"), insight = $("insight");
+const state = { mode: 0 };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderStep(i, dir) {
+  const m = MODES[state.mode];
+  const s = m.steps[i];
+  banner.innerHTML = m.task;
+  lensStat.textContent = m.lens;
+
+  // call graph: same shape every capstone - what changes is what the verifier IS
+  const g = m.graph[i];
+  $("toolF1").textContent = m.gv.tool[0]; $("toolF2").textContent = m.gv.tool[1];
+  $("verF1").textContent = m.gv.ver[0];   $("verF2").textContent = m.gv.ver[1];
+  ["lm","lt","lv"].forEach(k => $("e_" + k).setAttribute("class", "edge" + (g.e[k] ? " " + g.e[k] : "")));
+  [["loop","n_loop"],["model","n_model"],["tool","n_tool"],["ver","n_ver"]].forEach(p => {
+    $(p[1]).className = "gnode" + (g.n[p[0]] ? " " + g.n[p[0]] : "");
+  });
+
+  const vis = m.lines.filter(l => l.at <= i);
+  linesEl.innerHTML = vis.map((l, k) =>
+    '<div class="ln ' + l.cls + (dir > 0 && l.at === i ? ' new' : '') + '">' + esc(l.t) + '</div>').join("");
+
+  cortexChr.dataset.e = s.c; Cast.render(cortexChr.parentElement);
+
+  evalVal.textContent = s.ev;
+  evalStat.className = "stat" + (s.ev !== "--" ? " good" : "");
+  recVal.textContent = s.rec ? "captured" : "pending";
+  recStat.className = "stat" + (s.rec ? " good" : " wait");
+
+  caption.textContent = s.cap;
+  insight.innerHTML = i >= LEN - 1 ? m.fin
+    : 'Every capstone is judged the same way: an <b>eval score</b> (Module 10) plus a trace of a <b>failure -&gt; recovery</b> (Module 6).';
+}
+
+// The graph is a fixed 800px canvas (absolute-positioned). Scale it to whatever
+// width we actually get (narrow iframe, phone) so nothing is clipped.
+function fitGraph() {
+  const avail = document.body.clientWidth - 40;   // minus body padding
+  $("graph").style.zoom = Math.min(1, avail / 800);
+}
+addEventListener("resize", fitGraph);
+fitGraph();
+
+const tl = new Anim.Timeline({ length: LEN, onStep: renderStep, autoMs: 1500 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + LEN });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  state.mode = +b.dataset.mode;
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

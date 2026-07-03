@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tools give the model hands</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:820px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .task { font:13px var(--mono); color:var(--dim); border:1px solid var(--line);
+          border-radius:10px; background:var(--panel); padding:9px 13px; margin-bottom:14px; }
+  .task b { color:var(--gold); font-weight:600; }
+
+  .diagram { position:relative; width:100%; height:180px; border:1px solid var(--line);
+             border-radius:12px; background:#0b0e12; overflow:hidden; }
+  svg.wire { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .wire line { stroke:#2a3a44; stroke-width:2; transition:stroke .2s; }
+  .wire.hot line { stroke:var(--gold); stroke-width:3; filter:drop-shadow(0 0 4px var(--gold)); }
+
+  .node { position:absolute; display:flex; flex-direction:column; align-items:center; gap:2px; z-index:2; }
+  .node .chr svg { width:70px; height:70px; }
+  .node .lbl { font:10px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.07em; }
+
+  .tray { position:absolute; left:224px; top:30px; width:140px; z-index:2;
+          border:1px dashed var(--line); border-radius:10px; background:var(--panel); padding:9px 10px; min-height:78px; }
+  .tray-lbl { font:10px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.1em; display:block; margin-bottom:8px; }
+  .tray-empty { font:12px var(--mono); color:var(--faint); font-style:italic; }
+  .chip { display:inline-flex; align-items:baseline; gap:2px; border:1px solid var(--line); border-radius:8px;
+          background:#0b0e12; padding:6px 9px; font:12px var(--mono); color:var(--ink); transition:all .2s; }
+  .chip .chip-fn { color:var(--blue); }
+  .chip .chip-arg { color:var(--faint); }
+  .chip.hot { border-color:var(--gold); color:var(--gold); box-shadow:0 0 12px rgba(255,211,92,.45); }
+  .chip.hot .chip-fn { color:var(--gold); }
+  .chip.new { animation:pop .34s ease; }
+  @keyframes pop { from { transform:scale(.6); opacity:0; } to { transform:none; opacity:1; } }
+
+  .packet { position:absolute; top:0; left:0; z-index:3; padding:3px 8px; border-radius:999px;
+            font:11px var(--mono); white-space:nowrap; opacity:0; pointer-events:none;
+            transition:transform .6s ease, opacity .2s; }
+  .packet.show { opacity:1; }
+  .packet.call { background:var(--gold); color:#04222a; box-shadow:0 0 12px var(--gold); }
+  .packet.result { background:var(--green); color:#04222a; box-shadow:0 0 12px var(--green); }
+
+  .out { margin:14px 0 2px; border:1px solid var(--line); border-left:3px solid var(--line);
+         border-radius:8px; background:var(--panel); padding:9px 13px; }
+  .out .out-lbl { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); display:block; margin-bottom:2px; }
+  .out .out-txt { font-size:15px; color:var(--ink); }
+  .out.bad { border-left-color:var(--red); } .out.bad .out-txt { color:var(--red); }
+  .out.call { border-left-color:var(--gold); font-family:var(--mono); } .out.call .out-txt { color:var(--gold); font-family:var(--mono); }
+  .out.result { border-left-color:var(--green); } .out.result .out-txt { color:var(--green); font-family:var(--mono); }
+  .out.good { border-left-color:var(--green); } .out.good .out-txt { color:var(--green); font-weight:600; }
+  .out.new { animation:slidein .3s ease; }
+  @keyframes slidein { from { transform:translateY(8px); opacity:0; } to { transform:none; opacity:1; } }
+  .reduce .chip.new, .reduce .out.new { animation:none; }
+  .reduce .packet { transition:opacity .2s; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 6px 48px; }
+  }
+</style>
+</head>
+<body>
+<h1>Tools give the model hands</h1>
+<p class="sub">A model alone can only produce <b>text</b> - it predicts, it doesn't compute. A tool
+lets it <b>act</b>. Watch the same task fail by guessing, then succeed with a tool.</p>
+
+<div class="task">Task &mdash; <b>What is 4127 * 89?</b></div>
+
+<div class="diagram" id="diagram" role="group" aria-label="The model beside a tools tray, exchanging a call and a result">
+  <svg class="wire" id="wire"><line x1="116" y1="90" x2="224" y2="90" /></svg>
+  <div class="node model" id="modelNode" style="left:20px;top:26px">
+    <span class="chr" id="modelChr" data-c="cortex" data-e="think"></span><span class="lbl">the model</span>
+  </div>
+  <div class="tray" id="tray">
+    <span class="tray-lbl">tools</span>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="packet" id="packet"></div>
+</div>
+
+<div class="out" id="out"></div>
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+// Node centres inside the diagram (px). Packet rides the wire between them.
+const P = { model:[116,90], tool:[224,90] };
+
+const STEPS = [
+  { mood:"think", tools:false, chipHot:false, packet:null,
+    out:{ cls:"", lbl:"the task", txt:"What is 4127 * 89?" },
+    cap:"Cortex is handed a big multiplication. It has words, but no way to run real code.",
+    ins:"A language model predicts the next token. It has no calculator inside - only patterns from text." },
+
+  { mood:"confused", tools:false, chipHot:false, packet:null, chip:0,
+    out:{ cls:"bad", lbl:"Cortex guesses", txt:"Uhh... about 367,000?" },
+    cap:"A model has no hands - it can only GUESS from what looks right. Close, but wrong (the answer is 367303).",
+    ins:"Guessing at arithmetic is what a model does when it has no tool: plausible-looking, not correct." },
+
+  { mood:"neutral", tools:true, chipHot:false, packet:null, fresh:true,
+    out:{ cls:"", lbl:"you", txt:"You attach a calculate tool it is allowed to call." },
+    cap:"You give Cortex a tool: a calculate function. The tools tray is no longer empty.",
+    ins:"A tool is a function you expose to the model plus a promise: if it asks, your code will run it." },
+
+  { mood:"reach", tools:true, chipHot:true, packet:{ to:"tool", cls:"call", txt:"4127 * 89" },
+    out:{ cls:"call", lbl:"tool call", txt:"calculate(\"4127 * 89\")" },
+    cap:"Cortex REACHES for the tool - instead of answering, it asks to run calculate on 4127 * 89.",
+    ins:"Reaching for a tool means emitting a structured request: call this function with these arguments." },
+
+  { mood:"read", tools:true, chipHot:true, packet:{ to:"model", cls:"result", txt:"367303" },
+    out:{ cls:"result", lbl:"tool result", txt:"367303" },
+    cap:"Your code runs REAL arithmetic and hands the exact result back: 367303.",
+    ins:"The tool did the computing. The model just reads the result that came back." },
+
+  { mood:"happy", tools:true, chipHot:false, packet:null, done:true,
+    out:{ cls:"good", lbl:"Cortex answers", txt:"4127 * 89 = 367303" },
+    cap:"Now Cortex answers with the exact number - because it ACTED instead of guessing.",
+    ins:"The model didn't get smarter - it got hands. A tool lets it ACT (run real code) instead of guess." },
+];
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const chips = $("chips"), wire = $("wire"), packet = $("packet"), out = $("out"),
+      caption = $("caption"), insight = $("insight"), modelChr = $("modelChr"), modelNode = $("modelNode");
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function setPacket(x, y, animate) {
+  packet.style.transition = animate ? "" : "none";
+  packet.style.transform = "translate(" + x + "px," + y + "px) translate(-50%,-50%)";
+  if (!animate) void packet.offsetWidth;  // reflow so the next move transitions
+}
+
+function renderStep(i, dir) {
+  const s = STEPS[i];
+
+  // tools tray
+  chips.innerHTML = s.tools
+    ? '<span class="chip' + (s.chipHot ? " hot" : "") + ((dir > 0 && s.fresh) ? " new" : "") +
+      '"><span class="chip-fn">calculate</span><span class="chip-arg">(a * b)</span></span>'
+    : '<span class="tray-empty">(no tools attached)</span>';
+
+  // wire + packet
+  wire.classList.toggle("hot", !!s.packet);
+  if (s.packet) {
+    packet.className = "packet show " + s.packet.cls;
+    packet.textContent = s.packet.txt;
+    const dest = P[s.packet.to], src = P[s.packet.to === "tool" ? "model" : "tool"];
+    if (dir > 0 && !Anim.reduced()) {
+      setPacket(src[0], src[1], false);
+      requestAnimationFrame(() => setPacket(dest[0], dest[1], true));
+    } else {
+      setPacket(dest[0], dest[1], false);
+    }
+  } else {
+    packet.className = "packet";
+  }
+
+  // model output
+  out.className = "out " + (s.out.cls || "") + (dir > 0 ? " new" : "");
+  out.innerHTML = '<span class="out-lbl">' + esc(s.out.lbl) + '</span><span class="out-txt">' + esc(s.out.txt) + '</span>';
+
+  // Cortex mood + text
+  modelChr.dataset.e = s.mood; Cast.render(document);
+  caption.textContent = s.cap;
+  insight.innerHTML = "<b>" + (s.done ? "The aha:" : "Note:") + "</b> " + s.ins;
+}
+
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + STEPS.length });
+tl.render(0);
+</script>
+</body>
+</html>

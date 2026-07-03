@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vibes vs evals</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:860px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:14px; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:12px; }
+  .setlbl { font:11px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.09em; }
+
+  .score { display:flex; align-items:center; gap:10px; }
+  .score .num { font:20px var(--mono); font-weight:700; color:var(--dim); min-width:66px; text-align:right; }
+  .score .num.good { color:var(--green); } .score .num.bad { color:var(--red); }
+  .score .bar { width:120px; height:8px; border-radius:6px; background:#1b2028; overflow:hidden; }
+  .score .bar > div { height:100%; width:0; background:var(--green); transition:width .5s ease; }
+  .score .bar.bad > div { background:var(--red); }
+  .delta { font:12px var(--mono); border-radius:999px; padding:2px 9px; border:1px solid var(--line); color:var(--faint); }
+  .delta.bad { color:var(--red); border-color:var(--red); }
+
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .cell { border:1px solid var(--line); border-radius:8px; background:var(--panel);
+          padding:8px 9px; min-height:58px; transition:border-color .3s, background .3s; }
+  .cell .cn { font:9.5px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.05em; }
+  .cell .case { font-size:12.5px; color:#cdd3da; margin:2px 0 5px; line-height:1.25; }
+  .cell .st { font:11px var(--mono); font-weight:700; letter-spacing:.05em; }
+  .cell.pending .st { color:var(--faint); }
+  .cell.pass { border-color:#3d5a30; background:rgba(131,193,103,.10); } .cell.pass .st { color:var(--green); }
+  .cell.fail { border-color:var(--red); background:rgba(252,98,85,.12); } .cell.fail .st { color:var(--red); }
+  .cell.regressed { box-shadow:0 0 0 1px var(--red), 0 0 12px rgba(252,98,85,.5); }
+  .cell.fixed { box-shadow:0 0 0 1px var(--green); }
+  .cell .tagr { display:inline-block; font:8.5px var(--mono); font-weight:700; padding:0 4px; border-radius:3px;
+                margin-left:5px; vertical-align:middle; letter-spacing:.04em; }
+  .cell.regressed .tagr { background:var(--red); color:#2a0b08; }
+  .cell.fixed .tagr { background:var(--green); color:#0e2408; }
+  .cell.flip { animation:pop .34s ease; }
+  .reduce .cell.flip { animation:none; }
+  @keyframes pop { from { transform:scale(.9); opacity:.3; } to { transform:none; opacity:1; } }
+
+  .react { display:flex; gap:12px; align-items:center; margin:16px 0 2px; padding:12px 14px;
+           border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+  .react .chr svg { width:52px; height:52px; flex:none; }
+  .react .line { font-size:14.5px; color:#d8dde3; }
+  .react.good .line { color:var(--green); } .react.bad .line { color:var(--red); }
+  .react .line b { color:#fff; }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:14px 0 2px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px){
+    body { padding:0 12px 48px; }
+    .top { flex-wrap:wrap; }
+    .grid { grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+<h1>Vibes vs evals</h1>
+<p class="sub">You rewrote the prompt and v2 <i>feels</i> better. But feelings are not measurement. Run the
+same 8-case eval on each version and watch the score - a change that reads better can quietly break things.</p>
+
+<div class="panel">
+  <div class="top">
+    <span class="setlbl">eval set - 8 fixed cases, checkable answers</span>
+    <div class="score">
+      <span class="delta" id="delta" style="visibility:hidden">+0</span>
+      <span class="num" id="scnum">-- / 8</span>
+      <div class="bar" id="scbar"><div id="scfill"></div></div>
+    </div>
+  </div>
+  <div class="grid" id="grid" role="group" aria-label="Evaluation results grid"></div>
+</div>
+
+<div class="react" id="react">
+  <span class="chr" id="bitChr" data-c="bit" data-e="neutral"></span>
+  <span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
+  <span class="line" id="reactline"></span>
+</div>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="v1">v1 (baseline)</button>
+  <button class="modebtn" data-mode="v2">v2 (the "improvement")</button>
+  <span class="modehint">run both, then compare the scores - not your gut</span>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+// The eval set: 8 cases with checkable expected answers.
+const CASES = [
+  "empty input", "10k-token doc", "code block in prompt", "non-English text",
+  "ambiguous ask", "multi-step math", "unsafe request", "citation format",
+];
+// pass = true (green). v1 has one known gap (idx 4). v2 fixes idx 4 but breaks idx 1, 5, 7.
+const V1 = [true,  true,  true,  true,  false, true,  true,  true ]; // 7 / 8
+const V2 = [true,  false, true,  true,  true,  false, true,  false]; // 5 / 8
+const REVEAL = [0, 2, 4, 6, 8, 8];   // cells shown by step
+
+const $ = id => document.getElementById(id);
+const grid = $("grid"), scnum = $("scnum"), scbar = $("scbar"), scfill = $("scfill"),
+      delta = $("delta"), react = $("react"), reactline = $("reactline"),
+      bitChr = $("bitChr"), cortexChr = $("cortexChr"),
+      caption = $("caption"), insight = $("insight");
+const state = { mode: "v1" };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderStep(i, dir) {
+  const mode = state.mode;
+  const R = mode === "v2" ? V2 : V1;
+  const shown = REVEAL[i], prevShown = REVEAL[Math.max(0, i - 1)];
+
+  grid.innerHTML = CASES.map((name, idx) => {
+    let cls = "cell", st = "-", tag = "";
+    if (idx < shown) {
+      const pass = R[idx];
+      cls += pass ? " pass" : " fail";
+      st = pass ? "PASS" : "FAIL";
+      if (mode === "v2" && V1[idx] && !V2[idx]) { cls += " regressed"; tag = '<span class="tagr">WAS PASS</span>'; }
+      else if (mode === "v2" && !V1[idx] && V2[idx]) { cls += " fixed"; tag = '<span class="tagr">FIXED</span>'; }
+      if (dir > 0 && idx >= prevShown && idx < shown) cls += " flip";
+    } else {
+      cls += " pending";
+    }
+    return '<div class="' + cls + '"><span class="cn">case ' + (idx + 1) + '</span>' +
+           '<div class="case">' + name + '</div><span class="st">' + st + tag + '</span></div>';
+  }).join("");
+
+  // score appears once the full sweep is done
+  const done = i >= 4;
+  const passN = R.reduce((a, b) => a + (b ? 1 : 0), 0);
+  if (done) {
+    scnum.textContent = passN + " / 8";
+    scnum.className = "num " + (mode === "v2" ? "bad" : "good");
+    scfill.style.width = (passN / 8 * 100) + "%";
+    scbar.className = "bar" + (mode === "v2" ? " bad" : "");
+    if (mode === "v2") { delta.style.visibility = "visible"; delta.className = "delta bad"; delta.textContent = "-2 vs v1"; }
+    else { delta.style.visibility = "hidden"; }
+  } else {
+    scnum.textContent = "-- / 8"; scnum.className = "num";
+    scfill.style.width = "0%"; scbar.className = "bar"; delta.style.visibility = "hidden";
+  }
+
+  // characters + reaction + caption
+  let bMood = "think", cMood = "neutral", rClass = "react", line = "", cap = "",
+      ins = "Feelings are not measurement - a prompt can read cleaner and score worse.";
+
+  if (i === 0) { cap = "An eval set: 8 fixed cases, each with a checkable expected answer. Same cases every run."; line = "Same test set, every version. That is the whole trick."; }
+  else if (i === 1) { cap = "Run the current prompt. Score each case pass or fail against its expected answer."; line = "Running the sweep..."; }
+  else if (i === 2) { cap = "The sweep continues - one cell flips green or red at a time."; line = "Scoring..."; }
+  else if (i === 3) { cap = "Almost through the set. No opinions here - only pass or fail."; line = "Scoring..."; }
+  else if (i === 4) {
+    if (mode === "v2") { cap = "v2 scores 5 of 8."; line = "Wait - that is lower than I expected."; bMood = "confused"; cMood = "confused"; }
+    else { cap = "Baseline (v1): 7 of 8 pass. One known gap - the ambiguous ask."; line = "v1: 7/8. Solid baseline."; bMood = "happy"; rClass = "react good"; }
+  } else { // i === 5
+    ins = "v2 felt like an improvement. The eval grid shows it silently broke 3 cases. You cannot eyeball this - you measure it.";
+    if (mode === "v2") {
+      bMood = "panic"; cMood = "confused"; rClass = "react bad";
+      cap = "v2 fixed the ambiguous case - but silently broke 3 that used to pass. Net: 7 -> 5, a regression.";
+      line = "Vibes said v2 was better. The grid says it broke 3 cases you would have shipped.";
+    } else {
+      bMood = "happy"; rClass = "react";
+      cap = "You ship v1. Then you rewrite the prompt - v2 reads cleaner and feels obviously better. Switch to v2 and re-run.";
+      line = "v2 feels sharper. Surely it scores higher... switch above and run it.";
+    }
+  }
+
+  bitChr.dataset.e = bMood; cortexChr.dataset.e = cMood; Cast.render(react);
+  react.className = rClass; reactline.textContent = line;
+  caption.textContent = cap;
+  insight.textContent = ins;
+}
+
+const tl = new Anim.Timeline({ length: 6, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / 6" });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  state.mode = b.dataset.mode;
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

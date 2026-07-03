@@ -1,0 +1,11 @@
+import { chromium } from "playwright";
+import { pathToFileURL } from "url";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1100, height: 780 } });
+await p.goto(pathToFileURL(process.argv[2]).href);
+await p.waitForTimeout(500);
+await p.$eval("#side", el => el.scrollTop = el.scrollHeight);
+await p.waitForTimeout(400);
+await p.screenshot({ path: process.argv[3] });
+await b.close();
+console.log("wrote", process.argv[3]);

@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Survive a long conversation</title>
+<link rel="stylesheet" href="../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:820px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 16px; }
+
+  .scene { display:flex; gap:18px; align-items:flex-start; }
+  .model { flex:none; width:126px; display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:26px; }
+  .model .chr svg { width:90px; height:90px; }
+  .mnote { color:var(--dim); font-size:12px; text-align:center; }
+
+  .win { flex:1; border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px; min-width:0; }
+
+  .meter { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .meter .lbl { font:11px var(--mono); color:var(--faint); min-width:118px; }
+  .bar { position:relative; flex:1; height:10px; border-radius:6px; background:#1b2028; overflow:visible; }
+  .bar > .fill { height:100%; width:0; border-radius:6px; background:var(--blue); transition:width .5s ease, background .3s; }
+  .bar.snap > .fill { transition:none; }
+  .bar.warn > .fill { background:var(--gold); }
+  .bar.full > .fill { background:var(--red); }
+  .thresh { position:absolute; top:-4px; bottom:-4px; left:75%; width:2px; background:var(--gold); opacity:.7; }
+  .meter.full .lbl { color:var(--red); }
+  .meter.warn .lbl { color:var(--gold); }
+
+  .threshlbl { font:10px var(--mono); color:var(--gold); margin:0 0 8px; }
+
+  .event { min-height:18px; font:12px var(--mono); margin-bottom:8px; }
+  .event.compact { color:var(--green); } .event.dead { color:var(--red); }
+
+  .cards { display:flex; flex-direction:column; gap:6px; min-height:200px; }
+  .card { display:flex; gap:10px; align-items:baseline; border-radius:8px; padding:6px 10px; font-size:13px;
+          border-left:3px solid var(--line); background:var(--panel); }
+  .card .body { flex:1; min-width:0; }
+  .card .ml { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); display:block; margin-bottom:1px; }
+  .card .tk { font:10px var(--mono); color:var(--faint); flex:none; }
+  .card.user { border-left-color:var(--gold); } .card.user .ml { color:var(--gold); }
+  .card.assistant { border-left-color:var(--blue); } .card.assistant .ml { color:var(--blue); }
+  .card.summary { border-left-color:var(--green); border:1px dashed var(--green); background:rgba(131,193,103,.07); font-style:italic; }
+  .card.summary .ml { color:var(--green); font-style:normal; }
+  .card.new { animation:slidein .34s ease; }
+  @keyframes slidein { from { transform:translateY(10px); opacity:0; } to { transform:none; opacity:1; } }
+  .card.dead { opacity:.45; }
+  .reduce .card.new { animation:none; }
+
+  .banner { margin-top:10px; padding:9px 12px; border-radius:8px; font-size:13px; }
+  .banner.bad  { border:1px dashed var(--red); color:var(--red); }
+  .banner.good { border:1px dashed var(--green); color:var(--green); }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:16px 0 2px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--red); background:#12171e; }
+  .modebtn[data-mode="on"].on { border-color:var(--green); }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:640px) {
+    .scene { flex-direction:column; }
+    .model { width:100%; flex-direction:row; justify-content:flex-start; padding-top:0; }
+    .model .chr svg { width:64px; height:64px; }
+    .win { width:auto; }
+    .meter .lbl { min-width:96px; }
+  }
+</style>
+</head>
+<body>
+<h1>Survive a long conversation</h1>
+<p class="sub">A long-running agent's message list is bounded by the context window. Watch it overflow
+with compaction <b>off</b>, then keep going with it <b>on</b>.</p>
+
+<div class="scene" id="scene" role="group" aria-label="A long conversation with compaction off versus on">
+  <div class="model"><span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
+    <span class="mnote" id="mnote">Cortex &mdash; the running agent</span></div>
+  <div class="win">
+    <div class="meter" id="meter"><span class="lbl" id="meterlbl">0 / 1000 tokens</span>
+      <div class="bar" id="bar"><div class="fill" id="fill"></div><div class="thresh"></div></div></div>
+    <div class="threshlbl">| compaction threshold 750</div>
+    <div class="event" id="event"></div>
+    <div class="cards" id="cards"></div>
+    <div id="banner"></div>
+  </div>
+</div>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="off">Compaction OFF (naive)</button>
+  <button class="modebtn" data-mode="on">Compaction ON (fixed)</button>
+  <span class="modehint">fold old turns at the threshold, or overflow &mdash; switch and re-step to compare</span>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../assets/cast.js"></script>
+<script src="../../../assets/anim.js"></script>
+<script>
+const LIMIT = 1000, THRESHOLD = 750, TOK = 150, SUM_TOK = 120;
+// A long deploy-babysitting session. Every turn costs 150 tokens.
+const TURNS = [
+  { role:"user",      label:"You",    text:"Kick off the deploy to staging." },
+  { role:"assistant", label:"Cortex", text:"Starting deploy to staging..." },
+  { role:"user",      label:"You",    text:"Now run the smoke tests." },
+  { role:"assistant", label:"Cortex", text:"Smoke tests passed, 42 / 42." },
+  { role:"user",      label:"You",    text:"Promote it to production." },
+  { role:"assistant", label:"Cortex", text:"Promoting. Watching the error rate now." },
+  { role:"user",      label:"You",    text:"Roll back if p95 latency spikes." },
+  { role:"assistant", label:"Cortex", text:"Understood - rolling back on any latency spike." },
+];
+const N = TURNS.length;
+
+// Pure function of (upto, mode): replay the turns with the eviction rule.
+function convo(upto, mode) {
+  let live = [], summary = null, dead = false, event = null;
+  for (let k = 0; k <= upto; k++) {
+    if (dead) { event = { type:"dead" }; continue; }
+    live.push({ role: TURNS[k].role, label: TURNS[k].label, text: TURNS[k].text, tok: TOK });
+    event = { type:"add" };
+    let total = live.length * TOK + (summary ? summary.tok : 0);
+    if (mode === "off") {
+      if (total > LIMIT) { dead = true; event = { type:"dead" }; }
+    } else if (total > THRESHOLD) {
+      const n = Math.min(4, live.length - 1);            // fold oldest turns, keep newest live
+      const foldedBefore = summary ? summary.folded : 0;
+      live = live.slice(n);
+      summary = { role:"summary", label:"summary of " + (foldedBefore + n) + " turns",
+                  text:"deploy to staging + prod; smoke tests 42/42 passed; watching error rate.",
+                  tok: SUM_TOK, folded: foldedBefore + n };
+      event = { type:"compact", n: n };
+    }
+  }
+  const cards = summary ? [summary].concat(live) : live;
+  const total = live.length * TOK + (summary ? summary.tok : 0);
+  return { cards, total, dead, event };
+}
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const meter = $("meter"), meterlbl = $("meterlbl"), bar = $("bar"), fill = $("fill"),
+      eventEl = $("event"), cardsEl = $("cards"), banner = $("banner"),
+      caption = $("caption"), insight = $("insight"), cortexChr = $("cortexChr"), mnote = $("mnote");
+const state = { mode: "off" };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+const AHA = "Memory is the message list, and it is bounded. A long-running agent must compact "
+          + "&mdash; summarize old turns &mdash; or it eventually overflows and dies.";
+
+function renderStep(i, dir) {
+  const mode = state.mode;
+  const { cards, total, dead, event } = convo(i, mode);
+  const shownTotal = dead ? (N - 1) * 0 + LIMIT + 50 : total;   // over-limit reading when dead
+  const over = mode === "off" && event && event.type === "dead";
+  const warn = !over && total > THRESHOLD;
+
+  // meter
+  const pct = Math.min(over ? 105 : (total / LIMIT * 100), 100);
+  bar.classList.toggle("snap", !(dir > 0) || Anim.reduced());
+  fill.style.width = pct + "%";
+  bar.classList.toggle("full", over); bar.classList.toggle("warn", warn);
+  meter.classList.toggle("full", over); meter.classList.toggle("warn", warn);
+  meterlbl.textContent = over ? "1050 / 1000 tokens - OVER" : (total + " / " + LIMIT + " tokens");
+
+  // event line
+  if (event && event.type === "compact") { eventEl.className = "event compact"; eventEl.textContent = "+ folded " + event.n + " old turns into 1 summary - tokens dropped to " + total; }
+  else if (over) { eventEl.className = "event dead"; eventEl.textContent = "x context_length_exceeded - the request is rejected"; }
+  else { eventEl.className = "event"; eventEl.textContent = ""; }
+
+  // cards
+  const last = cards[cards.length - 1];
+  cardsEl.innerHTML = cards.map((c, idx) => {
+    const isNew = (dir > 0) && idx === cards.length - 1 && c.role !== "summary";
+    return `<div class="card ${c.role}${isNew ? " new" : ""}${over ? " dead" : ""}">`
+         + `<div class="body"><span class="ml">${esc(c.label)}</span>${esc(c.text)}</div>`
+         + `<span class="tk">${c.tok} tok</span></div>`;
+  }).join("");
+
+  // banner
+  if (over) banner.innerHTML = `<div class="banner bad">x conversation dead - it cannot continue.</div>`;
+  else if (mode === "on" && i >= 5) banner.innerHTML = `<div class="banner good">ok still alive - compaction keeps the agent running.</div>`;
+  else banner.innerHTML = "";
+
+  // character + notes + captions
+  let mood, cap;
+  if (mode === "off") {
+    if (i === 0) { mood = "neutral"; cap = "A long task begins. Each turn adds " + TOK + " tokens to the message list."; }
+    else if (i <= 4) { mood = "think"; cap = "Another turn appended. The token meter climbs toward the 1000 limit."; }
+    else if (i === 5) { mood = "confused"; cap = "900 / 1000. Over the safe threshold, and still climbing. No compaction here."; }
+    else { mood = "panic"; cap = i === 6 ? "1050 / 1000. context_length_exceeded - the model rejects the request." : "The conversation is dead. Every further turn is rejected."; }
+  } else {
+    if (i === 0) { mood = "neutral"; cap = "Same long task. Compaction is on and watching the meter."; }
+    else if (i <= 4) { mood = "think"; cap = "Turns accumulate. The meter climbs toward the 750 threshold."; }
+    else if (i === 5) { mood = "read"; cap = "Threshold hit. Fold the oldest turns into one summary - the meter drops."; }
+    else { mood = "happy"; cap = "Room again. The conversation keeps going, the gist preserved."; }
+  }
+  cortexChr.dataset.e = mood; Cast.render(cortexChr.parentElement);
+  mnote.textContent = over ? "\"...I can't take more.\""
+                    : (mode === "on" && i >= 5 ? "\"kept the gist, dropped the bulk.\"" : "Cortex - the running agent");
+  caption.innerHTML = cap;
+  insight.innerHTML = (over || (mode === "on" && i >= 6)) ? AHA
+    : "Memory is the message list, and it is bounded by the context window.";
+}
+
+const tl = new Anim.Timeline({ length: N, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "turn " + (i + 1) + " / " + N });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  state.mode = b.dataset.mode;
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

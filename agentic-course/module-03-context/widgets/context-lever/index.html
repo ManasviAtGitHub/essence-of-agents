@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Context is the only lever - Module 3</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  :root { --good:var(--green); --bad:var(--red); --track:var(--line); }
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:740px; margin:40px auto; padding:0 20px; }
+  h1 { font-size:19px; margin-bottom:4px; }
+  .sub { color:var(--dim); margin-top:0; }
+  .locked { background:var(--panel); border-radius:8px; padding:12px 14px; margin:16px 0; font-size:14px; }
+  .steps { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .step { font:inherit; padding:6px 12px; border:1px solid #2a2f38; border-radius:999px;
+          background:#171b21; cursor:pointer; font-size:14px; }
+  .step.sel { background:var(--bright); color:#04222a; border-color:var(--bright); }
+  .ctx { background:#171b21; border:1px solid #2a2f38; border-radius:8px; padding:12px 14px;
+         white-space:pre-wrap; font:13px/1.5 ui-monospace,Consolas,monospace; color:#cfd3da; }
+  .meter { margin:16px 0 6px; }
+  .track { background:var(--track); border-radius:999px; height:18px; overflow:hidden; }
+  .fill { height:100%; width:0; border-radius:999px; background:var(--bright);
+          transition:width .6s cubic-bezier(.2,.7,.2,1); }
+  .score { font-size:14px; color:var(--dim); margin-top:4px; }
+  .sample { margin:14px 0; }
+  .sample .out { font:14px ui-monospace,Consolas,monospace; }
+  .sample.good .out { color:var(--good); }
+  .sample.bad  .out { color:var(--bad); }
+  .why { color:var(--dim); font-size:14px; margin-top:4px; }
+  .caption { color:var(--dim); font-size:14px; margin-top:14px; }
+  @media (max-width:640px) {
+    body { padding:0 14px; }
+    img, svg, pre { max-width:100%; }
+    .locked { word-break:break-word; }
+    .ctx { overflow-x:auto; }
+    .react { flex-wrap:wrap; }
+  }
+</style>
+</head>
+<body>
+<h1>Context is the only lever</h1>
+<p class="sub">Same model. Step through better contexts and watch the pass-rate move.</p>
+<div id="widget" role="group" aria-label="Context is the only lever - context stepper demo" aria-live="polite"></div>
+
+<script>
+const MODEL = "one pinned LLM";
+const TASK = 'Extract the order number from a support email -> JSON {"order_id": "..."}';
+
+// Illustrative (hand-authored) - the shape is the point; measure real numbers per CHALLENGE.md
+const RECIPES = [
+  {
+    name: "Naive",
+    score: 0.40,
+    context: `Get the order number.
+
+<the customer email>`,
+    sample: "Sure! The order number is 88231.",
+    ok: false,
+    why: "Friendly prose, not JSON - and it often grabs the wrong number."
+  },
+  {
+    name: "+ clear instruction",
+    score: 0.63,
+    context: `Return ONLY the order number. No other text.
+
+<the customer email>`,
+    sample: "88231",
+    ok: false,
+    why: "Closer - but a bare value, not the JSON shape we asked for."
+  },
+  {
+    name: "+ few-shot examples",
+    score: 0.85,
+    context: `Examples:
+Email: "...ref #A12..."  -> {"order_id":"A12"}
+Email: "...order 77..."  -> {"order_id":"77"}
+
+<the customer email>`,
+    sample: '{"order_id": "88231"}',
+    ok: true,
+    why: "Showing the format beats describing it. In-context learning - no training."
+  },
+  {
+    name: "+ reorder, format-last",
+    score: 0.92,
+    context: `<examples>
+<the customer email>
+Return JSON {"order_id": string} as the LAST line, nothing after.`,
+    sample: '{"order_id": "88231"}',
+    ok: true,
+    why: "Putting the format instruction last (closest to generation) lifts compliance."
+  }
+];
+
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const el = document.getElementById("widget");
+let sel = 0;
+
+function render() {
+  const r = RECIPES[sel];
+  let html = `<div class="locked">&#128274; model: ${MODEL} &nbsp; &#128274; task: ${esc(TASK)}</div>`;
+
+  html += `<div class="steps">`;
+  RECIPES.forEach((rc, i) => {
+    html += `<button class="step ${i === sel ? "sel" : ""}" data-i="${i}">${esc(rc.name)}</button>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="ctx">${esc(r.context)}</div>`;
+
+  html += `<div class="meter"><div class="track"><div class="fill" id="fill"></div></div>
+           <div class="score">pass-rate &asymp; ${Math.round(r.score * 100)}%</div></div>`;
+
+  const cls = r.ok ? "good" : "bad";
+  const mark = r.ok ? "&#10003;" : "&#10007;";
+  html += `<div class="sample ${cls}">
+             <div class="out">${mark} ${esc(r.sample)}</div>
+             <div class="why">${esc(r.why)}</div>
+           </div>`;
+
+  html += `<div class="caption">Same model throughout. The only thing you changed is the context.</div>` +
+          `<div class="react"><span class="chr" data-c="cortex" data-e="think"></span><span class="line">Change what you put in front of me, and you change what I do.</span></div>`;
+
+  el.innerHTML = html;
+  el.querySelectorAll(".step").forEach(b => {
+    b.onclick = () => { sel = +b.dataset.i; render(); };
+  });
+  // animate the bar from 0 to the target each render
+  const fill = document.getElementById("fill");
+  requestAnimationFrame(() => { fill.style.width = (RECIPES[sel].score * 100) + "%"; });
+  if (window.Cast) Cast.render(el);
+}
+
+render();
+</script>
+<script src="../../../../assets/cast.js"></script>
+<script>Cast.render(document);</script>
+</body>
+</html>

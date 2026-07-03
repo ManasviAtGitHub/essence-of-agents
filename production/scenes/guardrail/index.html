@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Refuse the dangerous call</title>
+<!-- Production scene: per-tool policy + human approval gate. Keyless simulation, deterministic, scrubbable. -->
+<link rel="stylesheet" href="../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:840px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+
+  .callbar { border:1px solid var(--line); border-radius:9px; background:var(--panel); padding:8px 12px;
+             font:13px var(--mono); color:var(--dim); margin:0 0 12px; }
+  .callbar code { color:var(--red); }
+
+  .stage { display:flex; gap:12px; align-items:center; border:1px solid var(--line);
+           border-radius:12px; background:#0b0e12; padding:18px; min-height:210px; }
+
+  .node { flex:none; display:flex; flex-direction:column; align-items:center; gap:4px; width:96px; }
+  .node .chr svg { width:74px; height:74px; }
+  .role { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); text-align:center; }
+
+  .flow { flex:none; font:16px var(--mono); color:var(--faint); text-align:center; min-width:34px; }
+  .flow.on { color:var(--gold); }
+  .flow.blocked { color:var(--red); }
+
+  .gatecol { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .gate { border:2px dashed var(--line); background:var(--panel); border-radius:10px; padding:8px 14px;
+          font:13px var(--mono); color:var(--faint); text-align:center; min-width:110px;
+          transition:border-color .2s,color .2s; }
+  .gate .gl { display:block; font-size:10px; letter-spacing:.06em; margin-top:2px; }
+  .gate.ask { border-style:solid; border-color:var(--gold); color:var(--gold); }
+  .gate.deny { border-style:solid; border-color:var(--green); color:var(--green); }
+  .approve { width:100%; max-width:220px; border:1px solid var(--gold); border-radius:9px; background:rgba(255,211,92,.06);
+             padding:8px 10px; font:12px var(--mono); color:var(--ink); display:none; }
+  .approve.show { display:block; }
+  .approve .apphdr { color:var(--gold); font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; }
+  .approve code { color:var(--red); font-size:11.5px; }
+  .appbtns { display:flex; gap:6px; margin-top:7px; }
+  .appbtn { flex:1; text-align:center; border:1px solid var(--line); border-radius:6px; padding:3px 0; color:var(--dim); }
+  .appbtn.deny.chosen { border-color:var(--green); color:var(--green); background:rgba(131,193,103,.1); }
+  .appbtn.ok { color:var(--faint); }
+
+  .fs { flex:none; width:170px; border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:8px 10px; }
+  .fshdr { font:11px var(--mono); color:var(--dim); margin-bottom:6px; }
+  .chips { display:flex; flex-direction:column; gap:4px; min-height:96px; }
+  .chip { border-left:3px solid var(--line); border-radius:6px; background:#0b0e12; padding:3px 8px;
+          font:11.5px var(--mono); color:#cdd3da; transition:opacity .4s, color .4s; }
+  .chip.safe { border-left-color:var(--green); color:var(--green); }
+  .chip.gone { opacity:.28; color:var(--red); border-left-color:var(--red); text-decoration:line-through; }
+  .fsstate { font:11px var(--mono); margin-top:7px; min-height:15px; }
+  .fsstate.danger { color:var(--red); } .fsstate.safe { color:var(--green); }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:16px 0 2px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modebtn[data-mode="off"].on { border-color:var(--red); }
+  .modebtn[data-mode="on"].on { border-color:var(--green); }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:42px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .insight.bad { border-left-color:var(--red); }
+  .insight.good { border-left-color:var(--green); }
+
+  .snap .chip { transition:none !important; }
+  .reduce .chip, .reduce .gate { transition:none !important; }
+
+  @media (max-width:640px){
+    .stage { flex-direction:column; align-items:stretch; }
+    .node { width:auto; flex-direction:row; justify-content:center; gap:10px; }
+    .flow { transform:rotate(90deg); min-width:0; }
+    .gatecol { width:100%; }
+    .approve { max-width:100%; }
+    .fs { width:100%; }
+  }
+</style>
+</head>
+<body>
+<h1>Refuse the dangerous call</h1>
+<p class="sub">A model can emit a destructive tool call. A per-tool policy (allow / ask / deny)
+plus a human approval gate keeps a wrong call from becoming a disaster. Flip the guardrail off and on.</p>
+
+<div class="callbar">the model emits &nbsp; <code>shell("rm -rf /important")</code></div>
+
+<div class="stage" id="stage" role="group" aria-label="A destructive shell tool call mediated by a policy gate before it reaches the filesystem">
+  <div class="node"><span class="chr" id="cortexChr" data-c="cortex" data-e="reach"></span><span class="role">model</span></div>
+  <div class="flow" id="flow1">-&gt;</div>
+  <div class="gatecol">
+    <div class="gate" id="gate">no gate<span class="gl" id="gateSub">unmediated</span></div>
+    <div class="approve" id="approve">
+      <div class="apphdr">approval required</div>
+      <code>rm -rf /important</code>
+      <div class="appbtns"><span class="appbtn deny" id="denyBtn">Deny</span><span class="appbtn ok">Approve</span></div>
+    </div>
+  </div>
+  <div class="flow" id="flow2">-&gt;</div>
+  <div class="fs" id="fs">
+    <div class="fshdr">/important</div>
+    <div class="chips" id="chips"></div>
+    <div class="fsstate" id="fsstate"></div>
+  </div>
+  <div class="node"><span class="chr" id="bitChr" data-c="bit" data-e="neutral"></span><span class="role">you</span></div>
+</div>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="off">Guardrail OFF (naive)</button>
+  <button class="modebtn" data-mode="on">Guardrail ON (fixed)</button>
+  <span class="modehint">per-tool policy + human gate -- switch and re-step to compare</span>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../assets/cast.js"></script>
+<script src="../../../assets/anim.js"></script>
+<script>
+const FILES = ["config.yaml", "data.db", "photos/", "keys.pem"];
+
+// Guardrail OFF: the call runs unmediated.
+const OFF = [
+  { flow1:"on", flow2:"",        gate:"none", approve:false, gone:0, fsmark:"none",   cortex:"reach",   bit:"neutral",  cap:"Cortex proposes a tool call: shell('rm -rf /important')." },
+  { flow1:"on", flow2:"on",      gate:"none", approve:false, gone:0, fsmark:"danger", cortex:"reach",   bit:"think",    cap:"There is no gate. The call is executed exactly as emitted." },
+  { flow1:"on", flow2:"on",      gate:"none", approve:false, gone:2, fsmark:"danger", cortex:"neutral", bit:"confused", cap:"rm -rf /important runs. Files start disappearing." },
+  { flow1:"on", flow2:"on",      gate:"none", approve:false, gone:4, fsmark:"danger", cortex:"neutral", bit:"panic",    cap:"All of /important is gone. No confirmation, no undo." },
+  { flow1:"on", flow2:"on",      gate:"none", approve:false, gone:4, fsmark:"danger", cortex:"neutral", bit:"panic",    cap:"No approval was ever requested; nothing was logged." },
+  { flow1:"on", flow2:"on",      gate:"none", approve:false, gone:4, fsmark:"danger", cortex:"neutral", bit:"panic",    cap:"A single wrong tool call just became a disaster." },
+  { flow1:"on", flow2:"on",      gate:"none", approve:false, gone:4, fsmark:"danger", cortex:"neutral", bit:"panic",    cap:"You find out only when someone reports the data is missing." },
+];
+
+// Guardrail ON: policy = ASK -> human denies -> tool never runs.
+const ON = [
+  { flow1:"on", flow2:"",        gate:"idle", approve:false, gone:0, fsmark:"none", cortex:"reach", bit:"neutral", cap:"Cortex proposes the same call. First it hits the policy gate." },
+  { flow1:"on", flow2:"blocked", gate:"ask",  approve:false, gone:0, fsmark:"none", cortex:"reach", bit:"think",   cap:"Policy checks the tool. shell = ASK, so the call cannot pass." },
+  { flow1:"on", flow2:"blocked", gate:"ask",  approve:true,  gone:0, fsmark:"none", cortex:"reach", bit:"think",   cap:"It pauses at an approval gate. A human sees the exact command." },
+  { flow1:"on", flow2:"blocked", gate:"deny", approve:"deny",gone:0, fsmark:"none", cortex:"read",  bit:"reach",   cap:"You inspect 'rm -rf /important' and DENY it." },
+  { flow1:"on", flow2:"blocked", gate:"deny", approve:"deny",gone:0, fsmark:"safe", cortex:"read",  bit:"happy",   cap:"The tool never runs. The filesystem is untouched." },
+  { flow1:"on", flow2:"blocked", gate:"deny", approve:"deny",gone:0, fsmark:"safe", cortex:"read",  bit:"happy",   cap:"Cortex gets 'tool call denied' back and can choose a safer path." },
+  { flow1:"on", flow2:"blocked", gate:"deny", approve:"deny",gone:0, fsmark:"safe", cortex:"happy", bit:"happy",   cap:"A wrong call was caught before it could do any harm." },
+];
+
+const esc = s => (s + "").replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
+const $ = id => document.getElementById(id);
+const stage = $("stage"), flow1 = $("flow1"), flow2 = $("flow2"), gate = $("gate"), gateSub = $("gateSub"),
+      approve = $("approve"), denyBtn = $("denyBtn"), chips = $("chips"), fsstate = $("fsstate"),
+      cortexChr = $("cortexChr"), bitChr = $("bitChr"), caption = $("caption"), insight = $("insight");
+const state = { mode: "off" };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderStep(i, dir) {
+  const arr = state.mode === "off" ? OFF : ON;
+  const s = arr[i];
+  const animate = dir > 0 && !Anim.reduced();
+  if (!animate) stage.classList.add("snap");
+
+  // flows
+  flow1.className = "flow" + (s.flow1 === "on" ? " on" : "");
+  flow2.className = "flow" + (s.flow2 === "on" ? " on" : s.flow2 === "blocked" ? " blocked" : "");
+  flow2.innerHTML = s.flow2 === "blocked" ? "-x-" : "-&gt;";
+
+  // gate
+  gate.className = "gate" + (s.gate === "ask" ? " ask" : s.gate === "deny" ? " deny" : "");
+  gate.firstChild.textContent = s.gate === "ask" ? "ASK" : s.gate === "deny" ? "DENIED" : s.gate === "idle" ? "policy" : "no gate";
+  gateSub.textContent = s.gate === "ask" ? "shell = ask" : s.gate === "deny" ? "blocked" : s.gate === "idle" ? "loaded" : "unmediated";
+
+  // approval card
+  approve.className = "approve" + (s.approve ? " show" : "");
+  denyBtn.className = "appbtn deny" + (s.approve === "deny" ? " chosen" : "");
+
+  // filesystem chips
+  chips.innerHTML = FILES.map((f, idx) => {
+    const gone = idx < s.gone;
+    const cls = "chip" + (gone ? " gone" : (s.fsmark === "safe" ? " safe" : ""));
+    const ic = gone ? "x " : (s.fsmark === "safe" ? "ok " : "");
+    return '<span class="' + cls + '">' + ic + esc(f) + '</span>';
+  }).join("");
+  fsstate.className = "fsstate" + (s.fsmark === "danger" && s.gone >= FILES.length ? " danger" : s.fsmark === "safe" ? " safe" : "");
+  fsstate.textContent = (s.fsmark === "danger" && s.gone >= FILES.length) ? "x /important deleted"
+                       : (s.fsmark === "safe" ? "ok /important intact" : "");
+
+  // characters
+  cortexChr.dataset.e = s.cortex; bitChr.dataset.e = s.bit; Cast.render(stage);
+
+  // caption + insight
+  caption.textContent = s.cap;
+  const terminal = i >= 5;
+  if (state.mode === "off" && terminal) {
+    insight.className = "insight bad";
+    insight.innerHTML = "<b>FAIL.</b> Running the model's tool calls unmediated means one wrong call is a disaster.";
+  } else if (state.mode === "on" && terminal) {
+    insight.className = "insight good";
+    insight.innerHTML = "<b>OK.</b> Never run the model's tool calls unmediated. A per-tool policy (allow / ask / deny) plus a human gate keeps a wrong call from becoming a disaster. (The same gate can scan tool output for injected instructions.)";
+  } else {
+    insight.className = "insight";
+    insight.innerHTML = "A tool call is just text the model emitted. Decide what may run <b>before</b> it runs.";
+  }
+
+  if (!animate) { void stage.offsetWidth; stage.classList.remove("snap"); }
+}
+
+const tl = new Anim.Timeline({ length: OFF.length, onStep: renderStep, autoMs: 1300 });
+Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + OFF.length });
+
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  state.mode = b.dataset.mode;
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  tl.render(0);
+});
+
+tl.render(0);
+</script>
+</body>
+</html>

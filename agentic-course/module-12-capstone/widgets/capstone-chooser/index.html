@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Capstone - the choice is the lesson</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  :root { --good:var(--green); }
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:740px; margin:40px auto; padding:0 20px; }
+  h1 { font-size:19px; margin-bottom:4px; }
+  .sub { color:var(--dim); margin-top:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .chip { font:inherit; font-size:14px; padding:8px 14px; border:1px solid #2a2f38; border-radius:999px; background:#171b21; cursor:pointer; }
+  .chip.sel { background:var(--bright); color:#04222a; border-color:var(--bright); }
+  .panel { background:#171b21; border:1px solid #2a2f38; border-radius:8px; padding:14px 16px; margin:8px 0; }
+  .panel .row { margin:8px 0; }
+  .k { font-variant:small-caps; color:var(--dim); font-size:13px; display:block; }
+  .accept { background:rgba(131,193,103,.12); border:1px solid rgba(131,193,103,.40); color:var(--good); border-radius:8px; padding:12px 14px; margin:12px 0; }
+  .caption { color:var(--dim); font-size:14px; margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>Capstone - the choice is the lesson</h1>
+<p class="sub">Build one agent end to end. Which one you pick is a diagnosis of what you want to wrestle.</p>
+<div id="widget"></div>
+
+<script>
+const OPTIONS = [
+  { name:"Coding agent",
+    leans:"Modules 6 (verification), 2 (the loop), 0 (the agent)",
+    constraint:"Verification is free and brutal - compiler, tests, types. The environment is deterministic.",
+    pick:"Pick this to go deep on self-correction: the verifier does the teaching." },
+  { name:"Research agent",
+    leans:"Modules 4 (retrieval), 10 (eval + LLM-judge), 9 (untrusted text)",
+    constraint:"There's no ground truth, so verification is the hard part - and every source is untrusted.",
+    pick:"Pick this if evaluation and retrieval are your interest." },
+  { name:"Computer-use / browser agent",
+    leans:"Modules 2 (loop robustness), 5 (re-plan), 9 (real-world danger)",
+    constraint:"The environment is the bottleneck: partial observability, flaky actions, real consequences.",
+    pick:"Pick this for robustness under an unreliable world." },
+];
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const el = document.getElementById("widget");
+let sel = -1;
+
+function render() {
+  let html = `<div class="chips">` +
+    OPTIONS.map((o,i)=>`<button class="chip ${i===sel?"sel":""}" data-i="${i}">${esc(o.name)}</button>`).join("") + `</div>`;
+
+  if (sel >= 0) {
+    const o = OPTIONS[sel];
+    html += `<div class="panel">
+      <div class="row"><span class="k">leans on</span>${esc(o.leans)}</div>
+      <div class="row"><span class="k">the constraint you'll wrestle</span>${esc(o.constraint)}</div>
+      <div class="row"><span class="k">why pick it</span>${esc(o.pick)}</div>
+      <div class="row"><span class="k">built on</span>the same agent harness you grew across the course</div>
+    </div>`;
+    html += `<div class="react"><span class="chr" data-c="cortex" data-e="happy"></span><span class="line">There's no one right build - the choice itself is the lesson.</span></div>`;
+  }
+
+  html += `<div class="accept">&#10003; Acceptance (all three): an <b>eval score</b> on a small dataset, plus a <b>trace of the agent recovering from a failure</b>. Not "it ran once" - "here's the number, and here's it catching itself."</div>`;
+  if (sel < 0) html += `<div class="caption">Pick one above to see what it stresses.</div>`;
+
+  el.innerHTML = html;
+  el.querySelectorAll(".chip").forEach(b => b.onclick = () => { sel = +b.dataset.i; render(); });
+  if (window.Cast) Cast.render(el);
+}
+
+render();
+</script>
+<script src="../../../../assets/cast.js"></script>
+<script>Cast.render(document);</script>
+</body>
+</html>

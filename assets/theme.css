@@ -1,0 +1,56 @@
+/* Shared dark theme + character components for the course.
+   Palette variables (dark, 3Blue1Brown-flavored) + the scene/react/character
+   styles so Cortex and Bit look identical on every page.
+
+   Widgets keep their own bespoke rules; they just point their palette vars here.
+   The character-component classes below use literal brand colors so they render
+   the same regardless of a page's palette. */
+
+:root {
+  --bg:#0f1216; --panel:#171b21; --panel2:#1b2028; --side:#0c0f13; --line:#2a2f38;
+  --ink:#e9ebee; --dim:#98a2b0; --faint:#6b7480;
+  --bright:#58c4dd; --blue:#58c4dd; --gold:#ffd35c; --red:#fc6255; --green:#83c167;
+  --on-accent:#04222a;
+  --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+
+/* ---- characters ---- */
+.chr svg { width:60px; height:60px; vertical-align:middle; display:block; }
+
+/* an intro / closing scene: two actors + speech bubbles */
+.scene { display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin:22px 0 10px;
+         padding:22px 20px; background:#171b21; border:1px solid #2a2f38; border-radius:14px; }
+.actor { display:flex; flex-direction:column; align-items:center; gap:6px; width:132px; flex:none; }
+.actor .chr svg { width:100px; height:100px; }
+.actor .who { font:11px var(--mono, ui-monospace,Consolas,monospace); letter-spacing:.05em; }
+.actor .who.c { color:#58c4dd; } .actor .who.b { color:#ffd35c; }
+.speech { flex:1; min-width:220px; display:flex; flex-direction:column; gap:10px; }
+.bubble { background:#0e1319; border:1px solid #2a2f38; border-radius:12px; padding:9px 14px; color:#d8dde3; font-size:14.5px; }
+.bubble.c { border-left:3px solid #58c4dd; }
+.bubble.b { border-left:3px solid #ffd35c; }
+.bubble .nm { font:11px var(--mono, ui-monospace,Consolas,monospace); text-transform:uppercase; letter-spacing:.08em; display:block; margin-bottom:1px; }
+.bubble.c .nm { color:#58c4dd; } .bubble.b .nm { color:#ffd35c; }
+
+/* an inline reaction: a small character + one line, next to a result */
+.react { display:flex; gap:12px; align-items:center; margin:14px 0 4px; padding:12px 14px;
+         border:1px solid #2a2f38; border-radius:12px; background:#171b21; }
+.react .chr svg { width:52px; height:52px; flex:none; }
+.react .line { font-size:14.5px; color:#d8dde3; }
+.react.good .line { color:#83c167; }
+.react.bad .line { color:#fc6255; }
+.react .line b { color:#fff; }
+
+/* a character's speech bubble on its own */
+.say { background:#0e1319; border:1px solid #2a2f38; border-radius:12px; padding:8px 14px; color:#d8dde3; }
+
+/* ---- animation scrubber (shared by all animated scenes) ---- */
+.scrub { display:flex; align-items:center; gap:8px; margin:16px 0; }
+.scrub-btn { font:14px/1 ui-monospace,Consolas,monospace; border:1px solid #2a2f38; background:#171b21;
+             color:#e9ebee; border-radius:7px; padding:6px 11px; cursor:pointer; }
+.scrub-btn:hover { border-color:#58c4dd; color:#58c4dd; }
+.scrub-btn.play.on { color:#58c4dd; border-color:#58c4dd; }
+.scrub-range { flex:1; accent-color:#58c4dd; height:4px; }
+.scrub-count { font:12px ui-monospace,Consolas,monospace; color:#6b7480; min-width:96px; text-align:right; }
+.scrub-note { font:11px ui-monospace,Consolas,monospace; color:#6b7480; border:1px solid #2a2f38;
+              border-radius:999px; padding:2px 8px; margin-left:4px; cursor:help; white-space:nowrap; }
