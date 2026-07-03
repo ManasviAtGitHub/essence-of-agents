@@ -13,7 +13,7 @@ __pycache__/
 node_modules/
 
 # generated / throwaway artifacts
-tools/shot-*.png
+tools/*.png
 tools/gallery/
 *.trace.json
 agentic-course/module-11-shipping/evalset.json
