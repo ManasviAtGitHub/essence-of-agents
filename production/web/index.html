@@ -238,9 +238,9 @@ function scriptFor(task){
   if(/file|list|read|folder|dir/i.test(task)) return [
     {kind:"model_reply"},
     {kind:"tool_use",tool:"list_dir",args:{path:"."}},
-    {kind:"tool_result",tool:"list_dir",result:"agent_pro.py, server.py, web/, router.py, README.md"},
+    {kind:"tool_result",tool:"list_dir",result:"notes.txt, plans/, report-q3.md, README.md"},
     {kind:"model_reply"},
-    {kind:"answer",text:"This folder is the production agent: the hardened loop (agent_pro.py), the HTTP server, this web UI, and supporting pieces.",metrics:{steps:2,tool_calls:1,input_tokens:160,output_tokens:38,duration_ms:"replay"}},
+    {kind:"answer",text:"This folder is a small project workspace: notes, a plans directory, a Q3 report, and a README. I listed it with the list_dir tool.",metrics:{steps:2,tool_calls:1,input_tokens:160,output_tokens:38,duration_ms:"replay"}},
   ];
   return [
     {kind:"model_reply"},
