@@ -29,6 +29,8 @@ production/                THE PRODUCTION TRACK (harden that loop; the sequel)
   vectorstore.py sandbox.py observability.py persistence.py router.py eval_gate.py run_agent.py
   README.md, test_*.py
 
+models/                    THE MODELS TRACK (inside the model; in design - see models/docs/00-pedagogy.md)
+
 claude_harness/            reusable agent library (agent loop + tools + tracing + FakeClient)
 tools/                     dev harness (see below)
 tests/                     test_modules.py, test_offline_loop.py, test_structure.py
