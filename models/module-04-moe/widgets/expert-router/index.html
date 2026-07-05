@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The expert router (MoE)</title>
+<title>Dense vs MoE: the expert router</title>
 <!-- Essence of Models, Module 4. Architecture numbers are from the DeepSeek-V3
      technical report (arXiv 2412.19437): 61 layers (first 3 dense), d=7168,
      256 routed experts + 1 shared, top-8, expert intermediate 2048, 671B/37B.
-     The router logits shown are hand-authored (illustrative); every softmax,
-     gate, and parameter count is COMPUTED live in this page. -->
+     Router logits are hand-authored (illustrative); every softmax, gate,
+     parameter count and ratio is COMPUTED live in this page. -->
 <link rel="stylesheet" href="../../../../assets/theme.css" />
 <style>
   body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
-         background:var(--bg); max-width:900px; margin:34px auto; padding:0 20px 60px; }
+         background:var(--bg); max-width:940px; margin:34px auto; padding:0 20px 60px; }
   h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
   .sub { color:var(--dim); margin:0 0 12px; }
 
@@ -22,58 +22,61 @@
   .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
   .modehint { color:var(--faint); font-size:12.5px; }
 
-  .flow { display:flex; gap:12px; align-items:stretch; }
+  /* where we are: one transformer layer, anatomy strip */
+  .block { display:flex; align-items:center; gap:7px; flex-wrap:wrap; border:1px solid var(--line);
+           border-radius:10px; background:#0b0e12; padding:8px 12px; margin-bottom:12px;
+           font:11.5px var(--mono); color:var(--dim); }
+  .block .bc { border:1px solid var(--line); border-radius:7px; background:var(--panel); padding:3px 10px;
+               transition:all .2s; }
+  .block .bc.hi { border-color:var(--gold); color:var(--gold); box-shadow:0 0 8px rgba(255,211,92,.25); }
+  .block .arr { color:var(--faint); }
+  .block .note { margin-left:auto; font-size:10.5px; color:var(--faint); }
+
+  .flow { display:flex; gap:10px; align-items:stretch; }
   .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:10px 12px; }
   .panel .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em;
                color:var(--faint); margin-bottom:7px; }
 
-  .tokp { flex:.75; min-width:0; }
+  .tokp { flex:.55; min-width:0; }
   .chipwrap { display:flex; flex-wrap:wrap; gap:5px; }
   .tok { font:12px var(--mono); border:1px solid var(--line); border-radius:6px; background:var(--panel);
          color:#cdd3da; padding:3px 7px; }
   .tok.cur { border-color:var(--gold); color:var(--gold); box-shadow:0 0 8px rgba(255,211,92,.3); }
-  .tok.done { opacity:.45; }
 
-  .layerp { flex:1.5; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .cmp { flex:1; display:flex; flex-direction:column; align-items:center; text-align:center;
+         transition:border-color .2s, opacity .2s; }
+  .cmp.win { border-color:var(--green); }
+  .cmp.dimmed { opacity:.45; }
+  .cmp .hd { align-self:stretch; text-align:left; }
+  .cmp .hd b { color:var(--ink); }
+  .cmp svg.nn { max-width:230px; height:104px; }
   .router { border:1px solid var(--gold); border-radius:8px; background:var(--panel); color:var(--gold);
-            font:11px var(--mono); padding:3px 12px; margin-bottom:4px; opacity:.35; transition:opacity .2s; }
+            font:10.5px var(--mono); padding:2px 10px; margin-bottom:3px; opacity:.35; transition:opacity .2s; }
   .router.on { opacity:1; box-shadow:0 0 10px rgba(255,211,92,.25); }
-  .layerp svg.nn { max-width:280px; height:120px; }
-  .elabels { display:flex; justify-content:space-between; width:100%; max-width:280px; padding:0 12px; }
+  .norouter { font:10.5px var(--mono); color:var(--faint); margin-bottom:3px; padding:2px 10px;
+              border:1px dashed transparent; }
+  .elabels { display:flex; justify-content:space-between; width:100%; max-width:230px; padding:0 10px; }
   .elabels span { font:9px var(--mono); color:var(--faint); }
   .shared { border:1px dashed var(--gold); border-radius:7px; font:10px var(--mono); color:var(--gold);
-            padding:2px 10px; margin-top:5px; opacity:.3; transition:opacity .2s; }
+            padding:2px 10px; margin-top:4px; opacity:.3; transition:opacity .2s; }
   .shared.on { opacity:1; border-style:solid; box-shadow:0 0 8px rgba(255,211,92,.25); }
-  .xn { font:10px var(--mono); color:var(--faint); margin-top:5px; }
-  .xnsub { font:9px var(--mono); color:var(--faint); opacity:.75; margin-top:2px; }
+  .costchip { margin-top:7px; border:1px solid var(--line); border-radius:8px; background:var(--panel);
+              padding:4px 10px; font:10.5px var(--mono); color:var(--dim); }
+  .costchip b { color:var(--ink); }
+  .costchip.hot { border-color:var(--red); } .costchip.hot b { color:var(--red); }
+  .costchip.good { border-color:var(--green); } .costchip.good b { color:var(--green); }
+  .xnsub { font:9px var(--mono); color:var(--faint); opacity:.75; margin-top:4px; }
 
-  .meterp { flex:.9; min-width:0; }
+  .meterp { flex:.7; min-width:0; }
   .meter { margin:8px 0; }
   .meter .ml { display:flex; justify-content:space-between; font:10.5px var(--mono); color:var(--dim); margin-bottom:3px; }
   .meter .ml b { color:var(--ink); }
   .mtrack { height:13px; border-radius:4px; background:#141b22; overflow:hidden; }
-  .mfill { display:block; height:100%; border-radius:4px; transition:width .5s ease; background:var(--dim); }
+  .mfill { display:block; height:100%; border-radius:4px; transition:width .5s ease; }
   .mfill.mem { background:var(--gold); }
   .mfill.act { background:var(--blue); }
   .mnote { font:10px var(--mono); color:var(--faint); margin-top:8px; }
   .reduce .mfill { transition:none; }
-
-  .mach { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; margin-top:12px; }
-  .mach[hidden] { display:none; }
-  table.smx { border-collapse:collapse; width:100%; }
-  .smx th, .smx td { font:11.5px var(--mono); text-align:right; padding:3px 8px;
-                     border-bottom:1px solid #1b2028; color:#cdd3da; }
-  .smx th { color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
-  .smx td:first-child, .smx th:first-child { text-align:left; }
-  .smx tr.pick td { color:var(--gold); }
-  .smx tr.cut td { opacity:.32; text-decoration:line-through; }
-
-  .calc { font:12.5px/1.9 var(--mono); color:#cdd3da; }
-  .calc .row { display:flex; justify-content:space-between; gap:14px; border-bottom:1px solid #1b2028; padding:2px 0; flex-wrap:wrap; }
-  .calc .lhs { color:var(--dim); }
-  .calc .rhs { color:var(--ink); }
-  .calc .row.hero .rhs { color:var(--gold); font-weight:600; }
-  .calc .src { font-size:10px; color:var(--faint); margin-top:6px; display:block; }
 
   .load { margin-top:4px; }
   .load .lrow { display:flex; align-items:center; gap:7px; margin:3px 0; }
@@ -83,51 +86,87 @@
   .load .lfill.hot { background:var(--red); }
   .load .lpct { font:10px var(--mono); color:var(--dim); min-width:34px; }
 
+  .mach { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; margin-top:12px; }
+  .mach[hidden] { display:none; }
+  .formula { font:13px var(--mono); color:var(--ink); background:var(--panel); border:1px solid var(--line);
+             border-radius:8px; padding:8px 12px; display:inline-block; margin-bottom:8px; }
+  .formula b { color:var(--blue); }
+  table.smx { border-collapse:collapse; width:100%; }
+  .smx th, .smx td { font:11.5px var(--mono); text-align:right; padding:3px 8px;
+                     border-bottom:1px solid #1b2028; color:#cdd3da; }
+  .smx th { color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
+  .smx td:first-child, .smx th:first-child { text-align:left; }
+  .smx tr.pick td { color:var(--gold); }
+  .smx tr.cut td { opacity:.32; text-decoration:line-through; }
+  .calc { font:12.5px/1.9 var(--mono); color:#cdd3da; }
+  .calc .row { display:flex; justify-content:space-between; gap:14px; border-bottom:1px solid #1b2028; padding:2px 0; flex-wrap:wrap; }
+  .calc .lhs { color:var(--dim); }
+  .calc .rhs { color:var(--ink); }
+  .calc .row.hero .rhs { color:var(--gold); font-weight:600; }
+  .calc .src { font-size:10px; color:var(--faint); margin-top:6px; display:block; }
+
   .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
           font:11.5px var(--mono); color:var(--dim); }
   .stat b { color:var(--ink); font-weight:600; }
 
-  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:60px; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:78px; }
   .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
              border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
   .insight.bad { border-left-color:var(--red); }
 
-  @media (max-width:700px){
+  @media (max-width:760px){
     body { padding:0 12px 48px; }
     .flow { flex-direction:column; }
+    .block .note { margin-left:0; flex-basis:100%; }
   }
 </style>
 </head>
 <body>
-<h1>The expert router (Mixture of Experts)</h1>
-<p class="sub">DeepSeek-V3 has 671B parameters and runs like a 37B model. This widget shows the trick -
-and in mechanism mode it <b>derives both numbers live</b> from the architecture, instead of quoting them.</p>
+<h1>Dense vs MoE: the expert router</h1>
+<p class="sub">DeepSeek-V3 stores 671B parameters and spends only 37B per token. This widget puts the
+<b>traditional dense layer</b> and the <b>MoE layer</b> side by side on the same tokens - and in
+mechanism mode it <b>derives both headline numbers live</b> instead of quoting them.</p>
 
 <div class="modes">
-  <button class="modebtn on" data-mode="int">intuition (the story)</button>
+  <button class="modebtn on" data-mode="int">intuition (the comparison)</button>
   <button class="modebtn" data-mode="mech">mechanism (the machinery)</button>
   <span class="modehint">same stage, two altitudes</span>
 </div>
 
-<div class="flow" role="group" aria-label="Tokens routed through a mixture-of-experts layer">
+<div class="block" id="block">
+  <span>one transformer layer:</span>
+  <span class="bc" id="bAttn">attention</span><span class="arr">&rarr;</span>
+  <span class="bc" id="bFfn">FFN (feed-forward network)</span>
+  <span class="note" id="bNote"></span>
+</div>
+
+<div class="flow" role="group" aria-label="Dense layer versus mixture-of-experts layer, same tokens">
   <div class="panel tokp">
-    <div class="hd">the token stream (routed one at a time)</div>
+    <div class="hd">the token stream</div>
     <div class="chipwrap" id="toks"></div>
   </div>
-  <div class="panel layerp">
+  <div class="panel cmp" id="denseP">
+    <div class="hd"><b>traditional: dense FFN</b> - one wide network</div>
+    <div class="norouter">no router - there is nothing to decide</div>
+    <svg id="nnD" aria-hidden="true"></svg>
+    <div class="costchip" id="costD">capacity <b id="capD">--</b> &middot; touched <b id="tchD">--</b></div>
+    <span class="xnsub">every token multiplies against every weight</span>
+  </div>
+  <div class="panel cmp" id="moeP">
+    <div class="hd"><b>MoE: the same capacity, sliced</b> - many small FFNs</div>
     <div class="router" id="router">router: W_r &middot; h &rarr; scores</div>
-    <svg id="nn" aria-hidden="true"></svg>
+    <svg id="nnM" aria-hidden="true"></svg>
     <div class="elabels" id="elabels"></div>
     <div class="shared" id="shared">shared expert (always on)</div>
-    <span class="xn" id="xn">one FFN layer, split into experts</span>
-    <span class="xnsub" id="xnsub"></span>
+    <div class="costchip" id="costM">capacity <b id="capM">--</b> &middot; touched <b id="tchM">--</b></div>
+    <span class="xnsub">8 experts drawn, top-2 - really 256 (+1 shared), top-8</span>
   </div>
   <div class="panel meterp">
-    <div class="hd">the two costs</div>
-    <div class="meter"><div class="ml"><span>params in memory</span><b id="memv"></b></div>
+    <div class="hd">whole model (58 MoE layers)</div>
+    <div class="meter"><div class="ml"><span>stored</span><b id="memv"></b></div>
       <div class="mtrack"><span class="mfill mem" id="memf"></span></div></div>
-    <div class="meter"><div class="ml"><span>params this token touches</span><b id="actv"></b></div>
+    <div class="meter"><div class="ml"><span>touched / token</span><b id="actv"></b></div>
       <div class="mtrack"><span class="mfill act" id="actf"></span></div></div>
     <div class="mnote" id="mnote"></div>
     <div class="load" id="load" hidden></div>
@@ -148,26 +187,27 @@ and in mechanism mode it <b>derives both numbers live</b> from the architecture,
 <script src="../../../../assets/nn.js"></script>
 <script>
 /* ---------- verified architecture (DeepSeek-V3 technical report, arXiv 2412.19437) ---------- */
-const V3 = { d:7168, m:2048, routed:256, shared:1, topk:8, layers:61, dense:3, totalB:671, activeB:37 };
-const MOE_LAYERS = V3.layers - V3.dense;                        // 58
-const perExpert  = 3 * V3.d * V3.m;                             // gate+up+down matrices
-const moeLayerP  = (V3.routed + V3.shared) * perExpert;         // params of one MoE layer's FFN
-const moeTotal   = moeLayerP * MOE_LAYERS;
-const alwaysOn   = V3.totalB * 1e9 - moeTotal;                  // attention (MLA) + embeddings + 3 dense FFNs + MTP
-const activeMoE  = (V3.topk + V3.shared) * perExpert * MOE_LAYERS;
-const activeTot  = activeMoE + alwaysOn;
+const V3 = { d:7168, m:2048, routed:256, shared:1, topk:8, layers:61, dense:3, totalB:671 };
+const MOE_LAYERS = V3.layers - V3.dense;                       // 58
+const perExpert  = 3 * V3.d * V3.m;                            // gate+up+down matrices
+const layerCap   = (V3.routed + V3.shared) * perExpert;        // one MoE layer's FFN params
+const layerTch   = (V3.topk + V3.shared) * perExpert;          // what one token touches in it
+const moeTotal   = layerCap * MOE_LAYERS;
+const alwaysOn   = V3.totalB * 1e9 - moeTotal;                 // MLA attention + embeddings + 3 dense FFNs + MTP
+const activeTot  = layerTch * MOE_LAYERS + alwaysOn;
+const RATIO_L    = layerCap / layerTch;                        // per-layer touched ratio
+const RATIO_M    = V3.totalB * 1e9 / activeTot;                // whole-model storage ratio
 const B = x => (x / 1e9).toFixed(1) + "B";
 const M = x => (x / 1e6).toFixed(1) + "M";
 function choose(n, k) { let r = 1; for (let i = 0; i < k; i++) r = r * (n - i) / (i + 1); return r; }
 
-/* ---------- routing demos: 8 experts DRAWN standing in for 256; logits illustrative ---------- */
+/* ---------- routing demos: 8 drawn experts stand in for 256; logits illustrative ---------- */
 const TOKENS = ["The", " capital", " of", " France", " is"];
-const ROUTES = {                     // per-token router logits over the 8 drawn experts
+const ROUTES = {
   " France":  [1.2, 6.8, 0.4, 2.1, 5.9, 1.8, 0.9, 3.2],   // -> E2, E5
   " is":      [2.0, 1.1, 5.2, 0.7, 1.4, 2.8, 6.1, 1.0],   // -> E7, E3
-  " capital": [5.5, 2.2, 1.0, 6.3, 0.8, 1.5, 2.4, 0.9],   // -> E4, E1
 };
-function routerRows(logits, k) {     // softmax + top-k + renormalized gates: computed
+function routerRows(logits, k) {
   const exps = logits.map(z => Math.exp(z));
   const sum = exps.reduce((a, b) => a + b, 0);
   const rows = logits.map((z, i) => ({ e:i, z:z, p:exps[i]/sum }));
@@ -177,38 +217,52 @@ function routerRows(logits, k) {     // softmax + top-k + renormalized gates: co
 }
 function topOf(logits, k) { return routerRows(logits, k).filter(r => !r.cut).map(r => r.e); }
 
-/* ---------- dom + shared render helpers ---------- */
+/* ---------- dom ---------- */
 const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
-const toks=$("toks"), router=$("router"), sharedEl=$("shared"), xn=$("xn"), xnsub=$("xnsub"),
+const toks=$("toks"), router=$("router"), sharedEl=$("shared"),
+      denseP=$("denseP"), moeP=$("moeP"), bAttn=$("bAttn"), bFfn=$("bFfn"), bNote=$("bNote"),
+      capD=$("capD"), tchD=$("tchD"), capM=$("capM"), tchM=$("tchM"),
+      costD=$("costD"), costM=$("costM"),
       memv=$("memv"), memf=$("memf"), actv=$("actv"), actf=$("actf"), mnote=$("mnote"),
       load=$("load"), mach=$("mach"), nums=$("nums"), caption=$("caption"), insight=$("insight");
-const state = { mode:"int" };
 if (Anim.reduced()) document.body.classList.add("reduce");
-const nn = NN.build($("nn"), { cols: 8, rows: 4, w: 300, h: 110, padX: 18, padY: 12 });
+const nnD = NN.build($("nnD"), { cols: 5, rows: 4, w: 240, h: 100, padX: 16, padY: 12, r: 5 });
+const nnM = NN.build($("nnM"), { cols: 8, rows: 4, w: 240, h: 100, padX: 14, padY: 12, r: 5 });
 $("elabels").innerHTML = Array.from({length:8}, (_, i) => "<span>E" + (i+1) + "</span>").join("");
 
 function renderToks(curTok) {
-  toks.innerHTML = TOKENS.map(t => {
-    const cls = "tok" + (t === curTok ? " cur" : "");
-    return '<span class="' + cls + '">' + esc(t) + '</span>';
-  }).join("");
+  toks.innerHTML = TOKENS.map(t =>
+    '<span class="tok' + (t === curTok ? " cur" : "") + '">' + esc(t) + '</span>').join("");
 }
-function light(tok, opts) {          // route one token: fire its experts, dim the rest
-  opts = opts || {};
+function denseFire(mode) {           // "all" | "wave" | null
+  nnD.clear(); if (mode === "all") nnD.setAll("fire"); else if (mode === "wave") nnD.wave(true);
+}
+function moeFire(tok) {              // route tok, or null = dark
+  nnM.clear();
+  if (!tok) { router.className = "router"; sharedEl.className = "shared"; return; }
   const active = topOf(ROUTES[tok], 2);
-  for (let c = 0; c < 8; c++) nn.setCol(c, active.includes(c) ? "fire" : "off");
-  router.className = "router on";
-  sharedEl.className = "shared on";
-  return active;
+  for (let c = 0; c < 8; c++) nnM.setCol(c, active.includes(c) ? "fire" : "off");
+  router.className = "router on"; sharedEl.className = "shared on";
 }
-function dark() { nn.clear(); nn.setAll(null); router.className = "router"; sharedEl.className = "shared"; }
-function meters(memB, actB, note) {
-  memv.textContent = memB == null ? "--" : B(memB);
-  actv.textContent = actB == null ? "--" : B(actB);
-  memf.style.width = memB == null ? "0%" : "100%";
-  actf.style.width = (memB && actB) ? Math.round(actB / memB * 100) + "%" : "0%";
+function costs(dTouched, mTouched) { // per-layer chips; null = dashes
+  capD.textContent = B(layerCap); capM.textContent = B(layerCap);
+  tchD.textContent = dTouched == null ? "--" : B(dTouched);
+  tchM.textContent = mTouched == null ? "--" : B(mTouched);
+  costD.className = "costchip" + (dTouched != null ? " hot" : "");
+  costM.className = "costchip" + (mTouched != null ? " good" : "");
+}
+function meters(on, note) {
+  memv.textContent = on ? B(V3.totalB * 1e9) : "--";
+  actv.textContent = on ? B(activeTot) : "--";
+  memf.style.width = on ? "100%" : "0%";
+  actf.style.width = on ? Math.round(activeTot / (V3.totalB * 1e9) * 100) + "%" : "0%";
   mnote.textContent = note || "";
+}
+function blockHi(which, note) {      // "attn" | "ffn" | null
+  bAttn.className = "bc" + (which === "attn" ? " hi" : "");
+  bFfn.className = "bc" + (which === "ffn" ? " hi" : "");
+  bNote.textContent = note || "";
 }
 function renderLoad(pcts, hotIdx) {
   load.hidden = false;
@@ -216,7 +270,7 @@ function renderLoad(pcts, hotIdx) {
     '<div class="lrow"><span class="ln2">E' + (i+1) + '</span><span class="ltrack"><span class="lfill' +
     (i === hotIdx ? " hot" : "") + '" style="width:' + p + '%"></span></span><span class="lpct">' + p + '%</span></div>').join("");
 }
-function routerTable(logits, k, pickSet) {
+function routerTable(logits, k) {
   const rows = routerRows(logits, k);
   let h = "<tr><th>expert</th><th>router logit</th><th>softmax p</th><th>top-" + k + "?</th><th>gate g (renorm)</th></tr>";
   rows.forEach(r => {
@@ -230,147 +284,173 @@ function routerTable(logits, k, pickSet) {
 function calcPanel(upTo) {           // the arithmetic, revealed line by line - ALL computed
   const L = [
     ["one expert = 3 matrices (gate, up, down), each d x m = 7168 x 2048", "3 x 7168 x 2048 = " + M(perExpert)],
-    ["one MoE layer = 256 routed + 1 shared experts", "257 x " + M(perExpert) + " = " + B(moeLayerP)],
-    ["MoE layers = 61 - 3 dense = 58", "58 x " + B(moeLayerP) + " = " + B(moeTotal)],
+    ["one MoE layer = 256 routed + 1 shared experts", "257 x " + M(perExpert) + " = " + B(layerCap)],
+    ["MoE layers = 61 - 3 dense = 58", "58 x " + B(layerCap) + " = " + B(moeTotal)],
     ["always-on rest (MLA attention, embeddings, 3 dense FFNs, MTP)", "671B - " + B(moeTotal) + " = " + B(alwaysOn)],
-    ["ACTIVE per token: (8 routed + 1 shared) experts x 58 layers", "9 x " + M(perExpert) + " x 58 = " + B(activeMoE)],
-    ["+ the same always-on rest", B(activeMoE) + " + " + B(alwaysOn) + " = " + B(activeTot) + "  (report: 37B)"],
+    ["ACTIVE per token: (8 routed + 1 shared) experts x 58 layers", "9 x " + M(perExpert) + " x 58 = " + B(layerTch * MOE_LAYERS)],
+    ["+ the same always-on rest", B(layerTch * MOE_LAYERS) + " + " + B(alwaysOn) + " = " + B(activeTot) + "  (report: 37B)"],
+    ["a DENSE model at this per-token cost would hold, in total", B(activeTot) + " - the MoE stores " + RATIO_M.toFixed(1) + "x more"],
   ];
   return '<div class="calc">' + L.slice(0, upTo).map((r, i) =>
     '<div class="row' + (i >= 4 ? " hero" : "") + '"><span class="lhs">' + r[0] + '</span><span class="rhs">' + r[1] + '</span></div>').join("") +
     '<span class="src">shapes from the DeepSeek-V3 technical report (arXiv 2412.19437); every number on the right computed by this page.</span></div>';
 }
-function renderNums() {
-  nums.innerHTML = [["routed experts", "256 (+1 shared)"], ["activated", "top-8 per token"],
-    ["d / expert m", "7,168 / 2,048"], ["layers", "61 (first 3 dense)"], ["drawn here", "8 experts, top-2"]]
-    .map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join("");
-}
-renderNums();
+nums.innerHTML = [["routed experts", "256 (+1 shared)"], ["activated", "top-8 per token"],
+  ["d / expert m", "7,168 / 2,048"], ["layers", "61 (first 3 dense)"], ["drawn here", "8 experts, top-2"]]
+  .map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join("");
 
-/* ---------- INTUITION: 8 steps ---------- */
+/* ---------- INTUITION: 12 steps, dense and MoE side by side ---------- */
 function renderInt(i) {
   mach.hidden = true; load.hidden = true;
-  const caps = [
-    "One model, two numbers: 671B parameters in memory, 37B doing work on any given token. This layer is where the gap comes from.",
-    "First, the dense version: an ordinary FFN. EVERY token multiplies against EVERY weight in the layer. The whole net lights up, every time.",
-    "Now split that FFN into EXPERTS - here 8 drawn (really 256) - and put a tiny ROUTER in front. Nothing is lit: nobody runs until chosen.",
-    "Token ' France' arrives. The router scores all experts and wakes the top 2 (really top 8). E2 and E5 fire; six experts sleep through it. The shared expert always runs - common knowledge lives there.",
-    "Next token, ' is'. Different content, different scores: E7 and E3 this time. Specialization is emergent - training decides which experts attract which tokens, and their roles are only loosely nameable.",
-    "The two meters: memory must hold EVERY expert, always (that is capacity). Compute only pays for the chosen few (that is cost). The gap between the bars is the whole idea.",
-    "At DeepSeek-V3's real shape - 256+1 experts, top-8, 58 MoE layers - that gap is 671B stored vs ~37B touched per token. Mechanism mode derives both numbers, live.",
-    "Parameters are not compute. The biggest models are mostly asleep on every token - on purpose. The router is the reason.",
+  denseP.classList.toggle("dimmed", false); moeP.classList.toggle("dimmed", i <= 3);
+  denseP.classList.toggle("win", false); moeP.classList.toggle("win", i >= 8 && i <= 11);
+
+  const steps = [
+    { blk:null,  d:null,   m:null,     tok:null,     cost:[null,null], met:false,
+      cap:"One model, two numbers: 671 billion parameters stored, 37 billion doing work on any token. To see where the gap comes from, we need to open ONE transformer layer - the model is 61 of these stacked." },
+    { blk:"ffn", d:null,   m:null,     tok:null,     cost:[null,null], met:false,
+      cap:"A layer has two parts. ATTENTION lets positions read each other (Module 2). Then the FFN - the feed-forward network - processes each position alone. The FFN is the FAT part: in most transformers it holds roughly two-thirds of the parameters. That is the part this module is about." },
+    { blk:"ffn", d:"wave", m:null,     tok:null,     cost:[layerTch*0+layerCap,null], met:false,
+      cap:"The TRADITIONAL design (left): the FFN is one wide network. Every token flows through ALL of it - every weight multiplies every token, every time. Simple, uniform... and it has a built-in trap." },
+    { blk:"ffn", d:"all",  m:null,     tok:null,     cost:[layerCap,null], met:false,
+      cap:"The trap: capacity and cost are LOCKED together. Want a smarter model? Widen the FFN - and now every token pays for the new width, whether it needs it or not. Double the capacity, double every token's bill. Dense scaling means everyone pays for everything." },
+    { blk:"ffn", d:"all",  m:"struct", tok:null,     cost:[layerCap,null], met:false,
+      cap:"The MoE move (right): keep the SAME total capacity, but slice it into many small FFNs - EXPERTS - and put a tiny learned ROUTER in front. Here: 8 experts drawn; DeepSeek-V3 really slices into 256 (+1 shared). Nothing runs until chosen." },
+    { blk:null,  d:"all",  m:" France", tok:" France", cost:[layerCap, layerTch], met:false,
+      cap:"Now watch the SAME token hit both layers. ' France' arrives: the dense layer fires everything - " + B(layerCap) + " of weights touched. The MoE router scores all experts and wakes the top 2 (really top 8): E2 and E5 fire, six sleep - " + B(layerTch) + " touched. Same capacity, " + RATIO_L.toFixed(0) + "x less work." },
+    { blk:null,  d:"all",  m:" is",    tok:" is",    cost:[layerCap, layerTch], met:false,
+      cap:"Next token, ' is'. The dense layer does the identical thing - it has no choice, it IS one function. The MoE layer ADAPTS: different content, different scores, E7 and E3 wake this time. Which expert learns what is emergent - training discovers the division of labor; nobody assigns it." },
+    { blk:null,  d:"all",  m:" France", tok:null,    cost:[layerCap, layerTch], met:false,
+      cap:"One expert is exempt from the vote: the SHARED expert (gold) runs for every token. Common knowledge - syntax, glue, arithmetic-ish patterns - lives there, so the 256 routed experts never waste capacity re-learning what everyone needs." },
+    { blk:null,  d:"all",  m:" France", tok:null,    cost:[layerCap, layerTch], met:true,
+      cap:"Read the two cost chips: both layers STORE " + B(layerCap) + ". The dense one TOUCHES all of it per token; the MoE touches " + B(layerTch) + " - about " + (100/RATIO_L).toFixed(1) + "%. Capacity (what the model can know) has been decoupled from cost (what one token pays)." },
+    { blk:null,  d:"all",  m:" France", tok:null,    cost:[layerCap, layerTch], met:true,
+      cap:"Scale that to the whole body - 58 MoE layers plus the always-on machinery (attention, embeddings) - and you get the headline: 671B stored, ~37B touched per token. Mechanism mode derives both numbers on screen, from nothing but the architecture." },
+    { blk:null,  d:"all",  m:" France", tok:null,    cost:[layerCap, layerTch], met:true,
+      cap:"What did it cost us? Two real prices. MEMORY: all 671B must sit in GPU RAM even asleep (experts get sharded across machines). And a new failure mode: the router itself can learn badly - mechanism act 3 breaks it on purpose. No free lunch; a very good trade." },
+    { blk:null,  d:"all",  m:" France", tok:null,    cost:[layerCap, layerTch], met:true,
+      cap:"The aha, in one comparison: a dense model at V3's per-token price would be a ~" + B(activeTot) + " model, TOTAL. The MoE spends the same per token and stores " + RATIO_M.toFixed(1) + "x more patterns. Parameters are not compute - the router is the wedge that separates them." },
   ];
-  renderToks(i === 3 ? " France" : i === 4 ? " is" : null);
-  if (i <= 1) { dark(); nn.wave(i === 1); xn.textContent = i <= 0 ? "one FFN layer" : "dense FFN: everything runs"; }
-  else if (i === 2) { nn.wave(false); dark(); xn.textContent = "the same layer, split into experts"; }
-  else if (i === 3) { nn.wave(false); light(" France"); xn.textContent = "E2 + E5 fire; the rest sleep"; }
-  else if (i === 4) { nn.wave(false); light(" is"); xn.textContent = "E7 + E3 fire this time"; }
-  else { nn.wave(false); light(" France"); xn.textContent = "chosen few + shared, every layer, every token"; }
-  xnsub.textContent = "8 experts drawn - really 256 (+1 shared); top-2 drawn - really top-8";
-  if (i === 0) meters(null, null, "");
-  else if (i === 1) meters(V3.totalB*1e9, V3.totalB*1e9, "dense: touched = stored. Cost grows with capacity.");
-  else if (i <= 4) meters(V3.totalB*1e9, i >= 3 ? activeTot : null, "");
-  else meters(V3.totalB*1e9, activeTot, "capacity (gold) decoupled from cost (blue).");
-  caption.textContent = caps[i];
+  const s = steps[i];
+  blockHi(s.blk, s.blk === "ffn" ? "~2/3 of a transformer's parameters live here" : "");
+  renderToks(s.tok);
+  denseFire(s.d === "wave" ? "wave" : s.d === "all" ? "all" : null);
+  if (s.m === "struct") moeFire(null), router.className = "router on";
+  else moeFire(s.m && s.m !== "struct" ? s.m : null);
+  costs(s.cost[0], s.cost[1]);
+  meters(s.met, s.met ? "derived in mechanism mode" : "");
+  caption.textContent = s.cap;
   insight.className = "insight";
-  insight.innerHTML = i >= 7
-    ? "<b>The aha:</b> params != compute. Switch to <b>mechanism</b> and watch this page derive 671B and 37B from the architecture."
-    : "The primitive, recomposed: same stack picture - the router just decides <b>how much of a layer wakes up</b>.";
+  insight.innerHTML = i >= 11
+    ? "<b>The aha:</b> params != compute. Switch to <b>mechanism</b> to watch the page derive 671B and 37B - and to break the router."
+    : i >= 4
+    ? "Same tokens, two designs: <b>dense = everyone pays for everything; MoE = a router picks who wakes up.</b>"
+    : "The dense trap: <b>capacity and per-token cost rise together.</b> MoE exists to break that lock.";
 }
 
-/* ---------- MECHANISM: 20 steps, 3 acts ---------- */
-const MECH_ACTS = [["inside the router", 7], ["the arithmetic", 7], ["break it: collapse", 6]];
+/* ---------- MECHANISM: 21 steps, 3 acts ---------- */
+const MECH_ACTS = [["inside one expert + the router", 8], ["the arithmetic", 7], ["break it: collapse", 6]];
 function renderMech(i) {
   mach.hidden = false; load.hidden = true;
-  xnsub.textContent = "8 experts drawn - really 256 (+1 shared); top-2 drawn - really top-8";
+  denseP.classList.remove("dimmed", "win"); moeP.classList.remove("dimmed", "win");
+  blockHi(i <= 1 ? "ffn" : null, "");
+  meters(true, "");
 
-  if (i <= 6) {  // ---- ACT 1: inside the router ----
-    const tok = i <= 5 ? " France" : " is";
-    renderToks(tok);
-    if (i === 0) { dark(); mach.innerHTML = ""; }
-    else { light(tok); mach.innerHTML = routerTable(ROUTES[tok], 2); }
-    if (i < 3) { nn.setAll(null); router.className = "router on"; sharedEl.className = "shared"; }
-    if (i === 5) sharedEl.className = "shared on";
-    xn.textContent = i === 0 ? "layer 4 of 61 (the first MoE layer)" : "one routing decision";
-    meters(V3.totalB*1e9, i >= 4 ? activeTot : null, "");
+  if (i <= 7) {  // ---- ACT 1: inside one expert, then the router ----
+    const tok = i <= 6 ? " France" : " is";
+    renderToks(i >= 2 ? tok : null);
+    denseFire(i >= 2 ? "all" : "wave");
+    moeFire(i >= 2 ? tok : null);
+    costs(i >= 2 ? layerCap : null, i >= 2 ? layerTch : null);
+    if (i === 0) {
+      mach.innerHTML = '<span class="formula">expert(h) = W_down &middot; ( silu(W_gate h) * (W_up h) )</span>' +
+        '<div class="calc"><div class="row"><span class="lhs">W_gate, W_up: d -&gt; m (7168 -&gt; 2048); W_down: m -&gt; d (2048 -&gt; 7168)</span>' +
+        '<span class="rhs">3 x 7168 x 2048 = ' + M(perExpert) + ' params</span></div>' +
+        '<span class="src">an "expert" is nothing exotic: a small SwiGLU FFN, the standard transformer block, just narrower. The dense FFN on the left is the same formula with a much wider m.</span></div>';
+    } else if (i === 1) {
+      mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">the dense layer</span><span class="rhs">ONE such FFN, very wide - no decision to make</span></div>' +
+        '<div class="row"><span class="lhs">the MoE layer</span><span class="rhs">257 narrow FFNs standing ready - so SOMETHING must decide</span></div>' +
+        '<span class="src">that something is the router. Everything in this act is the story of one routing decision.</span></div>';
+    } else {
+      mach.innerHTML = routerTable(ROUTES[tok], 2);
+    }
     const caps1 = [
-      "One token's vector h arrives at layer 4 - the first three layers are dense (verified), every layer after this one repeats what you are about to see. Routing happens per token, per layer.",
-      "The router is almost embarrassingly small: one linear map. scores = W_r x h -> one raw score per expert. That is the entire brain making the 671B-vs-37B decision.",
-      "Softmax turns scores into affinities - same formula as Module 0's sampler, computed live in the table.",
-      "Top-k: keep the k highest (drawn: top-2 of 8; real: top-8 of 256). The struck-through experts do ZERO work for this token - their weights are never even read.",
-      "The kept affinities renormalize into GATES: g = 0.71 and 0.29 here. The token's output will be a weighted blend, not a single expert's opinion.",
-      "output = g2 x E2(h) + g5 x E5(h) + shared(h). Only those three FFNs execute. Everything else in the layer stayed cold.",
-      "Next token, new decision: ' is' scores differently, E7 + E3 wake instead. The router is learned - tokens cluster to experts by content, and the clusters are emergent, not designed.",
+      "First, demystify the star of the show. An EXPERT is just a small FFN - the same three-matrix SwiGLU block every transformer uses, with a narrow middle (m = 2048). The page computes its size: 44.0M parameters. That's it. No agents, no personalities - a slice of network.",
+      "So the two designs differ by ONE thing. Dense: one very wide FFN, no decisions. MoE: 257 narrow FFNs in a row - which means something has to CHOOSE. Every remaining step is about that choice.",
+      "The chooser is almost embarrassingly small: one linear map. scores = W_r x h, one raw score per expert - for THIS token's vector h, at THIS layer. The 671B-vs-37B decision is made by a matrix the size of a rounding error.",
+      "Softmax turns the scores into affinities - the exact formula from Module 0's sampler, computed live in the table below.",
+      "Top-k: keep the k highest (drawn: top-2 of 8; real: top-8 of 256). Look at the struck-through rows - those experts do ZERO work for this token. Their weights are never even read from memory.",
+      "The kept affinities renormalize into GATES: g = 0.711 and 0.289 here. Gates matter: the token's output will be a weighted BLEND of expert opinions, not a single expert's answer - and the gate gradients are how the router learns.",
+      "output = 0.711 x E2(h) + 0.289 x E5(h) + shared(h). Three narrow FFNs execute; 255 stay cold. Compare the left panel: the dense layer just did its one wide thing, again, for the " + B(layerCap) + "th weight in a row.",
+      "New token, new vote: ' is' scores completely differently and E7 + E3 wake instead. The router is trained end-to-end with the experts - tokens cluster to experts by CONTENT, and the clusters are emergent, only loosely nameable after the fact.",
     ];
     caption.textContent = caps1[i];
     insight.className = "insight";
-    insight.innerHTML = "Act 1: routing = <b>score -&gt; softmax -&gt; top-k -&gt; renormalized gates -&gt; weighted blend</b>. One tiny linear layer decides who wakes.";
+    insight.innerHTML = "Act 1: an expert is <b>a narrow FFN</b>; routing is <b>score -&gt; softmax -&gt; top-k -&gt; gates -&gt; weighted blend</b>, decided per token, per layer.";
   }
 
-  else if (i <= 13) {  // ---- ACT 2: the arithmetic ----
-    const k = i - 7;
-    renderToks(null); light(" France");
-    xn.textContent = "the receipts";
+  else if (i <= 14) {  // ---- ACT 2: the arithmetic ----
+    const k = i - 8;
+    renderToks(null); denseFire("all"); moeFire(" France");
+    costs(layerCap, layerTch);
     if (k === 0) {
       mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">possible expert teams per token per layer: C(256, 8)</span><span class="rhs">' +
-        choose(256, 8).toExponential(2) + '</span></div><span class="src">computed live: 256!/(8!248!). Fine-grained experts buy combinatorial specialization.</span></div>';
-    } else if (k === 1) {
-      mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">the shared expert</span><span class="rhs">always on, for every token</span></div>' +
-        '<span class="src">common knowledge (syntax, glue) lives in the shared expert, freeing the 256 routed ones to specialize. (DeepSeekMoE design, verified.)</span></div>';
+        choose(256, 8).toExponential(2) + '</span></div>' +
+        '<div class="row"><span class="lhs">for comparison, 8 big experts, top-2: C(8, 2)</span><span class="rhs">' + choose(8, 2) + '</span></div>' +
+        '<span class="src">computed live. Fine-grained slicing (DeepSeek\'s bet) buys combinatorial specialization at the same active compute.</span></div>';
     } else {
-      mach.innerHTML = calcPanel(Math.min(k - 1, 6));
+      mach.innerHTML = calcPanel(Math.min(k + 1, 7));
     }
-    meters(V3.totalB*1e9, activeTot, k >= 5 ? "derived: " + B(activeTot) + " active of " + B(moeTotal + alwaysOn) + " stored" : "");
     const caps2 = [
-      "Why 256 SMALL experts instead of 8 big ones? Combinations. The page just computed C(256,8): about 400 trillion possible teams per token per layer. Fine-grained experts make specialization combinatorial.",
-      "One expert is exempt from the vote: the SHARED expert runs for every token. Common knowledge lives there, so routed experts never waste capacity re-learning glue.",
-      "Now the receipts. One expert = three matrices (gate, up, down), each 7168 x 2048. The page computes: 44.0M parameters per expert.",
-      "One MoE layer holds 257 of them: 11.3B parameters. In ONE layer. This is where 'mixture of experts' models get enormous.",
-      "58 of the 61 layers are MoE: 656B parameters of experts alone. The remaining ~15B (attention, embeddings, the 3 dense layers, MTP) is ALWAYS on - subtracting from the reported 671B derives it.",
-      "Active per token: only 9 experts per layer x 58 layers = 23.0B of expert weights actually execute...",
-      "...plus the same ~14.5B always-on machinery: 37.5B. The report says 37B. We DERIVED the headline number from the architecture - nothing was quoted.",
+      "Before the receipts, the design question: why 256 SMALL experts instead of 8 big ones (Mixtral-style)? Combinations. The page computes both: 8-choose-2 gives 28 possible teams; 256-choose-8 gives about 400 trillion. Fine-grained experts make specialization combinatorial - more distinct mixtures per token at the same cost.",
+      "Line one of the ledger: one expert = 3 matrices of 7168 x 2048 = 44.0M parameters. Everything else is multiplication.",
+      "One MoE layer holds 257 of them: 11.3B parameters - in ONE layer. This is where mixture-of-experts models get enormous: capacity is cheap to ADD because adding it does not touch per-token cost.",
+      "58 of the 61 layers are MoE: 656.5B of experts alone. Subtract from the reported 671B and the always-on rest falls out: ~14.5B for MLA attention, embeddings, the 3 dense layers and the MTP head. We didn't look that up - we derived it.",
+      "Now the other side: per token, only 9 experts per layer execute. 9 x 44.0M x 58 = 23.0B of expert weights actually run...",
+      "...plus the same ~14.5B always-on machinery = 37.5B. The report says 37B. Both headline numbers now derived from shapes, on screen. Nothing quoted.",
+      "And the final line is the whole module in one row: a dense model at this per-token cost would BE a 37.5B model, total. The MoE pays the same rent and lives in a warehouse 17.9x larger. That's what the router buys.",
     ];
     caption.textContent = caps2[k];
     insight.className = "insight";
-    insight.innerHTML = "Act 2: <b>capacity = all experts x all layers; cost = chosen experts x all layers + the always-on rest.</b> Every number computed on this page.";
+    insight.innerHTML = "Act 2: <b>capacity = all experts x all layers; cost = chosen experts x all layers + the always-on rest.</b> Every number computed by this page.";
   }
 
   else {  // ---- ACT 3: break it - router collapse ----
-    const k = i - 14;
+    const k = i - 15;
     mach.hidden = true;
-    renderToks(null);
-    xn.textContent = k <= 2 ? "training time" : "training time, rebalanced";
-    if (k === 0) { light(" France"); mach.innerHTML = ""; renderLoad([13,12,13,12,13,12,13,12], -1); }
-    else if (k === 1) { for (let c = 0; c < 8; c++) nn.setCol(c, c === 2 ? "fire" : "off"); router.className="router on"; sharedEl.className="shared on"; mach.innerHTML=""; renderLoad([6,7,52,8,7,9,6,5], 2); }
-    else if (k === 2) { for (let c = 0; c < 8; c++) nn.setCol(c, c === 2 ? "bad" : "off"); mach.innerHTML=""; renderLoad([2,3,74,5,4,6,3,3], 2); }
-    else if (k === 3) { for (let c = 0; c < 8; c++) nn.setCol(c, [1,2,4].includes(c) ? "fire" : "off"); mach.innerHTML=""; renderLoad([11,14,20,12,11,12,10,10], -1); }
-    else { light(" France"); mach.innerHTML=""; renderLoad([12,13,13,12,13,12,13,12], -1); }
-    meters(V3.totalB*1e9, k === 2 ? activeTot : activeTot, k === 2 ? "still 'working' - loss falls, capacity wasted" : "");
+    renderToks(null); denseFire(null);
+    costs(null, null);
+    if (k === 0) { moeFire(" France"); renderLoad([13,12,13,12,13,12,13,12], -1); }
+    else if (k === 1) { nnM.clear(); for (let c = 0; c < 8; c++) nnM.setCol(c, c === 2 ? "fire" : "off"); router.className="router on"; sharedEl.className="shared on"; renderLoad([6,7,52,8,7,9,6,5], 2); }
+    else if (k === 2) { nnM.clear(); for (let c = 0; c < 8; c++) nnM.setCol(c, c === 2 ? "bad" : "off"); renderLoad([2,3,74,5,4,6,3,3], 2); }
+    else if (k === 3) { nnM.clear(); for (let c = 0; c < 8; c++) nnM.setCol(c, [1,2,4].includes(c) ? "fire" : "off"); renderLoad([11,14,20,12,11,12,10,10], -1); }
+    else { moeFire(" France"); renderLoad([12,13,13,12,13,12,13,12], -1); }
+    denseP.classList.add("dimmed");
+    meters(true, k === 2 ? "still 'working' - loss falls, capacity wasted" : "");
     const caps3 = [
-      "One more thing can go wrong - at TRAINING time. Router and experts learn together, and that creates a feedback loop: the tokens an expert receives are the tokens it gets better at.",
-      "BREAK IT: early in training, expert 3 is slightly ahead. The router prefers it -> it sees more tokens -> it improves faster -> the router prefers it more. Rich get richer. Watch the load skew.",
-      "Collapse. One expert handles 74% of everything; the rest starved and never learned. You paid for 257 experts and effectively trained a model a fraction of the size. Worst part: nothing crashes - the loss still falls.",
-      "Fix A (classic): an AUXILIARY LOSS that penalizes uneven load. It works - but its gradient pushes against the language loss, taxing quality to buy balance.",
-      "Fix B (DeepSeek-V3, verified): auxiliary-LOSS-FREE balancing. Each expert carries a routing BIAS, nudged up when underused and down when overloaded - the bias only affects top-k selection, not the gradients. Balance without the tax.",
-      "Balanced and humming. The roadmap from here: the router decides WHO wakes up (this module); attention decides WHERE to look (Module 2); training shaped both (Module 6); and the memory bill for all those sleeping experts is Module 5's story (MLA).",
+      "One more thing the dense design never has to worry about: the ROUTER is learned, and it learns at training time, together with the experts. That coupling creates a feedback loop - the tokens an expert receives are exactly the tokens it gets better at.",
+      "BREAK IT: early in training, expert 3 is slightly ahead. The router prefers it -> it sees more tokens -> it improves faster -> the router prefers it more. Rich get richer. Watch the load bars skew.",
+      "Collapse. One expert handles 74% of everything; the others starved and never specialized. You paid the memory bill for 257 experts and effectively trained a model a fraction of the size. Worst part: nothing crashes and the LOSS STILL FALLS - it is a silent failure.",
+      "Fix A (the classic): add an AUXILIARY LOSS penalizing uneven load. It rebalances - but its gradient pushes against the language-modeling loss on every step. You buy balance by taxing quality.",
+      "Fix B (DeepSeek-V3, verified): auxiliary-LOSS-FREE balancing. Each expert carries a routing BIAS, nudged up when underused, down when overloaded. The bias only affects top-k SELECTION - it never enters the gradients - so balance costs no quality.",
+      "Balanced and humming. The map from here: the router decides WHO wakes (this module); attention decides WHERE to look (Module 2); training shaped both (Module 6); and the memory bill for all these sleeping experts - plus long context - is Module 5's story (MLA).",
     ];
     caption.textContent = caps3[k];
     insight.className = k === 2 ? "insight bad" : "insight";
     insight.innerHTML = k === 2
       ? "<b>FAIL.</b> Router collapse is silent: the loss curve looks fine while most of your capacity trains on nothing."
-      : "Act 3: routing is a <b>learned</b> decision, so it can learn badly - balance must be designed in.";
+      : "Act 3: routing is a <b>learned</b> decision, so it can learn badly - balance has to be designed in.";
   }
 }
 
 /* ---------- wiring ---------- */
 let tl = null;
 function build(mode) {
-  state.mode = mode;
   const isInt = mode === "int";
-  tl = new Anim.Timeline({ length: isInt ? 8 : 20, autoMs: isInt ? 2200 : 2800,
+  tl = new Anim.Timeline({ length: isInt ? 12 : 21, autoMs: isInt ? 2600 : 3000,
     onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
   Anim.scrubber($("scrub"), tl, {
-    label: isInt ? (i => "step " + (i + 1) + " / 8") : Anim.actLabel(MECH_ACTS),
+    label: isInt ? (i => "step " + (i + 1) + " / 12") : Anim.actLabel(MECH_ACTS),
     acts: isInt ? null : MECH_ACTS,
   });
   tl.render(0);

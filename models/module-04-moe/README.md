@@ -15,18 +15,24 @@ one token touches. Routing is per token, per layer: score -> softmax -> top-k ->
 renormalized gates -> weighted blend of the chosen experts' outputs.
 
 ## See it (no key)
-`widgets/expert-router/index.html` - two passes:
-- **intuition (8 steps):** a dense layer where everything fires, then the same
-  layer split into experts: ' France' wakes E2+E5, ' is' wakes E7+E3, the rest
-  sleep. Two meters carry the lesson - params in memory vs params this token
-  touches.
-- **mechanism (20 steps, 3 acts):** act 1 computes one routing decision live
-  (router logits -> softmax -> top-k -> gates). Act 2 is the receipts: the page
-  DERIVES 671B and 37B from the verified architecture (44.0M per expert x 257
-  experts x 58 layers + the always-on rest) - the headline numbers are computed,
-  not quoted. Act 3 breaks it: router collapse (rich-get-richer feedback until
-  one expert does 74% of the work, silently), then the two fixes - the classic
-  auxiliary balance loss and DeepSeek-V3's auxiliary-loss-free bias method.
+`widgets/expert-router/index.html` - a SIDE-BY-SIDE comparison, two passes:
+- **intuition (12 steps):** starts with the anatomy (one transformer layer =
+  attention + FFN; the FFN is the fat part), then puts the traditional dense
+  FFN and the MoE layer next to each other and runs the SAME tokens through
+  both. The dense trap (capacity and cost locked together), the MoE move
+  (same capacity, sliced, router in front), ' France' vs ' is' waking
+  different experts, per-layer cost chips (11.3B touched vs 0.4B touched),
+  the shared expert, the honest price (memory + a new failure mode), and the
+  closing comparison: a dense model at V3's per-token cost would be ~37B
+  TOTAL - the MoE stores ~18x more at the same price.
+- **mechanism (21 steps, 3 acts):** act 1 demystifies the expert itself (a
+  small SwiGLU FFN - formula and size computed) before the router (logits ->
+  softmax -> top-k -> gates, computed live). Act 2 is the receipts: the page
+  DERIVES 671B and 37B from the verified architecture, plus C(256,8) vs
+  C(8,2) for why fine-grained slicing wins. Act 3 breaks it: router collapse
+  (rich-get-richer until one expert does 74% of the work, silently), then the
+  two fixes - the classic auxiliary balance loss and DeepSeek-V3's
+  auxiliary-loss-free bias method.
 
 ## The aha
 Parameters are not compute. The biggest models are mostly asleep on every
