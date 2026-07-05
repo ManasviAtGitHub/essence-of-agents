@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Attention: how vectors talk</title>
+<!-- Essence of Models, Module 2. The toy Q/K/V vectors are hand-authored (labeled);
+     every dot product, scaling, softmax weight and blended output is COMPUTED live.
+     Real shapes quoted are Llama-3-70B (verified): 80 layers, d=8192, 64 heads x 128,
+     GQA with 8 KV heads. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:900px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 12px; }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .flow { display:flex; gap:12px; align-items:stretch; }
+  .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:10px 12px; }
+  .panel .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em;
+               color:var(--faint); margin-bottom:6px; }
+
+  .arcp { flex:1.6; min-width:0; }
+  svg.arcs { width:100%; height:190px; }
+  .arcs .tokbox { fill:#171b21; stroke:#2a2f38; rx:6; }
+  .arcs .tokbox.q { stroke:#ffd35c; filter:drop-shadow(0 0 6px rgba(255,211,92,.35)); }
+  .arcs .tokbox.enr { stroke:#83c167; filter:drop-shadow(0 0 6px rgba(131,193,103,.35)); }
+  .arcs text.tt { font:12px ui-monospace,Consolas,monospace; fill:#cdd3da; text-anchor:middle; }
+  .arcs text.tt.q { fill:#ffd35c; }
+  .arcs text.wt { font:9.5px ui-monospace,Consolas,monospace; fill:#58c4dd; text-anchor:middle; }
+  .arcs path.arc { fill:none; stroke:#58c4dd; }
+  .arcs path.arc.faded { stroke:#2a3a44; }
+  .arcs .wall { stroke:#fc6255; stroke-width:2.5; stroke-dasharray:4 3; }
+  .arcs text.walllab { font:9px ui-monospace,Consolas,monospace; fill:#fc6255; text-anchor:middle; }
+
+  .beatp { flex:.75; min-width:0; display:flex; flex-direction:column; }
+  .beat { border:1px solid var(--line); border-radius:9px; background:var(--panel); padding:7px 10px;
+          margin:4px 0; font:11.5px var(--mono); color:var(--dim); transition:all .2s; }
+  .beat b { color:var(--ink); display:block; font-size:12px; }
+  .beat.on { border-color:var(--blue); color:var(--blue); box-shadow:0 0 8px rgba(88,196,221,.2); }
+  .beat.on b { color:var(--blue); }
+  .beat.gold { border-color:var(--gold); } .beat.gold b { color:var(--gold); }
+  .resid { text-align:center; font:10.5px var(--mono); color:var(--faint); margin:2px 0; }
+  .resid.on { color:var(--green); }
+  .beatnote { font:10px var(--mono); color:var(--faint); margin-top:auto; padding-top:6px; }
+
+  .mach { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; margin-top:12px; }
+  .mach[hidden] { display:none; }
+  .formula { font:13px var(--mono); color:var(--ink); background:var(--panel); border:1px solid var(--line);
+             border-radius:8px; padding:8px 12px; display:inline-block; margin-bottom:8px; }
+  .formula b { color:var(--blue); }
+  table.smx { border-collapse:collapse; width:100%; }
+  .smx th, .smx td { font:11.5px var(--mono); text-align:right; padding:3px 8px;
+                     border-bottom:1px solid #1b2028; color:#cdd3da; }
+  .smx th { color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
+  .smx td:first-child, .smx th:first-child { text-align:left; }
+  .smx tr.pick td { color:var(--gold); }
+  .calc { font:12.5px/1.9 var(--mono); color:#cdd3da; }
+  .calc .row { display:flex; justify-content:space-between; gap:14px; border-bottom:1px solid #1b2028; padding:2px 0; flex-wrap:wrap; }
+  .calc .lhs { color:var(--dim); }
+  .calc .rhs { color:var(--ink); }
+  .calc .row.hero .rhs { color:var(--gold); font-weight:600; }
+  .calc .src { font-size:10px; color:var(--faint); margin-top:6px; display:block; }
+
+  .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
+          font:11.5px var(--mono); color:var(--dim); }
+  .stat b { color:var(--ink); font-weight:600; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:78px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+
+  @media (max-width:700px){
+    body { padding:0 12px 48px; }
+    .flow { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+<h1>Attention: how vectors talk</h1>
+<p class="sub">After Module 1, every token is a vector - but a vector <b>island</b>. ' is' knows nothing
+about ' France'. Attention is how meaning MOVES between positions: soft retrieval, run inside the
+model, at every layer. All weights on screen are computed from the toy vectors below.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (the story)</button>
+  <button class="modebtn" data-mode="mech">mechanism (one head, by hand)</button>
+  <span class="modehint">the mechanism act 1 is fully checkable with a pocket calculator</span>
+</div>
+
+<div class="flow" role="group" aria-label="Attention arcs between tokens, and the layer's two beats">
+  <div class="panel arcp">
+    <div class="hd" id="arcHd">the sentence, as vector islands</div>
+    <svg class="arcs" id="arcs" viewBox="0 0 640 190"></svg>
+  </div>
+  <div class="panel beatp">
+    <div class="hd">one layer = two beats</div>
+    <div class="beat" id="beat1"><b>beat 1: attention</b>positions exchange information</div>
+    <div class="resid" id="res1">h = h + attention(h)</div>
+    <div class="beat" id="beat2"><b>beat 2: FFN</b>each position thinks alone</div>
+    <div class="resid" id="res2">h = h + ffn(h)</div>
+    <div class="beatnote" id="beatNote"></div>
+  </div>
+</div>
+
+<div class="mach" id="mach" hidden></div>
+
+<div class="nums" id="nums"></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+/* ---------- toy head data (hand-authored, labeled; d_head = 4) ---------- */
+const TOKS = ["The", " capital", " of", " France", " is"];
+const K = [ [0,0,0,1], [1,0,0.8,0], [0.1,0,0,0.2], [0.9,0,1,0], [0.2,0.1,0.1,0] ];
+const V = [ [0,0.1,0,0], [0.8,0.2,0,0.1], [0.1,0,0,0], [0,0.9,0.3,0], [0.1,0.1,0,0] ];
+const Q_IS = [1.4, 0, 1.4, 0];
+const DH = 4;
+const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+const SCORES = K.map(k => dot(Q_IS, k));                     // computed
+const SCALED = SCORES.map(s => s / Math.sqrt(DH));           // computed
+const EXPS = SCALED.map(s => Math.exp(s));
+const WSUM = EXPS.reduce((a, b) => a + b, 0);
+const W = EXPS.map(e => e / WSUM);                           // computed weights
+const OUT = [0,1,2,3].map(d => V.reduce((s, v, i) => s + W[i] * v[d], 0)); // computed blend
+const f = (x, d) => x.toFixed(d == null ? 2 : d);
+
+/* ---------- verified real shapes: Llama-3-70B ---------- */
+const L3 = { d:8192, heads:64, hd:128, kv:8, layers:80 };
+const wPer = L3.d * L3.d;                                    // one of W_q/W_k/W_v/W_o
+function nsq(n) { return n * n; }
+
+/* ---------- dom ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const arcs=$("arcs"), arcHd=$("arcHd"), beat1=$("beat1"), beat2=$("beat2"),
+      res1=$("res1"), res2=$("res2"), beatNote=$("beatNote"), mach=$("mach"),
+      nums=$("nums"), caption=$("caption"), insight=$("insight"),
+      chrR=$("chrR"), reactLine=$("reactLine");
+if (Anim.reduced()) document.body.classList.add("reduce");
+function react(who, emote, line) {
+  chrR.dataset.c = who; chrR.dataset.e = emote;
+  reactLine.textContent = line;
+  Cast.render($("react"));
+}
+
+/* the arc stage: 5 token boxes; arcs from a query token back to earlier ones */
+const XS = [64, 192, 320, 448, 576];
+function drawStage(opts) {
+  // opts: {q: index|null, weights: bool, all: bool, enrich: bool, wall: bool}
+  opts = opts || {};
+  let h = "";
+  // arcs first (under boxes)
+  if (opts.all) {                       // everyone looks back, faded
+    for (let qi = 1; qi < 5; qi++)
+      for (let ti = 0; ti < qi; ti++)
+        h += arcPath(qi, ti, 1.2, true);
+  }
+  if (opts.q != null) {
+    for (let ti = 0; ti < 5; ti++) {
+      if (ti === opts.q) continue;
+      if (ti < opts.q) h += arcPath(opts.q, ti, opts.weights ? 1 + W[ti] * 14 : 2.2, false);
+    }
+  }
+  // boxes
+  TOKS.forEach((t, i) => {
+    const cls = "tokbox" + (i === opts.q ? " q" : "") + (opts.enrich && i === 4 ? " enr" : "");
+    h += '<rect class="' + cls + '" x="' + (XS[i] - 52) + '" y="128" width="104" height="34"/>' +
+         '<text class="tt' + (i === opts.q ? " q" : "") + '" x="' + XS[i] + '" y="150">' + esc(t) + "</text>";
+    if (opts.weights && opts.q != null && i < opts.q)
+      h += '<text class="wt" x="' + XS[i] + '" y="120">w=' + f(W[i], 3) + "</text>";
+  });
+  if (opts.wall) {
+    h += '<line class="wall" x1="' + (XS[4] + 60) + '" y1="122" x2="' + (XS[4] + 60) + '" y2="170"/>' +
+         '<text class="walllab" x="' + (XS[4] + 60) + '" y="112">future: masked</text>';
+  }
+  arcs.innerHTML = h;
+}
+function arcPath(qi, ti, w, faded) {
+  const x1 = XS[qi], x2 = XS[ti];
+  const lift = 30 + Math.abs(qi - ti) * 22;
+  return '<path class="arc' + (faded ? " faded" : "") + '" stroke-width="' + f(w, 1) +
+         '" d="M ' + x1 + ' 126 Q ' + ((x1 + x2) / 2) + ' ' + (126 - lift) + ' ' + x2 + ' 126"/>';
+}
+function beats(b1, b2, r1, r2, note) {
+  beat1.className = "beat" + (b1 ? " on" : "");
+  beat2.className = "beat" + (b2 === "gold" ? " gold" : b2 ? " on" : "");
+  res1.className = "resid" + (r1 ? " on" : "");
+  res2.className = "resid" + (r2 ? " on" : "");
+  beatNote.textContent = note || "";
+}
+function setNums(list) {
+  nums.innerHTML = list.map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join("");
+}
+function vecTable(cols) {   // cols: {k,v,q,dot,scaled,w}
+  let h = "<tr><th>token</th>";
+  if (cols.k) h += "<th>k (what I contain)</th>";
+  if (cols.v) h += "<th>v (what I hand over)</th>";
+  if (cols.dot) h += "<th>q . k</th>";
+  if (cols.scaled) h += "<th>/ sqrt(4)</th>";
+  if (cols.w) h += "<th>softmax w</th>";
+  h += "</tr>";
+  TOKS.forEach((t, i) => {
+    const hot = cols.w && (i === 1 || i === 3);
+    h += '<tr class="' + (hot ? "pick" : "") + '"><td>' + esc(t) + "</td>" +
+      (cols.k ? "<td>[" + K[i].map(x => f(x, 1)).join(", ") + "]</td>" : "") +
+      (cols.v ? "<td>[" + V[i].map(x => f(x, 1)).join(", ") + "]</td>" : "") +
+      (cols.dot ? "<td>" + f(SCORES[i]) + "</td>" : "") +
+      (cols.scaled ? "<td>" + f(SCALED[i]) + "</td>" : "") +
+      (cols.w ? "<td>" + f(W[i], 3) + "</td>" : "") + "</tr>";
+  });
+  return '<table class="smx" aria-label="attention computation (computed live)">' + h + "</table>" +
+    '<span class="calc src">toy vectors hand-authored (d_head = 4 for readability); every derived column computed live. q_is = [' +
+    Q_IS.map(x => f(x, 1)).join(", ") + '].</span>';
+}
+
+/* ---------- INTUITION: 9 steps ---------- */
+function renderInt(i) {
+  mach.hidden = true;
+  const S = [
+    { st:{q:null}, b:[0,0,0,0,""], cap:"Module 1 left us with five vectors - five ISLANDS. ' is' is about to matter enormously for predicting the next token, but by itself it is one of the emptiest words in English. It needs to know what came before." },
+    { st:{q:4, weights:true}, b:[1,0,0,0,""], cap:"Attention: ' is' LOOKS BACK at every earlier token and assigns each a weight. Read the arcs - thick to ' France' (w=0.356) and ' capital' (w=0.332), thin elsewhere. Those weights are computed from the vectors, and you will compute them yourself in mechanism mode." },
+    { st:{all:true, q:4, weights:true, wall:true}, b:[1,0,0,0,""], cap:"Two rules. Every token does this SIMULTANEOUSLY (the faded arcs - ' France' is also looking back at ' capital'). And nobody looks FORWARD: the red wall is the causal mask. A token may only consult its past - that is what makes next-token prediction honest." },
+    { st:{q:4, weights:true}, b:[1,0,0,0,""], cap:"If this feels familiar from the agents course: it is the librarian, again, literally. Each token files a QUERY against a library of everything before it, and the best-matching entries answer. Attention is retrieval the model was born with - run at every position, every layer." },
+    { st:{q:4, weights:true}, b:[1,0,0,0,""], cap:"What actually flows back along the arcs is not text - each attended token hands over a VALUE, a payload vector, and ' is' receives the weighted BLEND: mostly France-ness and capital-ness, a pinch of everything else." },
+    { st:{q:4, weights:true, enrich:true}, b:[1,0,1,0,""], cap:"The blend is ADDED into ' is' (the green border): h_is now literally contains capital-of-France-ness. It stopped being an island. That single enrichment is attention's entire job." },
+    { st:{q:null, enrich:true}, b:[0,1,0,1,""], cap:"Beat two: the FFN. Now each position thinks ALONE about what it gathered - no cross-talk, just a deep transformation of its own vector. Attention mixes; the FFN digests. (And the FFN is the part Module 4 slices into experts.)" },
+    { st:{q:null}, b:[1,1,1,1,"repeat x 80 layers (Llama-3-70B)"], cap:"That two-beat dance - look around, then think alone - IS the transformer layer. Stack 61 of them (DeepSeek-V3) or 80 (Llama-3-70B) and run them in sequence: each layer's attention can consult what the previous layer already figured out." },
+    { st:{q:4, weights:true, enrich:true}, b:[1,1,1,1,""], cap:"The aha: meaning MOVES via attention and gets PROCESSED via the FFN. One cost hides in the corner: to look back, every earlier token's k and v must still be around. Keeping them is the KV cache - Module 3's whole story." },
+  ];
+  const s = S[i];
+  drawStage(s.st);
+  arcHd.textContent = i === 0 ? "the sentence, as vector islands" : i >= 2 && i <= 2 ? "everyone attends, backwards only" : "attention from ' is' (weights computed)";
+  beats(s.b[0], s.b[1], s.b[2], s.b[3], s.b[4]);
+  setNums([["weights shown", "computed from toy q,k"], ["biggest", "' France' w=" + f(W[3],3)], ["mask", "no peeking forward"]]);
+  caption.textContent = s.cap;
+  insight.className = "insight";
+  insight.innerHTML = i >= 8
+    ? "<b>The aha:</b> attention = soft retrieval between positions; the FFN = per-position thinking. Switch to <b>mechanism</b> and compute a weight by hand."
+    : "One layer = <b>look around (attention), then think alone (FFN)</b> - repeated dozens of times.";
+  const R = [
+    ["cortex", "confused", "' is'. Two letters. I am supposed to predict a CAPITAL CITY off this?"],
+    ["cortex", "reach", "Unless... I just go and ASK the earlier tokens what is going on."],
+    ["bit", "think", "Everyone asks backwards at once. Nobody gets tomorrow's newspaper."],
+    ["bit", "happy", "The librarian again! I KNEW building that retrieval loop would pay off."],
+    ["cortex", "read", "' France' is handing me a little package of itself. Delightful."],
+    ["cortex", "happy", "I am ' is' and yet I now contain France. Geography by osmosis."],
+    ["cortex", "think", "Quiet please. Digesting what I collected."],
+    ["bit", "think", "Look around, think alone, eighty times. That is the whole machine."],
+    ["cortex", "neutral", "Small print: somebody has to REMEMBER all those k's and v's..."],
+  ];
+  react(...R[i]);
+}
+
+/* ---------- MECHANISM: 19 steps, 3 acts ---------- */
+const MECH_ACTS = [["one head, by hand", 8], ["many heads, real shapes", 6], ["the two-beat layer", 5]];
+function renderMech(i) {
+  mach.hidden = false;
+  if (i <= 7) {  // ---- ACT 1: one head, fully computed ----
+    drawStage(i >= 5 ? { q:4, weights:true, enrich: i >= 7 } : { q:4 });
+    arcHd.textContent = "query: ' is' - one head, d_head = 4 (toy)";
+    beats(1, 0, i >= 7, 0, "");
+    if (i === 0)      mach.innerHTML = '<span class="formula">q = W_q h &nbsp; k = W_k h &nbsp; v = W_v h</span>' + vecTable({ k:true, v:true });
+    else if (i === 1) mach.innerHTML = '<span class="formula">q_is = [1.4, 0.0, 1.4, 0.0]</span>' + vecTable({ k:true });
+    else if (i === 2) mach.innerHTML = vecTable({ k:true, dot:true });
+    else if (i === 3) mach.innerHTML = vecTable({ dot:true, scaled:true });
+    else if (i === 4) mach.innerHTML = '<span class="formula">score(future) = -&infin; &nbsp;&rarr;&nbsp; softmax gives it exactly 0</span>' + vecTable({ dot:true, scaled:true });
+    else if (i === 5) mach.innerHTML = vecTable({ scaled:true, w:true });
+    else              mach.innerHTML = vecTable({ v:true, w:true }) +
+      '<div class="calc"><div class="row hero"><span class="lhs">output = sum of w_i x v_i (computed)</span><span class="rhs">[' +
+      OUT.map(x => f(x, 3)).join(", ") + ']</span></div>' +
+      (i >= 7 ? '<div class="row"><span class="lhs">residual: h_is &larr; h_is + output</span><span class="rhs">\' is\' now carries France-ness</span></div>' : "") + "</div>";
+    const caps1 = [
+      "Every token wears three hats, made by three LEARNED matrices. Q: 'what am I looking for?'. K: 'what do I contain?'. V: 'what will I hand over if chosen?'. Here are our five tokens' k and v vectors - toy-sized (d_head = 4) so you can check everything.",
+      "The query: ' is' needs subject-matter from its past, and its learned q vector encodes that question: [1.4, 0, 1.4, 0] - big in the dimensions where ' capital' and ' France' have big k's. That alignment is not luck; training made these matrices agree on a code.",
+      "Scores: dot product q . k against every earlier token, computed live in the table. ' France': 1.4x0.9 + 1.4x1.0 = 2.66. ' The': 0. The dot product IS the relevance metric - high when query and key point the same way.",
+      "Scale by sqrt(d_head) = 2. Why: dot products grow with dimension, and big scores make softmax collapse to one winner prematurely. Dividing keeps the competition alive. (This is the sqrt(d) in every attention formula you have ever seen.)",
+      "The causal mask: any FUTURE token's score is set to -infinity before softmax - e to the minus infinity is zero, so tomorrow gets exactly zero weight. Our query is the last token so nothing is masked here, but the wall stands at every position.",
+      "Softmax - Module 0's exact formula, third appearance in this track (sampler, router, now attention). The weights land: ' France' 0.356, ' capital' 0.332, and the low-relevance tokens split the rest.",
+      "The payoff: output = sum of w_i x v_i, computed live: mostly ' France''s v and ' capital''s v, blended. One vector, carrying the gathered context.",
+      "And the residual: that output is ADDED to h_is, not overwritten - h flows through, refined. One attention head, end to end: three matrix multiplies, dots, a softmax, a weighted sum. Nothing you could not redo on paper.",
+    ];
+    caption.textContent = caps1[i];
+    insight.className = "insight";
+    insight.innerHTML = "Act 1: attention = <b>softmax(q.K / sqrt(d)) . V</b>, one hand-checkable arithmetic pipeline. The 'magic' is three learned matrices agreeing on a code.";
+    react("cortex", i <= 1 ? "think" : i === 4 ? "panic" : i >= 6 ? "happy" : "read",
+      i === 0 ? "Three hats per token. I contain wardrobes."
+      : i === 1 ? "My question vector, printed. Feels like publishing my diary."
+      : i === 2 ? "2.66 for France, zero for The. The arithmetic agrees with common sense. Eerie."
+      : i === 3 ? "Divide by two so I do not get overconfident. Story of my training."
+      : i === 4 ? "The future is MINUS INFINITY to me. I try not to take it personally."
+      : i === 5 ? "0.356 France, 0.332 capital. My interests, quantified."
+      : i === 6 ? "One tidy vector of everything I needed. Retrieval complete."
+      : "Added to me, not replacing me. I am still ' is'. Just... more worldly.");
+  }
+
+  else if (i <= 13) {  // ---- ACT 2: many heads, real shapes ----
+    const k = i - 8;
+    drawStage({ q:4, weights:true });
+    arcHd.textContent = "the same sentence, real-model scale";
+    beats(1, 0, 0, 0, "");
+    if (k === 0) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">one head answers ONE kind of question per position</span><span class="rhs">so run many in parallel</span></div><div class="row hero"><span class="lhs">Llama-3-70B (verified)</span><span class="rhs">64 heads x d_head 128 = d 8192</span></div></div>';
+    else if (k === 1) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">head 7 (cartoon)</span><span class="rhs">tracks syntax - subjects and verbs</span></div><div class="row"><span class="lhs">head 23 (cartoon)</span><span class="rhs">tracks entities - France, Paris, names</span></div><div class="row"><span class="lhs">head 41 (cartoon)</span><span class="rhs">looks at the previous token, always</span></div><span class="src">honest note: real heads are FOUND, not designed - some match clean stories like these, most defy labels. Interpretability is an open field.</span></div>';
+    else if (k === 2) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">W_q, W_k, W_v, W_o - each d x d = 8192 x 8192</span><span class="rhs">' + (wPer/1e6).toFixed(1) + 'M each</span></div><div class="row hero"><span class="lhs">attention parameters per layer (4 matrices)</span><span class="rhs">' + (4*wPer/1e6).toFixed(0) + 'M</span></div><div class="row"><span class="lhs">x 80 layers</span><span class="rhs">' + (4*wPer*80/1e9).toFixed(1) + 'B of the 70B</span></div><span class="src">computed live from d = 8192. The rest of the 70B is mostly FFN - the fat part, as Module 4 said.</span></div>';
+    else if (k === 3) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">GQA (grouped-query attention): 64 query heads SHARE 8 k/v heads</span><span class="rhs">8x fewer k,v to make - and to REMEMBER</span></div><div class="row hero"><span class="lhs">why bother: k and v must be CACHED for every past token</span><span class="rhs">cache shrinks 8x (Module 3)</span></div></div>';
+    else if (k === 4) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">score matrix per head per layer = n x n</span><span class="rhs">n = 1,000 &rarr; ' + (nsq(1000)/1e6).toFixed(1) + 'M scores</span></div><div class="row"><span class="lhs"></span><span class="rhs">n = 8,000 &rarr; ' + (nsq(8000)/1e6).toFixed(0) + 'M</span></div><div class="row hero"><span class="lhs">the quadratic wall</span><span class="rhs">n = 128,000 &rarr; ' + (nsq(128000)/1e9).toFixed(1) + 'B scores</span></div><span class="src">computed live. Double the context, quadruple the attention compute - the wall every long-context trick fights.</span></div>';
+    else mach.innerHTML = '<span class="formula">Attention(Q, K, V) = softmax( QK<sup>T</sup> / sqrt(d) ) V &nbsp; - per head, concat heads, x W_o</span>';
+    const caps2 = [
+      "One head asked one question. Real models ask many at once: Llama-3-70B runs 64 heads in parallel, each a private 128-dimensional version of act 1, each free to look somewhere different.",
+      "What do the heads look for? Some match clean stories - a syntax head, an entity head, a previous-token head. The honest answer: heads are discovered by training, not assigned, and interpretability research can name a minority of them. The cartoon is useful; do not mistake it for the ledger.",
+      "The price of asking: four d-by-d matrices per layer (make Q, K, V; then W_o to fold the heads back in). The page computes it: 268M attention parameters per layer, 21.5B across Llama-3-70B's 80 layers. Real money, but still the minority - the FFN owns the rest.",
+      "One clever discount: GQA. All 64 query heads share just 8 key/value heads. Queries are cheap - they live and die within the pass. But every token's k and v must be KEPT for the future to attend back to... so making 8x fewer of them shrinks that memory 8x. Module 3 is entirely about this bill.",
+      "And the famous wall: scores are pairwise, n x n. The page computes the growth - 1k tokens: a million scores; 128k tokens: 16.4 BILLION, per head, per layer. Quadratic. Every long-context headline you read is someone fighting this exact number.",
+      "The formula you have seen on a hundred slides, now with every symbol accounted for: dot products (act 1 step 2), sqrt(d) (step 3), the mask (step 4), softmax (step 5), the V blend (step 6) - run per head, concatenated, folded by W_o.",
+    ];
+    caption.textContent = caps2[k];
+    insight.className = "insight";
+    insight.innerHTML = "Act 2: many parallel heads; <b>shapes and costs computed from d = 8192</b>. GQA exists because k,v must be remembered; n^2 is the wall.";
+    react(k === 1 ? "cortex" : "bit", k === 4 ? "panic" : k === 1 ? "confused" : "think",
+      k === 0 ? "Sixty-four questions per token, per layer. Cortex is a very curious creature."
+      : k === 1 ? "You want me to explain what head 41 wants? I just work here."
+      : k === 2 ? "268M per layer just for the asking machinery. I did the multiplication live."
+      : k === 3 ? "Eight KV heads serving sixty-four askers. The library hires fewer librarians."
+      : k === 4 ? "SIXTEEN BILLION scores per head at 128k context?! Someone go check on Module 3."
+      : "Every symbol in that formula now has a face.");
+  }
+
+  else {  // ---- ACT 3: the two-beat layer ----
+    const k = i - 14;
+    drawStage(k === 0 ? { q:4, weights:true } : { q:null, enrich: k <= 1 });
+    arcHd.textContent = "zooming out";
+    beats(k !== 1, k >= 1 ? (k === 2 ? "gold" : 1) : 0, k >= 1, k >= 1, k >= 3 ? "x 80 layers" : "");
+    mach.innerHTML = k === 2
+      ? '<div class="calc"><div class="row"><span class="lhs">beat 1: attention</span><span class="rhs">chooses WHERE meaning comes from</span></div><div class="row"><span class="lhs">beat 2: FFN (2/3 of the params)</span><span class="rhs">chooses WHAT to make of it</span></div><div class="row hero"><span class="lhs">Module 4\'s router</span><span class="rhs">chooses WHO, inside the FFN, wakes up</span></div></div>'
+      : k === 3
+      ? '<div class="calc"><div class="row hero"><span class="lhs">to attend back, every past token\'s k and v must be kept</span><span class="rhs">the KV cache - Module 3</span></div><div class="row"><span class="lhs">and DeepSeek\'s MLA (Module 5)</span><span class="rhs">is a compression attack on exactly that</span></div></div>'
+      : "";
+    const caps3 = [
+      "Zoom out. What you built in act 1 is beat ONE of a layer: positions exchange information. It is the only place in the entire transformer where tokens touch each other.",
+      "Beat TWO: the FFN transforms each position independently - and the residual stream carries h through both beats, each ADDING its refinement rather than replacing the vector. h = h + attn(h), then h = h + ffn(h). That additive design is why 80-layer stacks train at all.",
+      "The division of labor, now complete: attention decides WHERE meaning flows from; the FFN decides WHAT to compute on it; and inside the FFN, Module 4's router decides WHO wakes up. Three learned choosers, three modules of this track.",
+      "And the bill we keep deferring: attending backwards requires every past token's k and v to still exist. n tokens deep into a conversation, that cache is the biggest thing in GPU memory. Module 3 prices it; Module 5 shows DeepSeek shrinking it 10x with MLA.",
+      "One layer: look around, then think alone. Eighty repetitions later, the vector at ' is' has consulted everything, digested everything - and is ready for Module 0's finale: one matrix multiply into 128,000 logits, softmax, sample. The loop closes.",
+    ];
+    caption.textContent = caps3[k];
+    insight.className = "insight";
+    insight.innerHTML = k >= 4
+      ? "<b>The track so far:</b> tokens -&gt; vectors (M1) -&gt; talk (M2) -&gt; think, sliced by a router (M4) -&gt; logits -&gt; the loop (M0). Debt paid."
+      : "Act 3: <b>attention mixes, FFN digests, residuals carry h</b> - one layer, repeated deep.";
+    react("cortex", k >= 4 ? "happy" : "think",
+      k === 0 ? "Beat one: gossip." : k === 1 ? "Beat two: journaling about the gossip."
+      : k === 2 ? "Where, what, who. My three little bureaucracies."
+      : k === 3 ? "I remember everyone's k and v. My memory bill is... we should talk about my memory bill."
+      : "Eighty layers of this and I somehow say ' Paris'. Honestly, respect.");
+  }
+  setNums([["toy head", "d_head = 4, all math live"], ["real (Llama-3-70B)", "64 heads x 128, 80 layers"],
+           ["GQA", "8 shared KV heads"], ["wall", "scores grow as n^2"]]);
+}
+
+/* ---------- wiring ---------- */
+let tl = null;
+function build(mode) {
+  const isInt = mode === "int";
+  tl = new Anim.Timeline({ length: isInt ? 9 : 19, autoMs: isInt ? 2600 : 3000,
+    onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
+  Anim.scrubber($("scrub"), tl, {
+    label: isInt ? (i => "step " + (i + 1) + " / 9") : Anim.actLabel(MECH_ACTS),
+    acts: isInt ? null : MECH_ACTS,
+  });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

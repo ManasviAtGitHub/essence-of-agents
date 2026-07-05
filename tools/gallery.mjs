@@ -13,6 +13,8 @@ const TARGETS = [
   ["course-hub", "agentic-course/index.html"],
   ["models-hub", "models/index.html"],
   ["models m0 next-token-loop", "models/module-00-autoregression/widgets/next-token-loop/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
+  ["models m1 token-lens", "models/module-01-tokens/widgets/token-lens/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
+  ["models m2 attention-lens", "models/module-02-attention/widgets/attention-lens/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["models m4 expert-router", "models/module-04-moe/widgets/expert-router/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["about", "agentic-course/about.html"],
   ["production-hub", "production/index.html"],

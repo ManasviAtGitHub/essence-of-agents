@@ -179,6 +179,7 @@ mechanism mode it <b>derives both headline numbers live</b> instead of quoting t
 
 <div class="caption" id="caption" aria-live="polite"></div>
 <div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
 
 <div id="scrub"></div>
 
@@ -225,8 +226,14 @@ const toks=$("toks"), router=$("router"), sharedEl=$("shared"),
       capD=$("capD"), tchD=$("tchD"), capM=$("capM"), tchM=$("tchM"),
       costD=$("costD"), costM=$("costM"),
       memv=$("memv"), memf=$("memf"), actv=$("actv"), actf=$("actf"), mnote=$("mnote"),
-      load=$("load"), mach=$("mach"), nums=$("nums"), caption=$("caption"), insight=$("insight");
+      load=$("load"), mach=$("mach"), nums=$("nums"), caption=$("caption"), insight=$("insight"),
+      chrR=$("chrR"), reactLine=$("reactLine");
 if (Anim.reduced()) document.body.classList.add("reduce");
+function react(who, emote, line) {
+  chrR.dataset.c = who; chrR.dataset.e = emote;
+  reactLine.textContent = line;
+  Cast.render($("react"));
+}
 const nnD = NN.build($("nnD"), { cols: 5, rows: 4, w: 240, h: 100, padX: 16, padY: 12, r: 5 });
 const nnM = NN.build($("nnM"), { cols: 8, rows: 4, w: 240, h: 100, padX: 14, padY: 12, r: 5 });
 $("elabels").innerHTML = Array.from({length:8}, (_, i) => "<span>E" + (i+1) + "</span>").join("");
@@ -346,6 +353,21 @@ function renderInt(i) {
     : i >= 4
     ? "Same tokens, two designs: <b>dense = everyone pays for everything; MoE = a router picks who wakes up.</b>"
     : "The dense trap: <b>capacity and per-token cost rise together.</b> MoE exists to break that lock.";
+  const R = [
+    ["bit", "confused", "671 billion parameters and it bills like 37. I need to see the books."],
+    ["bit", "think", "The FFN is the fat part. Follow the fat."],
+    ["cortex", "read", "Dense me: every weight, every token. Nobody rests. Ever."],
+    ["cortex", "panic", "You want me SMARTER? In the dense design that means EVERYONE works harder."],
+    ["bit", "happy", "Same warehouse, but now it has departments. And a receptionist."],
+    ["cortex", "reach", "' France'? Second floor, experts 2 and 5. Everyone else, back to sleep."],
+    ["cortex", "think", "' is' goes to a totally different team. I did not plan this. It emerged."],
+    ["cortex", "neutral", "The shared expert is the staff kitchen. Everyone passes through."],
+    ["bit", "happy", "Look at the chips: same capacity, one-twentieth the work."],
+    ["bit", "think", "Fifty-eight floors of this. The invoice is coming in mechanism mode."],
+    ["bit", "confused", "The catch: I pay rent on ALL of it. Sleeping experts still take up GPUs."],
+    ["cortex", "happy", "Same rent per token, eighteen times the library. I contain multitudes, efficiently."],
+  ];
+  react(...R[i]);
 }
 
 /* ---------- MECHANISM: 21 steps, 3 acts ---------- */
@@ -377,7 +399,7 @@ function renderMech(i) {
     const caps1 = [
       "First, demystify the star of the show. An EXPERT is just a small FFN - the same three-matrix SwiGLU block every transformer uses, with a narrow middle (m = 2048). The page computes its size: 44.0M parameters. That's it. No agents, no personalities - a slice of network.",
       "So the two designs differ by ONE thing. Dense: one very wide FFN, no decisions. MoE: 257 narrow FFNs in a row - which means something has to CHOOSE. Every remaining step is about that choice.",
-      "The chooser is almost embarrassingly small: one linear map. scores = W_r x h, one raw score per expert - for THIS token's vector h, at THIS layer. The 671B-vs-37B decision is made by a matrix the size of a rounding error.",
+      "The chooser is almost embarrassingly small: one linear map. scores = W_r x h - where h is the token's vector, born in Module 1's embedding and enriched by Module 2's attention just one beat earlier. One raw score per expert, for THIS token, at THIS layer. The 671B-vs-37B decision is made by a matrix the size of a rounding error.",
       "Softmax turns the scores into affinities - the exact formula from Module 0's sampler, computed live in the table below.",
       "Top-k: keep the k highest (drawn: top-2 of 8; real: top-8 of 256). Look at the struck-through rows - those experts do ZERO work for this token. Their weights are never even read from memory.",
       "The kept affinities renormalize into GATES: g = 0.711 and 0.289 here. Gates matter: the token's output will be a weighted BLEND of expert opinions, not a single expert's answer - and the gate gradients are how the router learns.",
@@ -387,6 +409,15 @@ function renderMech(i) {
     caption.textContent = caps1[i];
     insight.className = "insight";
     insight.innerHTML = "Act 1: an expert is <b>a narrow FFN</b>; routing is <b>score -&gt; softmax -&gt; top-k -&gt; gates -&gt; weighted blend</b>, decided per token, per layer.";
+    react("cortex", i <= 1 ? "read" : i === 4 ? "think" : i >= 6 ? "happy" : "reach",
+      i === 0 ? "An expert is just a small me. Slightly deflating, honestly."
+      : i === 1 ? "257 tiny FFNs and one question: who gets this token?"
+      : i === 2 ? "My h walks in and a matrix the size of a business card decides its fate."
+      : i === 3 ? "Softmax again. Third time in this track. It is softmax all the way down."
+      : i === 4 ? "The struck-through experts never even got woken up. Their weights stayed on disk... well, on HBM."
+      : i === 5 ? "0.711 of expert 2's opinion, 0.289 of expert 5's. I am a committee."
+      : i === 6 ? "Three FFNs ran. The dense fellow next door ran eleven billion parameters. For ' France'."
+      : "New token, new committee. My org chart reshuffles every single token.");
   }
 
   else if (i <= 14) {  // ---- ACT 2: the arithmetic ----
@@ -413,6 +444,14 @@ function renderMech(i) {
     caption.textContent = caps2[k];
     insight.className = "insight";
     insight.innerHTML = "Act 2: <b>capacity = all experts x all layers; cost = chosen experts x all layers + the always-on rest.</b> Every number computed by this page.";
+    react("bit", k >= 5 ? "happy" : "think",
+      k === 0 ? "Four hundred trillion possible teams. Per token. Per layer. I checked the combinatorics."
+      : k === 1 ? "The shared expert handles the glue so the specialists can specialize. Good management."
+      : k === 2 ? "44 million per expert. Now we multiply."
+      : k === 3 ? "Eleven billion per FLOOR of this building."
+      : k === 4 ? "656B in experts, and the leftover 14.5B fell out of subtraction. The books balance."
+      : k === 5 ? "23 billion actually working per token. The rest are on paid standby."
+      : "37.5B derived, 37B reported. The invoice checks out.");
   }
 
   else {  // ---- ACT 3: break it - router collapse ----
@@ -440,6 +479,14 @@ function renderMech(i) {
     insight.innerHTML = k === 2
       ? "<b>FAIL.</b> Router collapse is silent: the loss curve looks fine while most of your capacity trains on nothing."
       : "Act 3: routing is a <b>learned</b> decision, so it can learn badly - balance has to be designed in.";
+    react(k === 2 ? "cortex" : "bit",
+      k === 1 ? "confused" : k === 2 ? "panic" : k >= 3 ? "happy" : "think",
+      k === 0 ? "The router learns WITH the experts. What could possibly go wrong."
+      : k === 1 ? "Expert 3 is getting all the tokens. Expert 3 is getting ALL the tokens?"
+      : k === 2 ? "I paid for 257 brains and I am using ONE. And my loss curve never said a word."
+      : k === 3 ? "The aux loss works, but it argues with the language loss on every gradient. Awkward."
+      : k === 4 ? "A bias that only touches the top-k vote. Balance with no gradient tax. Elegant fix."
+      : "Balanced, humming, and honest about who does the work. Ship it.");
   }
 }
 

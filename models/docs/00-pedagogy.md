@@ -279,9 +279,13 @@ models/                      this track (sibling of agentic-course/, production/
   index.html                 hub (clone of course hub pattern, own NAV)
 ```
 
-Build order (leverage-first): M0 autoregression -> M4 MoE -> M6 training
-stages -> M2 attention -> M3 KV cache -> M5 DeepSeek -> M7 reasoning RL ->
-M1 tokens -> M8 small models. Wire the launcher's third door when M0 ships.
+Build order (revised 2026-07-05, foundations-first after M4 exposed the
+dependency): M0 autoregression -> M4 MoE -> M1 tokens + M2 attention (the
+prerequisites M4's mechanism leans on: h's birth and the attention/FFN
+division of labor) -> M6 training stages -> M3 KV cache -> M5 DeepSeek ->
+M7 reasoning RL -> M8 small models. Rule learned: a module's mechanism pass
+may only lean on ideas an EXISTING module has built - check before writing.
+Cast rule: Cortex/Bit must appear in every widget (react bar at minimum).
 
 ## Honesty rules (this track needs them more than the last)
 
