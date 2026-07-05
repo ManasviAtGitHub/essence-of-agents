@@ -54,12 +54,33 @@
     }, ms);
   };
 
-  /* A shared scrubber bound to a Timeline. */
+  /* A shared scrubber bound to a Timeline.
+     opts.acts = [["name", len], ...] additionally renders a clickable act bar
+     above the controls; clicking an act seeks to its first step. */
   function scrubber(container, tl, opts) {
     opts = opts || {};
     container.classList.add("scrub");
     container.setAttribute("role", "group");
     container.setAttribute("aria-label", "Animation playback controls");
+    var actBar = null, actStarts = [];
+    if (!opts.acts) {
+      var stale = container.parentElement && container.parentElement.querySelector(".scrub-acts");
+      if (stale) stale.remove();
+    }
+    if (opts.acts) {
+      var host = container.parentElement;
+      actBar = host.querySelector(".scrub-acts");
+      if (!actBar) { actBar = document.createElement("div"); actBar.className = "scrub-acts"; host.insertBefore(actBar, container); }
+      var off = 0;
+      actBar.innerHTML = opts.acts.map(function (a, k) {
+        actStarts.push(off); off += a[1];
+        return '<button class="act-chip" data-k="' + k + '" aria-label="Jump to act ' + (k + 1) + '">' +
+               '<span class="an">act ' + (k + 1) + '</span>' + a[0] + '</button>';
+      }).join('<span class="act-sep">&rarr;</span>');
+      actBar.querySelectorAll(".act-chip").forEach(function (b) {
+        b.onclick = function () { tl.pause(); tl.seek(actStarts[+b.dataset.k]); };
+      });
+    }
     container.innerHTML =
       '<button class="scrub-btn" data-a="restart" title="Restart" aria-label="Restart">&#8635;</button>' +
       '<button class="scrub-btn" data-a="prev" title="Step back" aria-label="Step back">&#9664;</button>' +
@@ -84,6 +105,11 @@
       count.textContent = opts.label ? opts.label(s.i) : (s.i + 1) + " / " + s.length;
       play.innerHTML = s.playing ? "&#10074;&#10074;" : "&#9654;";
       play.classList.toggle("on", s.playing);
+      if (actBar) {
+        var cur = 0;
+        for (var k = 0; k < actStarts.length; k++) if (s.i >= actStarts[k]) cur = k;
+        actBar.querySelectorAll(".act-chip").forEach(function (b, j) { b.classList.toggle("on", j === cur); });
+      }
     };
   }
 

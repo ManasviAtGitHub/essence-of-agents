@@ -40,12 +40,19 @@
 
   .stackp { flex:.9; display:flex; flex-direction:column; align-items:center; text-align:center; }
   .stackp .chr svg { width:56px; height:56px; }
-  .layers { width:100%; display:flex; flex-direction:column-reverse; gap:3px; margin:6px 0; }
-  .layer { border:1px solid var(--line); border-radius:5px; background:var(--panel);
-           font:9.5px var(--mono); color:var(--faint); padding:2px 6px; transition:all .2s; }
-  .stackp.hot .layer { border-color:var(--blue); color:var(--blue); box-shadow:0 0 6px rgba(88,196,221,.2); }
+  svg.nn { width:100%; max-width:205px; height:142px; margin:4px 0 2px; }
+  .nn-edge { stroke:#232c34; stroke-width:1; }
+  .nn-node { fill:#1b2028; stroke:#3a424c; stroke-width:1.2; }
+  .stackp.hot .nn-node { animation:nnfire 1.6s ease-in-out infinite; }
+  .stackp.hot .nn-edge { animation:nnwire 1.6s ease-in-out infinite; }
+  @keyframes nnfire { 0%,100% { fill:#1b2028; stroke:#3a424c; }
+                      35% { fill:var(--blue); stroke:var(--blue); filter:drop-shadow(0 0 4px var(--blue)); } }
+  @keyframes nnwire { 0%,100% { stroke:#232c34; } 35% { stroke:var(--blue); opacity:.85; } }
+  .reduce .stackp.hot .nn-node { animation:none; fill:var(--blue); stroke:var(--blue); }
+  .reduce .stackp.hot .nn-edge { animation:none; stroke:#2a5560; }
   .xn { font:10px var(--mono); color:var(--faint); }
   .stackp.hot .xn { color:var(--blue); }
+  .xnsub { font:9px var(--mono); color:var(--faint); opacity:.75; margin-top:2px; }
 
   .distp { flex:1.4; min-width:0; }
   .bar { display:flex; align-items:center; gap:7px; margin:4px 0; }
@@ -129,8 +136,9 @@ every probability live.</p>
   </div>
   <div class="panel stackp" id="stackp">
     <span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
-    <div class="layers" id="layers"></div>
+    <svg class="nn" id="nn" viewBox="0 0 210 150" aria-hidden="true"></svg>
     <span class="xn" id="xn">the stack</span>
+    <span class="xnsub" id="xnsub"></span>
   </div>
   <div class="panel distp">
     <div class="hd"><span>next-token distribution</span><span id="disthd"></span></div>
@@ -204,7 +212,7 @@ const fmt = (x, d) => x.toFixed(d);
 const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
 const ctxEl=$("ctx"), ctxn=$("ctxn"), loopback=$("loopback"), stackp=$("stackp"),
-      layersEl=$("layers"), xn=$("xn"), bars=$("bars"), tail=$("tail"), disthd=$("disthd"),
+      xn=$("xn"), xnsub=$("xnsub"), bars=$("bars"), tail=$("tail"), disthd=$("disthd"),
       mach=$("mach"), tKnob=$("tKnob"), pKnob=$("pKnob"), tSlide=$("tSlide"), tVal=$("tVal"),
       pChk=$("pChk"), pVal=$("pVal"), smx=$("smx"), cdf=$("cdf"), cdfStrip=$("cdfStrip"),
       cdfLab=$("cdfLab"), nums=$("nums"), caption=$("caption"), insight=$("insight"),
@@ -222,13 +230,24 @@ function renderCtx(tokens, opts) {   // opts: {newFrom, subs, repFrom}
   }).join("");
   ctxn.textContent = tokens.length + " tokens";
 }
-function renderStack(hot, label, showLayers) {
+/* the stack drawn as a (tiny, honest) neural net: 4 columns of 5 neurons,
+   fully connected between neighbours; a wave of activation flows left->right
+   while a forward pass is running (columns fire with a phase delay). */
+(function buildNN() {
+  const COLS = [22, 77, 132, 187], YS = [18, 46, 74, 102, 130];
+  let h = "";
+  for (let c = 0; c < COLS.length - 1; c++)
+    for (const y1 of YS) for (const y2 of YS)
+      h += '<line class="nn-edge" x1="' + COLS[c] + '" y1="' + y1 + '" x2="' + COLS[c+1] +
+           '" y2="' + y2 + '" style="animation-delay:' + (c * 0.32 + 0.16) + 's"/>';
+  COLS.forEach((x, c) => { for (const y of YS)
+    h += '<circle class="nn-node" cx="' + x + '" cy="' + y + '" r="5.5" style="animation-delay:' + (c * 0.32) + 's"/>'; });
+  $("nn").innerHTML = h;
+})();
+function renderStack(hot, label, sub) {
   stackp.className = "panel stackp" + (hot ? " hot" : "");
-  layersEl.innerHTML = showLayers
-    ? '<div class="layer">layer 1: attention + FFN</div><div class="layer">layer 2: attention + FFN</div>' +
-      '<div class="layer">...</div><div class="layer">layer 32: attention + FFN</div>'
-    : '<div class="layer">the stack</div>';
   xn.textContent = label;
+  xnsub.textContent = sub || "";
 }
 function renderBars(rows, pickIdx, opts) {  // rows from softmax()/topP(); opts {showP, cutKey}
   opts = opts || {};
@@ -288,7 +307,8 @@ function renderInt(i, dir) {
   renderCtx(ctx, { newFrom: appended ? PROMPT.length : null });
 
   const passes = Math.min(appended + (i >= 1 && i <= 3 ? 1 : 0), 3) || (i >= 1 ? 1 : 0);
-  renderStack(i === 1 || i === 5 || i === 6, i === 0 ? "the model (a stack of layers)" : "one forward pass", false);
+  renderStack(i === 1 || i === 5 || i === 6, i === 0 ? "the model (a stack of layers)" : "one forward pass",
+              "drawn 20 neurons small - the real stack is billions of weights");
   loopback.className = "loopback" + (i === 4 || i === 5 || i === 6 ? " hot" : "");
 
   if (i >= 2) {
@@ -341,7 +361,8 @@ function renderMech(i, dir) {
   // ---- ACT 1 (0-6): one turn with the machinery shown ----
   if (i <= 6) {
     renderCtx(PROMPT, { subs: i === 0 ? IDS.map(String) : i === 1 ? PROMPT.map(() => "[.12 -.83 ...]") : null });
-    renderStack(i >= 2, i >= 2 ? "32 layers, d = 4,096" : "the stack", i >= 2);
+    renderStack(i >= 2, i >= 2 ? "32 layers, each: attention + FFN" : "the stack",
+                i >= 2 ? "cartoon: 4 layers x 5 neurons drawn - really 32 layers, d = 4,096 wide" : "");
     loopback.className = "loopback";
     const raw = GEN[0].cand.map(c => ({ tok:c[0], z:c[1], zt:c[1], e:Math.exp(c[1]), p:0 }));
     if (i <= 2)      { smx.innerHTML = ""; bars.innerHTML = ""; tail.textContent = ""; disthd.textContent = ""; }
@@ -367,7 +388,7 @@ function renderMech(i, dir) {
   // ---- ACT 2 (7-13): the sampler's knobs ----
   else if (i <= 13) {
     renderCtx(PROMPT, {});
-    renderStack(false, "32 layers, d = 4,096", true);
+    renderStack(false, "32 layers, each: attention + FFN", "the pass is done - now we are just re-sampling its output");
     loopback.className = "loopback" + (i === 13 ? " hot" : "");
     let rows = rows0();
     let pick = GEN[0].pick;
@@ -396,7 +417,7 @@ function renderMech(i, dir) {
     const k = i - 14;
     if (k <= 1) {  // divergence
       renderCtx(PROMPT.concat(k === 0 ? [] : [" Paris / the ?"]), { newFrom: k === 0 ? null : PROMPT.length });
-      renderStack(false, "32 layers", false);
+      renderStack(k === 1, "32 layers", k === 1 ? "run A and run B both pass through here - identically" : "");
       loopback.className = "loopback" + (k === 1 ? " hot" : "");
       const rows = softmax(GEN[0].cand, 1);
       renderTable(rows, 0, { p:true });
@@ -414,7 +435,7 @@ function renderMech(i, dir) {
       if (k === 4) extra.push(".");
       const ctx = LOOP_PROMPT.concat(extra);
       renderCtx(ctx, { repFrom: k >= 3 ? LOOP_PROMPT.length : null, newFrom: k === 4 ? ctx.length - 1 : null });
-      renderStack(false, "32 layers", false);
+      renderStack(k === 3, "32 layers", k === 3 ? "still working perfectly - the loop is in the SAMPLER, not the net" : "");
       loopback.className = "loopback hot";
       const cand = k === 4 ? LOOP_CAND.on : LOOP_CAND.on;
       let rows = softmax(cand, state.T);
@@ -456,6 +477,7 @@ function build(mode) {
   });
   Anim.scrubber($("scrub"), tl, {
     label: isInt ? (i => "step " + (i + 1) + " / 8") : Anim.actLabel(MECH_ACTS),
+    acts: isInt ? null : MECH_ACTS,
   });
   tl.render(0);
 }

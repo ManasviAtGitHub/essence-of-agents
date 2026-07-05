@@ -44,6 +44,19 @@
 /* a character's speech bubble on its own */
 .say { background:#0e1319; border:1px solid #2a2f38; border-radius:12px; padding:8px 14px; color:#d8dde3; }
 
+/* ---- act bar (long mechanism scenes; rendered by Anim.scrubber opts.acts) ---- */
+.scrub-acts { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:14px 0 -8px; }
+.scrub-acts .act-chip { font:11.5px ui-monospace,"Cascadia Mono",Consolas,monospace; border:1px solid #2a2f38;
+                        background:#171b21; color:#98a2b0; border-radius:8px; padding:5px 11px; cursor:pointer;
+                        text-align:left; }
+.scrub-acts .act-chip .an { display:block; font-size:9px; text-transform:uppercase; letter-spacing:.08em;
+                            color:#6b7480; margin-bottom:1px; }
+.scrub-acts .act-chip:hover { border-color:#58c4dd; color:#e9ebee; }
+.scrub-acts .act-chip.on { border-color:#58c4dd; color:#e9ebee; background:#12171e;
+                           box-shadow:0 0 8px rgba(88,196,221,.18); }
+.scrub-acts .act-chip.on .an { color:#58c4dd; }
+.scrub-acts .act-sep { color:#3a424c; font:12px ui-monospace,Consolas,monospace; }
+
 /* ---- animation scrubber (shared by all animated scenes) ---- */
 .scrub { display:flex; align-items:center; gap:8px; margin:16px 0; }
 .scrub-btn { font:14px/1 ui-monospace,Consolas,monospace; border:1px solid #2a2f38; background:#171b21;
