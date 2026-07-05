@@ -40,16 +40,7 @@
 
   .stackp { flex:.9; display:flex; flex-direction:column; align-items:center; text-align:center; }
   .stackp .chr svg { width:56px; height:56px; }
-  svg.nn { width:100%; max-width:205px; height:142px; margin:4px 0 2px; }
-  .nn-edge { stroke:#232c34; stroke-width:1; }
-  .nn-node { fill:#1b2028; stroke:#3a424c; stroke-width:1.2; }
-  .stackp.hot .nn-node { animation:nnfire 1.6s ease-in-out infinite; }
-  .stackp.hot .nn-edge { animation:nnwire 1.6s ease-in-out infinite; }
-  @keyframes nnfire { 0%,100% { fill:#1b2028; stroke:#3a424c; }
-                      35% { fill:var(--blue); stroke:var(--blue); filter:drop-shadow(0 0 4px var(--blue)); } }
-  @keyframes nnwire { 0%,100% { stroke:#232c34; } 35% { stroke:var(--blue); opacity:.85; } }
-  .reduce .stackp.hot .nn-node { animation:none; fill:var(--blue); stroke:var(--blue); }
-  .reduce .stackp.hot .nn-edge { animation:none; stroke:#2a5560; }
+  .stackp svg.nn { max-width:205px; height:142px; margin:4px 0 2px; }
   .xn { font:10px var(--mono); color:var(--faint); }
   .stackp.hot .xn { color:var(--blue); }
   .xnsub { font:9px var(--mono); color:var(--faint); opacity:.75; margin-top:2px; }
@@ -136,7 +127,7 @@ every probability live.</p>
   </div>
   <div class="panel stackp" id="stackp">
     <span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
-    <svg class="nn" id="nn" viewBox="0 0 210 150" aria-hidden="true"></svg>
+    <svg id="nn" aria-hidden="true"></svg>
     <span class="xn" id="xn">the stack</span>
     <span class="xnsub" id="xnsub"></span>
   </div>
@@ -173,6 +164,7 @@ every probability live.</p>
 
 <script src="../../../../assets/cast.js"></script>
 <script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/nn.js"></script>
 <script>
 /* ---------- the data: contexts + hand-authored logits (labeled illustrative) ---------- */
 const PROMPT = ["The", " capital", " of", " France", " is"];
@@ -230,22 +222,11 @@ function renderCtx(tokens, opts) {   // opts: {newFrom, subs, repFrom}
   }).join("");
   ctxn.textContent = tokens.length + " tokens";
 }
-/* the stack drawn as a (tiny, honest) neural net: 4 columns of 5 neurons,
-   fully connected between neighbours; a wave of activation flows left->right
-   while a forward pass is running (columns fire with a phase delay). */
-(function buildNN() {
-  const COLS = [22, 77, 132, 187], YS = [18, 46, 74, 102, 130];
-  let h = "";
-  for (let c = 0; c < COLS.length - 1; c++)
-    for (const y1 of YS) for (const y2 of YS)
-      h += '<line class="nn-edge" x1="' + COLS[c] + '" y1="' + y1 + '" x2="' + COLS[c+1] +
-           '" y2="' + y2 + '" style="animation-delay:' + (c * 0.32 + 0.16) + 's"/>';
-  COLS.forEach((x, c) => { for (const y of YS)
-    h += '<circle class="nn-node" cx="' + x + '" cy="' + y + '" r="5.5" style="animation-delay:' + (c * 0.32) + 's"/>'; });
-  $("nn").innerHTML = h;
-})();
+/* the stack drawn as a (tiny, honest) neural net - shared glyph from assets/nn.js */
+const nn = NN.build($("nn"), { cols: 4, rows: 5 });
 function renderStack(hot, label, sub) {
   stackp.className = "panel stackp" + (hot ? " hot" : "");
+  nn.wave(hot);
   xn.textContent = label;
   xnsub.textContent = sub || "";
 }

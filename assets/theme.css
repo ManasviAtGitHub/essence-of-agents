@@ -44,6 +44,22 @@
 /* a character's speech bubble on its own */
 .say { background:#0e1319; border:1px solid #2a2f38; border-radius:12px; padding:8px 14px; color:#d8dde3; }
 
+/* ---- neural-net glyph (models track; built by assets/nn.js) ---- */
+svg.nn { width:100%; }
+svg.nn .nn-edge { stroke:#232c34; stroke-width:1; }
+svg.nn .nn-node { fill:#1b2028; stroke:#3a424c; stroke-width:1.2; }
+svg.nn.wave .nn-node { animation:nnfire 1.6s ease-in-out infinite; }
+svg.nn.wave .nn-edge { animation:nnwire 1.6s ease-in-out infinite; }
+@keyframes nnfire { 0%,100% { fill:#1b2028; stroke:#3a424c; }
+                    35% { fill:#58c4dd; stroke:#58c4dd; filter:drop-shadow(0 0 4px #58c4dd); } }
+@keyframes nnwire { 0%,100% { stroke:#232c34; } 35% { stroke:#58c4dd; opacity:.85; } }
+svg.nn .nn-node.fire { fill:#58c4dd; stroke:#58c4dd; filter:drop-shadow(0 0 4px #58c4dd); }
+svg.nn .nn-node.gold { fill:#ffd35c; stroke:#ffd35c; filter:drop-shadow(0 0 4px #ffd35c); }
+svg.nn .nn-node.bad  { fill:#fc6255; stroke:#fc6255; filter:drop-shadow(0 0 5px #fc6255); }
+svg.nn .nn-node.off  { opacity:.22; }
+body.reduce svg.nn.wave .nn-node { animation:none; fill:#58c4dd; stroke:#58c4dd; }
+body.reduce svg.nn.wave .nn-edge { animation:none; stroke:#2a5560; }
+
 /* ---- act bar (long mechanism scenes; rendered by Anim.scrubber opts.acts) ---- */
 .scrub-acts { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:14px 0 -8px; }
 .scrub-acts .act-chip { font:11.5px ui-monospace,"Cascadia Mono",Consolas,monospace; border:1px solid #2a2f38;

@@ -76,12 +76,17 @@ const NAV = [
   { m:"Module 0 - Autoregression", items:[
     { label:"The next-token loop", src:"module-00-autoregression/widgets/next-token-loop/index.html" },
   ]},
+  { m:"Module 4 - Mixture of Experts", items:[
+    { label:"The expert router", src:"module-04-moe/widgets/expert-router/index.html" },
+  ]},
 ];
 
 // The written lesson (Question -> Aha) surfaced per module, above the widget.
 const LESSONS = {
   "Module 0 - Autoregression": { q:"You have watched answers stream in. What is actually looping?",
     aha:"Generation is a loop: context -> stack -> distribution -> sample -> append -> repeat. The model never chooses a sentence - it chooses ONE token, ~40 times per sentence, feeding each one back into its own input." },
+  "Module 4 - Mixture of Experts": { q:"DeepSeek-V3 has 671B parameters. Why does it run like a 37B model?",
+    aha:"Parameters are not compute. A tiny learned router wakes only a few experts per token (top-8 of 256, plus one shared) - capacity decouples from cost, and the widget derives both headline numbers live." },
 };
 
 const side = document.getElementById("side");
