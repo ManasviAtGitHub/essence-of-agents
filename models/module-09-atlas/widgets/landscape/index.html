@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Map of the landscape</title>
+<!-- Essence of Models, Module 9 - the atlas. A pure reference: every method in the
+     track (and its named cousins) placed by what it optimizes and pinned to the module
+     that explains its mechanism. Filterable; click a method for detail. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+
+  .guide { display:flex; gap:12px; align-items:center; border:1px solid var(--line); border-left:3px solid var(--gold);
+           border-radius:10px; background:var(--panel); padding:8px 12px; margin-bottom:14px; }
+  .guide .chr svg { width:44px; height:44px; flex:none; }
+  .guide .line { font-size:14px; color:#d8dde3; }
+
+  .filters { display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+  .frow { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .frow .fl { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); min-width:76px; }
+  .chip { font:11.5px var(--mono); border:1px solid var(--line); background:var(--panel); color:var(--dim);
+          border-radius:999px; padding:4px 11px; cursor:pointer; }
+  .chip.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .chip.res-mem.on { border-color:var(--gold); } .chip.res-flops.on { border-color:var(--blue); }
+  .chip.res-speed.on { border-color:var(--green); } .chip.res-behav.on { border-color:#c07cfc; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:9px; }
+  .card { border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:9px 11px; cursor:pointer;
+          transition:border-color .15s, transform .1s; }
+  .card:hover { border-color:var(--blue); transform:translateY(-1px); }
+  .card.sel { border-color:var(--gold); background:#12140c; }
+  .card .cn { font:13px var(--mono); color:var(--ink); font-weight:600; }
+  .card .co { font:11px var(--mono); color:var(--dim); margin:3px 0 6px; line-height:1.4; }
+  .card .tags { display:flex; gap:5px; flex-wrap:wrap; }
+  .tag { font:9px var(--mono); border-radius:999px; padding:1px 7px; border:1px solid var(--line); color:var(--faint); }
+  .tag.mod { border-color:var(--blue); color:var(--blue); }
+  .tag.res { color:#04222a; }
+  .tag.res.mem { background:var(--gold); } .tag.res.flops { background:var(--blue); }
+  .tag.res.speed { background:var(--green); } .tag.res.behav { background:#c07cfc; }
+  .tag.res.params { background:#e08a4a; } .tag.res.data { background:#7fb3c8; }
+  .tag.cousin { border-color:var(--faint); color:var(--faint); font-style:italic; }
+
+  .detail { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:14px 16px; margin-top:14px; }
+  .detail[hidden] { display:none; }
+  .detail h2 { font:15px var(--mono); color:var(--gold); margin:0 0 3px; }
+  .detail .drow { display:flex; gap:10px; margin:4px 0; font-size:13.5px; flex-wrap:wrap; }
+  .detail .dk { font:10.5px var(--mono); text-transform:uppercase; letter-spacing:.05em; color:var(--faint); min-width:110px; }
+  .detail .dv { color:#dfe4ea; flex:1; min-width:180px; }
+  .detail .dv b { color:var(--ink); }
+  .count { font:11px var(--mono); color:var(--faint); margin:10px 0 6px; }
+  .foot { color:var(--faint); font-size:12px; margin-top:16px; text-align:center; }
+</style>
+</head>
+<body>
+<h1>Map of the landscape</h1>
+<p class="sub">The whole track, on one map. Every method you met - and a few named cousins - placed by the
+<b>resource it attacks</b> and pinned to the <b>module that explains its mechanism</b>. Filter, then click
+any method for its one-screen summary. This is the atlas; the mechanisms live in the modules.</p>
+
+<div class="guide"><span class="chr" id="guideChr" data-c="bit" data-e="happy"></span><span class="line" id="guideLine"></span></div>
+
+<div class="filters">
+  <div class="frow"><span class="fl">stage</span><div id="catChips"></div></div>
+  <div class="frow"><span class="fl">attacks</span><div id="resChips"></div></div>
+</div>
+
+<div class="count" id="count"></div>
+<div class="grid" id="grid"></div>
+
+<div class="detail" id="detail" hidden></div>
+
+<p class="foot">Modules 0-8 teach these mechanisms from first principles. Cousins marked <i>named here</i> generalize
+from a mechanism you already saw - the atlas places them; it does not re-derive them.</p>
+
+<script src="../../../../assets/cast.js"></script>
+<script>
+/* resource palette: what cost does the method primarily reduce/attack? */
+const RES = {
+  mem:"KV / memory", flops:"compute (FLOPs)", speed:"decode speed",
+  params:"parameter count", data:"data efficiency", behav:"behavior / quality",
+};
+const CATS = ["Architecture", "Pretraining & alignment", "Fine-tuning", "Inference & serving"];
+
+/* the atlas. m = home module (or "cousin" note). */
+const METHODS = [
+  // Architecture
+  { n:"Autoregression", cat:0, res:"speed", mod:"M0", one:"generate one token per forward pass, feeding output back as input",
+    opt:"nothing - it IS the loop", sup:"-", cost:"one pass per token", note:"the primitive every other method reshapes." },
+  { n:"Tokenization (BPE)", cat:0, res:"data", mod:"M1", one:"merge frequent character pairs into a fixed subword menu",
+    opt:"sequence length / coverage", sup:"unsupervised (counts)", cost:"uneven per-language token tax", note:"the model's entire sensory alphabet; its seams become model quirks." },
+  { n:"Attention", cat:0, res:"behav", mod:"M2", one:"soft retrieval between positions: softmax(QK/sqrt d) V",
+    opt:"information flow across the sequence", sup:"-", cost:"n^2 scores per head", note:"the only place tokens exchange information." },
+  { n:"GQA", cat:0, res:"mem", mod:"M2", one:"share KV heads across query heads (e.g. 8 shared for 64)",
+    opt:"KV-cache memory", sup:"-", cost:"slight quality vs full MHA", note:"first attack on the KV-cache formula: fewer kv_heads." },
+  { n:"KV cache", cat:0, res:"mem", mod:"M3", one:"store every past token's K,V so look-back doesn't recompute",
+    opt:"decode compute", sup:"-", cost:"memory grows with every token", note:"the reason 'context window' means memory budget." },
+  { n:"MoE", cat:0, res:"flops", mod:"M4", one:"split the FFN into experts; a router wakes only a few per token",
+    opt:"compute per token", sup:"-", cost:"all experts must sit in memory; router can collapse", note:"decouples capacity from cost - 671B stored, 37B touched." },
+  { n:"MLA", cat:0, res:"mem", mod:"M5", one:"compress per-head K,V into one small latent per token",
+    opt:"KV-cache memory (hard)", sup:"-", cost:"extra decompression compute", note:"~57x smaller cache than MHA; how V3 serves 128k." },
+  { n:"MTP", cat:0, res:"speed", mod:"M5", one:"an extra head drafts token n+2; main model verifies in the same pass",
+    opt:"decode passes", sup:"-", cost:"an extra head + speculative plumbing", note:"speculative decoding; ~2 tokens/pass when accepted." },
+  // Pretraining & alignment
+  { n:"Pretraining", cat:1, res:"behav", mod:"M6", one:"next-token loss over trillions of tokens of web text",
+    opt:"knowledge", sup:"self-supervised (the text)", cost:"months, thousands of GPUs, once", note:"where essentially all knowledge is written." },
+  { n:"SFT", cat:1, res:"behav", mod:"M6", one:"imitate curated dialogues; loss masked to the assistant tokens",
+    opt:"manners (answer, then stop)", sup:"curated Q->A pairs", cost:"days", note:"installs the assistant shape; moves the STOP token's mass." },
+  { n:"RLHF", cat:1, res:"behav", mod:"M6", one:"train a reward model from human rankings, then RL against it",
+    opt:"tone / helpfulness / safety", sup:"human preference rankings", cost:"a reward model + RL loop", note:"the classic preference-tuning pipeline." },
+  { n:"DPO", cat:1, res:"behav", mod:"M6", one:"optimize a chosen/rejected pair directly - no separate reward model",
+    opt:"preference", sup:"chosen vs rejected pairs", cost:"pairs to label", note:"reaches RLHF's goal without training a reward model." },
+  { n:"Reasoning RL", cat:1, res:"behav", mod:"M7", one:"sample attempts, score with a verifier, reinforce the winners",
+    opt:"verified reasoning", sup:"rule-based verifiable reward", cost:"needs a cheap exact verifier", note:"long chains emerge because they score; R1-Zero's 'aha'." },
+  { n:"GRPO", cat:1, res:"behav", mod:"M7", one:"RL that uses the group's mean reward as the baseline (no value model)",
+    opt:"reasoning, cheaply", sup:"group of scored attempts", cost:"sample G per prompt", note:"drops PPO's critic -> ~40-60% less memory." },
+  { n:"PPO", cat:1, res:"behav", mod:"cousin", one:"policy-gradient RL with a separate value model for baselines",
+    opt:"any RL objective", sup:"reward (model or rule)", cost:"a critic network the size of the policy", note:"named here; GRPO (M7) is the group-baseline variant that drops the critic." },
+  { n:"KTO / ORPO", cat:1, res:"behav", mod:"cousin", one:"preference tuning from unpaired good/bad signals, or fused with SFT",
+    opt:"preference, less labeling", sup:"unpaired or SFT-fused", cost:"varies", note:"named here; same 'shape the distribution with preference' idea as DPO (M6)." },
+  // Fine-tuning
+  { n:"Full fine-tuning", cat:2, res:"behav", mod:"M6", one:"update every weight, store a fresh full copy per task",
+    opt:"maximum adaptation", sup:"task data", cost:"a whole model checkpoint per task", note:"the brute-force baseline LoRA exists to avoid." },
+  { n:"LoRA", cat:2, res:"params", mod:"M6", one:"freeze the base; learn a low-rank update B*A (rank r)",
+    opt:"trainable parameters", sup:"task data", cost:"a little expressiveness vs full", note:"67M -> 262K per matrix (256x) at r=16, d=8192." },
+  { n:"QLoRA", cat:2, res:"mem", mod:"M6", one:"quantize the frozen base to 4-bit NF4; train LoRA adapters in 16-bit",
+    opt:"fine-tuning memory", sup:"task data", cost:"decompress base on the fly", note:"fine-tune a 65B model on one 48GB GPU." },
+  { n:"Distillation", cat:2, res:"params", mod:"M8", one:"train a small student to match a big teacher's soft output distribution",
+    opt:"parameter count", sup:"teacher's per-token distribution (KL)", cost:"a good teacher; ceiling = teacher", note:"R1 -> Qwen; often beats RL-ing the small model directly." },
+  // Inference & serving
+  { n:"Quantization", cat:3, res:"mem", mod:"M8", one:"store each weight in fewer bits (fp16 -> int8 -> int4)",
+    opt:"bytes on disk / in memory", sup:"-", cost:"a precision floor (int2 breaks)", note:"size = params x bits / 8; int4 is ~4x smaller." },
+  { n:"Overtraining", cat:3, res:"data", mod:"M8", one:"train a small model far past Chinchilla's ~20 tok/param",
+    opt:"inference cost over the model's life", sup:"more pretraining data", cost:"'compute-suboptimal' training", note:"Llama-3-8B: ~1,875 tok/param - cheap to serve forever." },
+  { n:"Inference-time compute", cat:3, res:"speed", mod:"M7", one:"spend more thinking tokens (passes) before answering",
+    opt:"accuracy on hard problems", sup:"-", cost:"more latency & tokens per answer", note:"test-time scaling; only helps deliberation-bound tasks." },
+  { n:"Speculative decoding", cat:3, res:"speed", mod:"M5", one:"a cheap draft proposes tokens; the real model verifies in one pass",
+    opt:"decode speed", sup:"-", cost:"a draft model/head", note:"MTP (M5) is DeepSeek's built-in version; exact, so zero quality cost." },
+  { n:"Prompt caching", cat:3, res:"mem", mod:"M3", one:"reuse a stored KV cache when requests share a prefix",
+    opt:"repeat-prefill cost", sup:"-", cost:"invalidated if an early token changes", note:"literally the KV cache (M3), reused - why context ORDER decides cost." },
+  { n:"KV-cache eviction", cat:3, res:"mem", mod:"cousin", one:"drop or window old tokens' K,V when the cache is full",
+    opt:"cache memory ceiling", sup:"-", cost:"the model forgets evicted tokens", note:"named here; the escape valve when M3's cache stops fitting." },
+];
+
+const $ = id => document.getElementById(id);
+const grid=$("grid"), detail=$("detail"), count=$("count"), guideLine=$("guideLine");
+let catFilter = null, resFilter = null, selected = null;
+
+$("catChips").innerHTML = '<button class="chip on" data-cat="all">all</button>' +
+  CATS.map((c, i) => '<button class="chip" data-cat="' + i + '">' + c + '</button>').join("");
+$("resChips").innerHTML = '<button class="chip on" data-res="all">all</button>' +
+  Object.keys(RES).map(r => '<button class="chip res-' + r + '" data-res="' + r + '">' + RES[r] + '</button>').join("");
+
+function draw() {
+  const items = METHODS.filter(m => (catFilter == null || m.cat === catFilter) && (resFilter == null || m.res === resFilter));
+  count.textContent = items.length + " of " + METHODS.length + " methods" +
+    (catFilter != null ? " . " + CATS[catFilter] : "") + (resFilter != null ? " . attacking " + RES[resFilter] : "");
+  grid.innerHTML = items.map(m => {
+    const idx = METHODS.indexOf(m);
+    return '<div class="card' + (selected === idx ? " sel" : "") + '" data-i="' + idx + '"><div class="cn">' + m.n + '</div>' +
+      '<div class="co">' + m.one + '</div><div class="tags">' +
+      '<span class="tag res ' + m.res + '">' + RES[m.res] + '</span>' +
+      (m.mod === "cousin" ? '<span class="tag cousin">named here</span>' : '<span class="tag mod">' + m.mod + '</span>') +
+      '</div></div>';
+  }).join("");
+}
+function showDetail(idx) {
+  selected = idx; const m = METHODS[idx];
+  detail.hidden = false;
+  detail.innerHTML = '<h2>' + m.n + (m.mod === "cousin" ? ' <span style="color:var(--faint);font-size:11px">(cousin - named here)</span>' : ' <span style="color:var(--blue);font-size:12px">' + m.mod + '</span>') + '</h2>' +
+    '<div class="drow"><span class="dk">what it is</span><span class="dv">' + m.one + '</span></div>' +
+    '<div class="drow"><span class="dk">attacks</span><span class="dv"><b>' + RES[m.res] + '</b></span></div>' +
+    '<div class="drow"><span class="dk">optimizes</span><span class="dv">' + m.opt + '</span></div>' +
+    '<div class="drow"><span class="dk">supervision</span><span class="dv">' + m.sup + '</span></div>' +
+    '<div class="drow"><span class="dk">what it costs</span><span class="dv">' + m.cost + '</span></div>' +
+    '<div class="drow"><span class="dk">the point</span><span class="dv">' + m.note + '</span></div>' +
+    '<div class="drow"><span class="dk">explained in</span><span class="dv">' + (m.mod === "cousin" ? "a cousin - generalizes from the module noted above" : "<b>Module " + m.mod.slice(1) + "</b> of this track") + '</span></div>';
+  draw(); detail.scrollIntoView({ block:"nearest" });
+}
+
+grid.addEventListener("click", e => { const c = e.target.closest(".card"); if (c) showDetail(+c.dataset.i); });
+$("catChips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  catFilter = b.dataset.cat === "all" ? null : +b.dataset.cat;
+  $("catChips").querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b));
+  draw();
+});
+$("resChips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  resFilter = b.dataset.res === "all" ? null : b.dataset.res;
+  $("resChips").querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b));
+  draw();
+});
+
+guideLine.textContent = "Every trick in this track was a factor in some cost formula getting smaller. Filter by what it attacks - memory, compute, speed - and the zoo turns into a map.";
+Cast.render(document);
+draw();
+</script>
+</body>
+</html>

@@ -308,7 +308,7 @@ models/                      this track (sibling of agentic-course/, production/
 Build order (revised 2026-07-05): M0 autoregression -> M4 MoE -> M1 tokens +
 M2 attention -> M6 training stages (incl. LoRA/QLoRA/DPO) -> **M3 KV cache ->
 M5 DeepSeek -> M7 reasoning RL (GRPO here) -> M8 small models (distill+quant)
--> M9 atlas**. Done so far: M0, M1, M2, M4, M6. Rule learned: a module's
+-> M9 atlas**. Done: ALL modules M0-M9 built (2026-07-05). Rule learned: a module's
 mechanism pass may only lean on ideas an EXISTING module has built - check
 before writing. Cast rule: Cortex/Bit must appear in every widget.
 

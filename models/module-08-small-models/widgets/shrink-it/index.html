@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Small models: distillation, quantization, enough</title>
+<!-- Essence of Models, Module 8. Verified: Chinchilla ~20 tokens/param compute-optimal
+     (Hoffmann 2022); Llama-3-8B trained on ~15T tokens (~1875 tok/param, Meta Llama 3);
+     distillation on teacher soft targets (KL); DeepSeek-R1 distilled into Qwen 1.5B/7B/32B.
+     Quantization byte math (params x bits/8) computed live; quality thresholds illustrative. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:920px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 12px; }
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .flow { display:flex; gap:12px; align-items:stretch; }
+  .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:10px 12px; }
+  .panel .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:7px; }
+
+  .stagep { flex:1.2; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  /* scaling scatter */
+  svg.scal { width:100%; max-width:320px; height:150px; }
+  .scal .axis { stroke:#2a2f38; stroke-width:1; } .scal .axl { font:8.5px ui-monospace,Consolas,monospace; fill:#6b7480; }
+  .scal .ridge { stroke:var(--gold); stroke-width:1.5; stroke-dasharray:4 3; fill:none; }
+  .scal .pt { fill:var(--blue); } .scal .pt.over { fill:var(--green); }
+  .scal text.ptl { font:8.5px ui-monospace,Consolas,monospace; fill:#98a2b0; }
+  /* teacher/student */
+  .ts { display:flex; align-items:center; gap:12px; margin:6px 0; }
+  .ts .chr svg { width:52px; height:52px; }
+  .ts .who { font:9.5px var(--mono); color:var(--faint); }
+  .softbars { display:flex; flex-direction:column; gap:2px; min-width:130px; }
+  .sb { display:flex; align-items:center; gap:5px; font:9.5px var(--mono); color:#cdd3da; }
+  .sb .bt { width:70px; height:8px; border-radius:2px; background:#141b22; overflow:hidden; }
+  .sb .bf { display:block; height:100%; background:var(--blue); }
+  .arrowr { color:var(--gold); font:16px var(--mono); }
+  /* quant slider */
+  .quant { width:100%; }
+  .qslide { width:100%; accent-color:var(--blue); }
+  .qstops { display:flex; justify-content:space-between; font:9.5px var(--mono); color:var(--faint); }
+
+  .metp { flex:.85; min-width:0; }
+  .barrow { display:flex; align-items:center; gap:7px; margin:5px 0; }
+  .barrow .bl { font:11px var(--mono); color:var(--dim); min-width:56px; text-align:right; }
+  .barrow .bt { flex:1; height:14px; border-radius:4px; background:#141b22; overflow:hidden; }
+  .barrow .bf { display:block; height:100%; border-radius:4px; transition:width .5s ease; background:var(--blue); }
+  .barrow .bf.g { background:var(--green); } .barrow .bf.r { background:var(--red); }
+  .barrow .bv { font:10px var(--mono); color:var(--dim); min-width:64px; }
+  .mnote { font:10px var(--mono); color:var(--faint); margin-top:8px; }
+  .reduce .bf { transition:none; }
+
+  .mach { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; margin-top:12px; }
+  .mach[hidden] { display:none; }
+  .formula { font:13px var(--mono); color:var(--ink); background:var(--panel); border:1px solid var(--line);
+             border-radius:8px; padding:8px 12px; display:inline-block; margin-bottom:8px; }
+  .formula b { color:var(--gold); }
+  .calc { font:12.5px/1.9 var(--mono); color:#cdd3da; }
+  .calc .row { display:flex; justify-content:space-between; gap:14px; border-bottom:1px solid #1b2028; padding:2px 0; flex-wrap:wrap; }
+  .calc .lhs { color:var(--dim); } .calc .rhs { color:var(--ink); }
+  .calc .row.hero .rhs { color:var(--gold); font-weight:600; }
+  .calc .src { font-size:10px; color:var(--faint); margin-top:6px; display:block; }
+  .pick { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+  .pk { font:11px var(--mono); border:1px solid var(--line); background:var(--panel); color:var(--dim);
+        border-radius:7px; padding:4px 10px; cursor:pointer; }
+  .pk.on { border-color:var(--blue); color:var(--ink); background:#12171e; }
+
+  .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
+          font:11.5px var(--mono); color:var(--dim); }
+  .stat b { color:var(--ink); font-weight:600; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:78px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  @media (max-width:720px){ body { padding:0 12px 48px; } .flow { flex-direction:column; } }
+</style>
+</head>
+<body>
+<h1>Small models: distillation, quantization, enough</h1>
+<p class="sub">Not every job needs 671B parameters - and INFERENCE cost, paid on every token forever, usually
+matters more than training cost. Three ways to get a small model that punches above its size:
+<b>overtrain</b> it, <b>distill</b> a big one into it, and <b>quantize</b> its weights. Each attacks a
+different cost.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (three ways to shrink)</button>
+  <button class="modebtn" data-mode="mech">mechanism (the arithmetic)</button>
+  <span class="modehint">byte math computed live; quality thresholds illustrative</span>
+</div>
+
+<div class="flow" role="group" aria-label="Scaling laws, distillation, and quantization">
+  <div class="panel stagep" id="stagep">
+    <div class="hd" id="stageHd">scaling: how big, how much data?</div>
+    <div id="stageViz"></div>
+  </div>
+  <div class="panel metp">
+    <div class="hd" id="metHd">size on disk</div>
+    <div id="bars"></div>
+    <div class="mnote" id="mnote"></div>
+  </div>
+</div>
+
+<div class="mach" id="mach" hidden></div>
+<div class="nums" id="nums"></div>
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+/* ---------- verified anchors ---------- */
+const CHINCHILLA = 20;                               // ~20 tokens/param compute-optimal (Hoffmann 2022)
+const L3_8B_PARAMS = 8e9, L3_8B_TOKENS = 15e12;      // Llama-3-8B: 15T tokens (verified)
+const L3_8B_RATIO = L3_8B_TOKENS / L3_8B_PARAMS;     // ~1875 tokens/param
+const PARAMS_7B = 7e9;
+const bitsBytes = (params, bits) => params * bits / 8;
+const GB = x => (x / 1e9).toFixed(1) + " GB";
+const f0 = x => Math.round(x).toLocaleString();
+
+/* quantization stops */
+const QSTOPS = [["fp16", 16, 1.00, "g"], ["int8", 8, 0.99, "g"], ["int4 (NF4)", 4, 0.97, "g"], ["int2", 2, 0.55, "r"]];
+
+const $ = id => document.getElementById(id);
+const stageHd=$("stageHd"), stageViz=$("stageViz"), metHd=$("metHd"), bars=$("bars"), mnote=$("mnote"),
+      mach=$("mach"), nums=$("nums"), caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+if (Anim.reduced()) document.body.classList.add("reduce");
+function react(who, emote, line) { chrR.dataset.c = who; chrR.dataset.e = emote; reactLine.textContent = line; Cast.render($("react")); }
+function setBars(rows, scale, note) {
+  bars.innerHTML = rows.map(r =>
+    '<div class="barrow"><span class="bl">' + r.name + '</span><span class="bt"><span class="bf ' + (r.cls || "") + '" style="width:' + Math.min(100, r.val / scale * 100) + '%"></span></span><span class="bv">' + r.label + '</span></div>').join("");
+  mnote.textContent = note || "";
+}
+function setNums(list) { nums.innerHTML = list.map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join(""); }
+
+// scaling scatter: loss (y, down=better) vs data; Chinchilla ridge + overtrained point
+function scatterSVG(showOver) {
+  const pts = [[60, 110, "small+little data", "over"], [110, 70, "Chinchilla-optimal", ""], [200, 55, "big+lots", ""]];
+  let h = '<svg class="scal" viewBox="0 0 320 150"><line class="axis" x1="30" y1="10" x2="30" y2="130"/><line class="axis" x1="30" y1="130" x2="310" y2="130"/>' +
+    '<text class="axl" x="4" y="20">loss</text><text class="axl" x="250" y="145">data / params</text>' +
+    '<path class="ridge" d="M40 120 Q 160 60 300 40"/><text class="axl" x="150" y="52" style="fill:var(--gold)">~20 tok/param ridge</text>';
+  if (showOver) h += '<circle class="pt over" cx="270" cy="88" r="5"/><text class="ptl" x="205" y="82">overtrained 8B (1875)</text>';
+  h += '</svg>';
+  return h;
+}
+
+/* ---------- INTUITION: 10 steps ---------- */
+function renderInt(i) {
+  mach.hidden = true;
+  const F = [
+    () => { stageHd.textContent = "scaling laws: how big, and on how much data?"; stageViz.innerHTML = scatterSVG(false);
+      setBars([{name:"671B", val:671, label:"a frontier model", cls:""}], 700, "big is powerful - but you pay for it on EVERY token, forever"); },
+    () => { stageHd.textContent = "Chinchilla (2022): balance size and data"; stageViz.innerHTML = scatterSVG(false);
+      setBars([{name:"compute-opt", val:20, label:"~20 tokens / param", cls:"g"}], 2000, "for a fixed TRAINING budget, ~20 tokens per parameter is optimal"); },
+    () => { stageHd.textContent = "but training is a one-time cost - inference is forever"; stageViz.innerHTML = scatterSVG(true);
+      setBars([{name:"Chinchilla", val:20, label:"20 tok/param", cls:""}, {name:"Llama-3-8B", val:L3_8B_RATIO, label:f0(L3_8B_RATIO) + " tok/param", cls:"g"}], 2000, "so we OVERTRAIN small models far past Chinchilla - cheaper to run"); },
+    () => { stageHd.textContent = "way #1: overtrain a small model"; stageViz.innerHTML = scatterSVG(true);
+      setBars([{name:"8B model", val:8, label:"15T tokens of training", cls:"g"}], 700, "a small model trained LONG can beat a bigger, under-trained one - and costs a fraction to serve"); },
+    () => { stageHd.textContent = "way #2: distillation - copy a big model's mind"; stageViz.innerHTML = teacherSVG("student learns the TEACHER's distribution", 0); metHd.textContent = "size on disk";
+      setBars([{name:"teacher", val:671, label:"671B", cls:""}, {name:"student", val:7, label:"7B", cls:"g"}], 700, "train the small student to imitate the big teacher's OUTPUT DISTRIBUTION"); },
+    () => { stageHd.textContent = "soft targets carry more than the right answer"; stageViz.innerHTML = teacherSVG("not just 'Paris' - the whole shape", 1);
+      setBars([{name:"hard label", val:1, label:"just 'Paris'", cls:""}, {name:"soft target", val:6, label:"full distribution", cls:"g"}], 7, "the teacher's 2nd, 3rd guesses teach the student HOW it thinks, not just the answer"); },
+    () => { stageHd.textContent = "R1's reasoning distilled into Qwen (verified)"; stageViz.innerHTML = teacherSVG("R1's chains -> small Qwen/Llama", 2);
+      setBars([{name:"R1 (big)", val:671, label:"teacher", cls:""}, {name:"Qwen-7B", val:7, label:"student", cls:"g"}], 700, "distilling R1's reasoning traces beat RL-ing the small model directly (Module 7)"); },
+    () => { stageHd.textContent = "way #3: quantization - fewer bits per weight"; stageViz.innerHTML = quantSVG(2);
+      const p = PARAMS_7B; setBars([{name:"fp16", val:bitsBytes(p,16), label:GB(bitsBytes(p,16)), cls:""}, {name:"int4", val:bitsBytes(p,4), label:GB(bitsBytes(p,4)), cls:"g"}], bitsBytes(p,16), "same 7B weights, stored in 4 bits instead of 16 - 4x smaller"); },
+    () => { stageHd.textContent = "quality holds... until it doesn't"; stageViz.innerHTML = quantSVG(3);
+      setBars(QSTOPS.map(q => ({name:q[0], val:bitsBytes(PARAMS_7B, q[1]), label:GB(bitsBytes(PARAMS_7B, q[1])) + " / " + Math.round(q[2]*100) + "%", cls:q[3]})), bitsBytes(PARAMS_7B,16), "int8, int4 barely hurt; push to int2 and quality falls off a cliff (thresholds illustrative)"); },
+    () => { stageHd.textContent = "the aha: match the model to the task"; stageViz.innerHTML = ""; metHd.textContent = "three costs, three tools";
+      setBars([{name:"train once", val:30, label:"overtrain", cls:""}, {name:"copy a mind", val:60, label:"distill", cls:""}, {name:"bytes/weight", val:90, label:"quantize", cls:"g"}], 100, "most of a giant's behavior fits in a small model - if you copy the distribution, not the size"); },
+  ];
+  F[i](); Cast.render($("stagep"));
+  const caps = [
+    "The whole track has chased frontier models. But a 671B model is expensive to RUN - and inference cost is paid on every token, by every user, forever. Often you want the smallest model that is good enough. Three ways to get there.",
+    "First, the classic guide: the Chinchilla scaling law (2022). For a fixed TRAINING compute budget, the sweet spot is about 20 training tokens per parameter - balance model size against data, do not just make it bigger.",
+    "But Chinchilla optimizes TRAINING cost, a one-time bill. Inference is forever. So modern practice deliberately OVERTRAINS small models far past 20 tokens/param - Llama-3-8B saw ~1,875 - because a smaller model that is cheap to serve wins over its whole life, even if 'training-suboptimal'.",
+    "Way #1, then: overtrain. Llama-3-8B trained on 15 trillion tokens is small enough to run cheaply yet strong enough to beat older, bigger, under-trained models. Bulk data poured into a small vessel.",
+    "Way #2: distillation - literally copy a big model's mind into a small one. Instead of training the student on raw text, train it to imitate the TEACHER's output distribution on each token.",
+    "The key is 'soft targets'. A raw label says only 'the answer is Paris'. The teacher's full distribution says 'mostly Paris, a little Lyon, a trace of France' - and that shape teaches the student HOW the teacher thinks, not just its final answer. Far richer signal per token.",
+    "This is exactly how DeepSeek shipped small reasoning models: R1's chain-of-thought traces became training data for small Qwen and Llama students (verified). Distilling the big reasoner beat running RL on the small model directly (Module 7).",
+    "Way #3: quantization - store each weight in fewer bits. The numbers do not change, just their precision: fp16 (16 bits) down to int8, int4, even lower. A 7B model at int4 is a quarter the size of fp16 - same weights, less space.",
+    "And quality holds up remarkably well: int8 and int4 barely move it (int4 NF4 is what QLoRA froze in Module 6). Push too far - int2 - and it falls off a cliff. There is a precision floor, and the art is stopping just above it. (Thresholds illustrative.)",
+    "The aha of the whole module: most of a giant model's BEHAVIOR fits in a small one - if you copy the distribution, not the parameter count. Overtrain for data, distill for a teacher's mind, quantize for bytes. Match the model to the task; a leaderboard is not a routing table.",
+  ];
+  caption.textContent = caps[i];
+  setNums([["Chinchilla", "~20 tok/param"], ["Llama-3-8B", f0(L3_8B_RATIO) + " tok/param"], ["distill", "teacher soft targets"], ["quantize", "bits/8 = bytes"]]);
+  insight.className = "insight";
+  insight.innerHTML = i >= 9
+    ? "<b>The aha:</b> copy the distribution, not the size. Switch to <b>mechanism</b> for the scaling, KL, and byte arithmetic."
+    : i >= 7 ? "Quantization: <b>fewer bits per weight</b> - 4x smaller at int4, quality holds until a floor."
+    : i >= 4 ? "Distillation: <b>train the student on the teacher's soft output distribution</b> - copy the mind, not the size."
+    : "Scaling: <b>Chinchilla ~20 tok/param is training-optimal; overtraining small models is inference-optimal.</b>";
+  const R = [
+    ["cortex", "neutral", "671 billion of me, running on every token you ever send. My electricity bill is a war crime."],
+    ["bit", "think", "Chinchilla says ~20 tokens per parameter. Balance, don't just inflate."],
+    ["bit", "reach", "But I pay training ONCE and inference FOREVER - so I overtrain the little ones way past 20."],
+    ["cortex", "happy", "A well-fed 8B beats a starved 70B. Turns out data matters more than girth."],
+    ["cortex", "read", "The little one doesn't read the web - it watches ME answer, and copies my distribution."],
+    ["cortex", "happy", "I don't just tell it 'Paris'. I show it my second and third guesses. That's where my style lives."],
+    ["bit", "happy", "R1's reasoning traces, poured into a 7B Qwen. The student out-reasons its own size."],
+    ["cortex", "think", "Same weights, fewer bits each. int4 and I'm a quarter my size, barely dumber."],
+    ["cortex", "confused", "int8, fine. int4, fine. int2 and I start slurring my words. There's a floor."],
+    ["bit", "happy", "Copy the distribution, not the size. Then pick the smallest model that clears the bar."],
+  ];
+  react(...R[i]);
+}
+function teacherSVG(label, mode) {
+  const soft = mode >= 1;
+  return '<div class="ts"><div><span class="chr" data-c="cortex" data-e="happy"></span><div class="who">teacher (big)</div></div>' +
+    '<div class="softbars">' + (soft
+      ? [[" Paris", 90], [" Lyon", 6], [" France", 3]].map(b => '<div class="sb"><span style="width:44px">' + b[0] + '</span><span class="bt"><span class="bf" style="width:' + b[1] + '%"></span></span></div>').join("")
+      : '<div class="sb">output distribution</div>') + '</div>' +
+    '<span class="arrowr">&rarr;</span><div><span class="chr" data-c="bit" data-e="think"></span><div class="who">student (small)</div></div></div>' +
+    '<div class="who" style="margin-top:6px">' + label + '</div>';
+}
+function quantSVG(nStops) {
+  return '<div class="quant"><div style="font:11px var(--mono);color:#cdd3da;margin-bottom:6px">one weight: 0.4213...</div>' +
+    QSTOPS.slice(0, nStops + 1).map(q => '<div class="sb" style="margin:3px 0"><span style="width:66px;color:' + (q[3] === "r" ? "var(--red)" : "#cdd3da") + '">' + q[0] + '</span><span style="color:var(--faint)">' + q[1] + ' bits/weight</span></div>').join("") + '</div>';
+}
+
+/* ---------- MECHANISM: 17 steps, 3 acts ---------- */
+const MECH_ACTS = [["scaling: train-opt vs infer-opt", 5], ["distillation: soft targets", 6], ["quantization: the bytes", 6]];
+let qbits = 4;
+function renderMech(i) {
+  mach.hidden = false;
+  if (i <= 4) {  // ---- ACT 1: scaling ----
+    stageHd.textContent = "scaling arithmetic"; stageViz.innerHTML = scatterSVG(i >= 2); metHd.textContent = "training tokens";
+    const rows = [
+      [{name:"Chinchilla", val:CHINCHILLA, label:"20 tok/param", cls:""}],
+      [{name:"70B model", val:70*CHINCHILLA, label:GB(70e9*CHINCHILLA) .replace(" GB","") + "B tok", cls:""}],
+      [{name:"Chinchilla", val:20, label:"20", cls:""}, {name:"Llama-3-8B", val:L3_8B_RATIO, label:f0(L3_8B_RATIO), cls:"g"}],
+      [{name:"train cost", val:30, label:"one-time", cls:""}, {name:"infer cost", val:95, label:"every token, forever", cls:"g"}],
+      [{name:"small+long", val:8, label:"cheap to serve", cls:"g"}, {name:"big+short", val:70, label:"expensive forever", cls:"r"}],
+    ][i];
+    setBars(rows, i === 1 ? 1500 : i === 2 ? 2000 : i === 3 ? 100 : 80, "");
+    mach.innerHTML = [
+      '<span class="formula">Chinchilla: optimal tokens &asymp; <b>20 x params</b></span><div class="calc"><span class="calc src">Hoffmann et al. 2022: for a fixed training-compute budget, scale data and model together - ~20 tokens per parameter. Bigger-is-better only if you feed it proportionally.</span></div>',
+      '<div class="calc"><div class="row hero"><span class="lhs">a 70B model, Chinchilla-optimal</span><span class="rhs">70B x 20 = 1.4T tokens</span></div><span class="calc src">computed. That is the "compute-optimal" recipe - minimize TRAINING cost for a target loss.</span></div>',
+      '<div class="calc"><div class="row"><span class="lhs">Chinchilla-optimal</span><span class="rhs">~20 tok/param</span></div><div class="row hero"><span class="lhs">Llama-3-8B actual: 15T / 8B</span><span class="rhs">' + f0(L3_8B_RATIO) + ' tok/param</span></div><span class="calc src">~94x past "optimal" - deliberately. Why? Because Chinchilla optimizes the wrong bill.</span></div>',
+      '<div class="calc"><div class="row"><span class="lhs">training</span><span class="rhs">paid ONCE</span></div><div class="row hero"><span class="lhs">inference</span><span class="rhs">paid on every token, by every user, FOREVER</span></div><span class="calc src">so you happily overspend on training a SMALL model to make it strong, because it is cheap to run for its whole life. Inference-optimal, not compute-optimal.</span></div>',
+      '<div class="calc"><div class="row hero"><span class="lhs">the modern move</span><span class="rhs">small model + way more data</span></div><span class="calc src">an overtrained small model can match a bigger under-trained one at a fraction of the serving cost. This is why capable 7-8B models exist at all.</span></div>',
+    ][i];
+    const caps1 = [
+      "Mechanism act 1: the scaling arithmetic. Chinchilla's rule of thumb - optimal training tokens is about 20 times the parameter count. Scale model and data together, not model alone.",
+      "So a compute-optimal 70B model wants about 70B x 20 = 1.4 trillion training tokens. That recipe minimizes the TRAINING compute needed to hit a target quality.",
+      "Now the twist. Llama-3-8B was trained on 15 trillion tokens - that is ~1,875 tokens per parameter, roughly 94x past Chinchilla-'optimal'. On purpose. Why would anyone overtrain that hard?",
+      "Because Chinchilla optimizes the wrong bill. Training is paid once; INFERENCE is paid on every token, by every user, forever. A small model that is a bit 'wasteful' to train but cheap to run wins over its lifetime.",
+      "So the modern move is: take a SMALL model and pour in far more data than Chinchilla says. You overspend on training to get a model that is strong AND cheap to serve. That is why genuinely capable 7-8B models exist.",
+    ];
+    caption.textContent = caps1[i];
+    insight.className = "insight";
+    insight.innerHTML = "Act 1: <b>Chinchilla ~20 tok/param minimizes training cost; overtraining small models minimizes INFERENCE cost</b> - the bill that never stops.";
+    react(i <= 1 ? "bit" : "cortex", i === 2 ? "confused" : i >= 3 ? "read" : "think",
+      i === 0 ? "Twenty tokens per parameter. Balance, says the law."
+      : i === 1 ? "1.4 trillion tokens for a compute-optimal 70B. Big appetite."
+      : i === 2 ? "1,875 tokens per param for the 8B? That's 94x 'too much'. Deliberately?"
+      : i === 3 ? "Training's a one-off; running me is forever. Overtrain the small one - it's cheap to keep."
+      : "Small and over-fed beats big and starving, once you count the serving bill.");
+  }
+
+  else if (i <= 10) {  // ---- ACT 2: distillation ----
+    const k = i - 5;
+    stageHd.textContent = "distillation: teacher -> student"; stageViz.innerHTML = teacherSVG(k >= 1 ? "soft targets" : "the setup", k >= 1 ? 1 : 0); metHd.textContent = "params";
+    setBars([{name:"teacher", val:671, label:"671B", cls:""}, {name:"student", val:7, label:"7B", cls:"g"}], 700, "");
+    mach.innerHTML = [
+      '<span class="formula">student learns to match the teacher\'s output distribution</span><div class="calc"><span class="calc src">not raw text - the student trains on what the TEACHER predicts. The teacher runs once over data; its per-token distributions become the lessons.</span></div>',
+      '<span class="formula">hard label: p = [0,0,1,0] &nbsp; vs &nbsp; soft target: [.02,.05,<b>.90</b>,.03]</span><div class="calc"><div class="row"><span class="lhs">hard label</span><span class="rhs">one bit of info: the answer</span></div><div class="row"><span class="lhs">soft target</span><span class="rhs">the teacher\'s whole ranking - "dark knowledge"</span></div><span class="calc src">the near-misses (Lyon, France) encode how the teacher generalizes - far more signal per token than a one-hot label.</span></div>',
+      '<span class="formula">loss = KL( student_dist || teacher_dist )</span><div class="calc"><span class="calc src">the student is trained to minimize the divergence between its distribution and the teacher\'s - literally "become the teacher\'s shape" (often plus a little normal cross-entropy).</span></div>',
+      '<div class="calc"><div class="row hero"><span class="lhs">DeepSeek: R1 traces -> Qwen-1.5B/7B/32B (verified)</span><span class="rhs">students out-reason their size</span></div><span class="calc src">R1 generated chain-of-thought traces; small Qwen/Llama models trained on them. The distilled students beat same-size models trained with RL directly.</span></div>',
+      '<div class="calc"><div class="row"><span class="lhs">distillation vs from-scratch</span><span class="rhs">the teacher already did the hard search</span></div><span class="calc src">a small model trained from scratch must discover structure itself; a distilled one is handed the teacher\'s solved structure. Cheaper, and often better.</span></div>',
+      '<div class="calc"><div class="row"><span class="lhs">limit</span><span class="rhs">the student can\'t exceed the teacher (much)</span></div><span class="calc src">distillation COPIES a mind - it does not create a better one. The ceiling is the teacher. Great for shrinking; not for frontier progress.</span></div>',
+    ][k];
+    const caps2 = [
+      "Act 2: distillation, precisely. The student does not train on raw web text - it trains on the TEACHER. Run the big model over data, and use its per-token output distributions as the targets.",
+      "The heart of it is 'soft targets'. A hard label is one-hot: the answer is token 3, nothing else. The teacher's soft distribution also says how much probability tokens 1, 2, 4 got - the near-misses. That 'dark knowledge' is where the teacher's generalization lives.",
+      "So the loss is a divergence: make the student's distribution match the teacher's (KL divergence), often alongside a little ordinary cross-entropy. The student is literally trained to take the shape of the teacher's mind.",
+      "Concretely and verified: DeepSeek ran R1's reasoning traces as training data for small Qwen and Llama students (1.5B, 7B, 32B). The distilled small models out-reasoned same-size models trained with RL from scratch - the reasoning transferred.",
+      "Why it beats from-scratch: a small model trained on raw data must rediscover all the structure itself. A distilled one is handed the teacher's already-solved structure. Less compute, and usually a better small model.",
+      "The honest limit: distillation COPIES a mind, it does not surpass it. The student's ceiling is roughly the teacher. It is the best tool for shrinking a known-good model - and useless for pushing the frontier, which still needs the big expensive run.",
+    ];
+    caption.textContent = caps2[k];
+    insight.className = "insight";
+    insight.innerHTML = "Act 2: distillation = <b>train the student to match the teacher's soft distribution (KL)</b> - copy the mind cheaply; ceiling is the teacher.";
+    react(k <= 2 ? "cortex" : "bit", k === 1 ? "happy" : k === 5 ? "neutral" : "read",
+      k === 0 ? "The student studies ME, not the internet. I'm the curriculum now."
+      : k === 1 ? "One-hot says 'Paris'. My soft targets whisper Lyon and France too - that's the good stuff."
+      : k === 2 ? "KL divergence: it's trained to become my shape. Flattering, honestly."
+      : k === 3 ? "R1's chains into a 7B Qwen, and it out-reasons its weight class. Distillation works."
+      : k === 4 ? "The student skips the hard search - I already did it. Free tutoring."
+      : "But it can't beat me. Copies don't exceed originals. Frontier still needs the big run.");
+  }
+
+  else {  // ---- ACT 3: quantization ----
+    const k = i - 11;
+    stageHd.textContent = "quantization: bits per weight"; stageViz.innerHTML = quantSVG(Math.min(k + 1, 3)); metHd.textContent = "size at " + QSTOPS.find(q=>true) ? "size on disk" : "";
+    const rows = QSTOPS.map(q => ({ name:q[0], val:bitsBytes(PARAMS_7B, q[1]), label:GB(bitsBytes(PARAMS_7B, q[1])), cls:q[3] }));
+    setBars(k === 0 ? [rows[0]] : k === 1 ? rows.slice(0,3) : rows, bitsBytes(PARAMS_7B,16), "");
+    mach.innerHTML = [
+      '<span class="formula">size = params x <b>bits</b> / 8 &nbsp; bytes</span><div class="calc"><div class="row hero"><span class="lhs">7B at fp16 (16 bits)</span><span class="rhs">7e9 x 16 / 8 = ' + GB(bitsBytes(PARAMS_7B,16)) + '</span></div><span class="calc src">computed. Quantization does not remove weights - it stores each in fewer bits. Same 7 billion numbers, less space each.</span></div>',
+      '<div class="calc"><div class="row"><span class="lhs">int8 (8 bits)</span><span class="rhs">' + GB(bitsBytes(PARAMS_7B,8)) + ' - half</span></div><div class="row hero"><span class="lhs">int4 (4 bits)</span><span class="rhs">' + GB(bitsBytes(PARAMS_7B,4)) + ' - a quarter</span></div><span class="calc src">int4 NF4 is exactly what QLoRA froze in Module 6. A 7B model fits in ~3.5 GB - a laptop.</span></div>',
+      '<div class="calc"><div class="row"><span class="lhs">int8, int4</span><span class="rhs" style="color:var(--green)">quality barely moves</span></div><div class="row"><span class="lhs">int2</span><span class="rhs" style="color:var(--red)">falls off a cliff</span></div><span class="calc src">there is a precision FLOOR: above it, quantization is nearly free; below it, the model breaks. (Exact thresholds vary by method; illustrative here.)</span></div>',
+      '<span class="formula">quantize (bytes) is orthogonal to distill (params) and overtrain (data)</span><div class="calc"><span class="calc src">a distilled 7B can also be quantized to int4: 671B teacher -> 7B student -> 3.5 GB on disk. The three tools stack.</span></div>',
+      '<div class="calc"><div class="row"><span class="lhs">match model to task</span><span class="rhs">not a leaderboard, a routing table</span></div><span class="calc src">course 1\'s Module 7, recomposed: pick the smallest model that clears the bar for THIS task. Reasoning giant for the proof; quantized 7B for the autocomplete.</span></div>',
+      '<div class="calc"><div class="row"><span class="lhs">tokens (M1) -> attention (M2) -> KV (M3) -> experts (M4) -> logits (M0)</span><span class="rhs">the machine</span></div><div class="row"><span class="lhs">trained (M6,M7), made affordable (M5), and SHRUNK (M8)</span><span class="rhs"></span></div><span class="calc src">the whole track, in one line. Next: the atlas - every method you met, on one map.</span></div>',
+    ][k];
+    const caps3 = [
+      "Act 3: quantization, computed. Size in bytes is just params x bits / 8. A 7B model in fp16 (16 bits per weight) is 7e9 x 16 / 8 = 14 GB. Quantization keeps all 7 billion weights but stores each in fewer bits.",
+      "Drop to int8 and it halves to 7 GB; int4 quarters it to ~3.5 GB - small enough for a laptop or phone. (int4 NF4 is precisely what QLoRA froze the base model in, back in Module 6.)",
+      "The surprise is how little quality you lose: int8 and int4 barely move it. But there is a precision floor - push to int2 and the model falls off a cliff. The craft is stopping just above the floor. (Exact thresholds depend on the method; illustrative here.)",
+      "And quantization is ORTHOGONAL to the other two tools - it shrinks bytes, not parameter count. So you can stack them: a 671B teacher distilled to a 7B student, then quantized to int4 - 3.5 GB carrying a shadow of a frontier model.",
+      "The module's real lesson, which is course 1's Module 7 recomposed: match the model to the TASK. A leaderboard is not a routing table. Send the hard proof to the reasoning giant; serve the autocomplete from a quantized 7B. Smallest model that clears the bar.",
+      "And that completes the machine: tokens become vectors (M1), attention moves them (M2) within a memory budget (M3), experts process them (M4), the loop emits tokens (M0); training shaped it (M6, M7), MLA/MTP made it affordable (M5), and this module shrank it (M8). One map of all of it is next - the atlas.",
+    ];
+    caption.textContent = caps3[k];
+    insight.className = "insight";
+    insight.innerHTML = k >= 5
+      ? "<b>The machine is complete:</b> built, trained, made affordable, and shrunk. Next: the atlas - every method on one map."
+      : "Act 3: quantization = <b>fewer bits per weight (params x bits/8)</b> - 4x smaller at int4, quality holds to a floor. Stacks with distill + overtrain.";
+    react(k <= 2 ? "cortex" : "bit", k === 2 ? "confused" : k >= 4 ? "happy" : "read",
+      k === 0 ? "14 gigs at fp16. Every weight carting around 16 bits it mostly doesn't need."
+      : k === 1 ? "int4 and I fit in 3.5 gigs - I'll run on your laptop. Same brain, smaller box."
+      : k === 2 ? "int8 fine, int4 fine, int2 and I'm gibberish. Respect the floor."
+      : k === 3 ? "Distill me AND quantize me: 671B down to a 3.5-gig student. The tools stack."
+      : k === 4 ? "Don't send autocomplete to the reasoning giant. Right-size the model to the job."
+      : "Built, trained, cheapened, shrunk. That's the whole machine. One map left - the atlas.");
+  }
+  setNums([["fp16 7B", GB(bitsBytes(PARAMS_7B,16))], ["int4 7B", GB(bitsBytes(PARAMS_7B,4))], ["distill", "KL to teacher"], ["three tools", "data / mind / bytes"]]);
+  Cast.render($("stagep"));
+}
+
+/* ---------- wiring ---------- */
+let tl = null;
+function build(mode) {
+  const isInt = mode === "int";
+  tl = new Anim.Timeline({ length: isInt ? 10 : 17, autoMs: isInt ? 2600 : 3000,
+    onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
+  Anim.scrubber($("scrub"), tl, {
+    label: isInt ? (i => "step " + (i + 1) + " / 10") : Anim.actLabel(MECH_ACTS),
+    acts: isInt ? null : MECH_ACTS,
+  });
+  tl.render(0);
+  Cast.render($("stagep"));
+}
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

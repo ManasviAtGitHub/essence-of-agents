@@ -94,6 +94,15 @@ const NAV = [
   { m:"Module 6 - Training stages", items:[
     { label:"Four manners, one machine", src:"module-06-training/widgets/four-manners/index.html" },
   ]},
+  { m:"Module 7 - Reasoning RL", items:[
+    { label:"The verifier becomes the teacher", src:"module-07-reasoning/widgets/verifier-teacher/index.html" },
+  ]},
+  { m:"Module 8 - Small models", items:[
+    { label:"Distill, quantize, enough", src:"module-08-small-models/widgets/shrink-it/index.html" },
+  ]},
+  { m:"Module 9 - Map of the landscape", items:[
+    { label:"The atlas: every method, mapped", src:"module-09-atlas/widgets/landscape/index.html" },
+  ]},
 ];
 
 // The written lesson (Question -> Aha) surfaced per module, above the widget.
@@ -112,6 +121,12 @@ const LESSONS = {
     aha:"Training shapes the distribution, not the knowledge. Pretraining loads the facts; SFT installs manners (answer + stop); preference tuning sets tone/safety; reasoning RL rewards verified chains. Same machine, four manners - watch the STOP token's mass move, computed live." },
   "Module 4 - Mixture of Experts": { q:"DeepSeek-V3 has 671B parameters. Why does it run like a 37B model?",
     aha:"Parameters are not compute. A tiny learned router wakes only a few experts per token (top-8 of 256, plus one shared) - capacity decouples from cost, and the widget derives both headline numbers live." },
+  "Module 7 - Reasoning RL": { q:"What physically is 'thinking harder' - and where did long chains of thought come from?",
+    aha:"Reasoning is serial compute at inference (more passes before answering); long chains are trained by a VERIFIER (course 1 M6, now the reward) via GRPO - group-relative advantage, no value model. Nobody wrote the reasoning; it was selected for. Advantage arithmetic computed live." },
+  "Module 8 - Small models": { q:"When is small enough - and how do small models get so good?",
+    aha:"Three compressions: overtrain (Chinchilla ~20 tok/param is training-optimal; inference is forever, so overtrain small), distill (copy a teacher's soft distribution, not its size), and quantize (params x bits/8 - int4 is 4x smaller). Copy the distribution, not the size." },
+  "Module 9 - Map of the landscape": { q:"Two dozen methods - GQA, MLA, MoE, GRPO, LoRA, distillation... how do they relate?",
+    aha:"Every method attacks ONE resource - memory, compute, speed, params, data, or behavior. Filter the atlas by resource and stage, click any method for its summary and home module. The zoo becomes a map; the mechanisms live in Modules 0-8." },
 };
 
 const side = document.getElementById("side");

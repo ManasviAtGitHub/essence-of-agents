@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reasoning RL: the verifier becomes the teacher</title>
+<!-- Essence of Models, Module 7. Verified against DeepSeek-R1 / DeepSeekMath (GRPO):
+     no value model, group-relative advantage, verifiable (rule-based) rewards, ~40-60%
+     memory saving vs PPO, R1-Zero emergent self-correction. The problem, attempts and
+     accuracy figures are illustrative; the GRPO advantage arithmetic is computed live. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:920px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 12px; }
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .flow { display:flex; gap:12px; align-items:stretch; }
+  .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:10px 12px; }
+  .panel .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:7px; }
+
+  .genp { flex:1.2; min-width:0; }
+  .prob { font:12.5px var(--mono); color:#cdd3da; background:var(--panel); border:1px solid var(--line);
+          border-left:3px solid var(--gold); border-radius:7px; padding:6px 10px; margin-bottom:8px; }
+  .chain { font:12.5px/1.7 var(--mono); min-height:80px; }
+  .chain .think { color:var(--blue); } .chain .ans { color:var(--green); } .chain .bad { color:#ffbdb7; }
+  .chain .tk { display:inline-block; }
+  /* GRPO group */
+  .group { display:flex; flex-direction:column; gap:3px; }
+  .att { display:flex; align-items:center; gap:7px; }
+  .att .an { font:10.5px var(--mono); color:var(--faint); min-width:44px; }
+  .att .abar { flex:1; height:13px; border-radius:3px; background:#141b22; overflow:hidden; position:relative; }
+  .att .af { display:block; height:100%; border-radius:3px; transition:width .4s ease; }
+  .att .af.win { background:var(--green); } .att .af.lose { background:var(--red); }
+  .att .ar { font:10px var(--mono); min-width:80px; }
+  .att.pos .ar { color:var(--green); } .att.neg .ar { color:#ffbdb7; }
+  .meanline { position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--gold); }
+  .reduce .af { transition:none; }
+
+  .metp { flex:.85; min-width:0; }
+  .meter { margin:8px 0; }
+  .meter .ml { display:flex; justify-content:space-between; font:10.5px var(--mono); color:var(--dim); margin-bottom:3px; }
+  .meter .ml b { color:var(--ink); }
+  .mtrack { height:14px; border-radius:4px; background:#141b22; overflow:hidden; }
+  .mfill { display:block; height:100%; border-radius:4px; transition:width .5s ease; }
+  .mfill.c { background:var(--blue); } .mfill.a { background:var(--green); }
+  .mnote { font:10px var(--mono); color:var(--faint); margin-top:8px; }
+  .reduce .mfill { transition:none; }
+
+  .mach { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; margin-top:12px; }
+  .mach[hidden] { display:none; }
+  .formula { font:13px var(--mono); color:var(--ink); background:var(--panel); border:1px solid var(--line);
+             border-radius:8px; padding:8px 12px; display:inline-block; margin-bottom:8px; }
+  .formula b { color:var(--gold); }
+  .calc { font:12.5px/1.9 var(--mono); color:#cdd3da; }
+  .calc .row { display:flex; justify-content:space-between; gap:14px; border-bottom:1px solid #1b2028; padding:2px 0; flex-wrap:wrap; }
+  .calc .lhs { color:var(--dim); } .calc .rhs { color:var(--ink); }
+  .calc .row.hero .rhs { color:var(--gold); font-weight:600; }
+  .calc .src { font-size:10px; color:var(--faint); margin-top:6px; display:block; }
+
+  .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
+          font:11.5px var(--mono); color:var(--dim); }
+  .stat b { color:var(--ink); font-weight:600; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:78px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .insight.bad { border-left-color:var(--red); }
+  @media (max-width:720px){ body { padding:0 12px 48px; } .flow { flex-direction:column; } }
+</style>
+</head>
+<body>
+<h1>Reasoning RL: the verifier becomes the teacher</h1>
+<p class="sub">Module 6's stage 4 rewarded VERIFIED attempts. Here it is in full. Two ideas: reasoning is
+<b>serial compute at inference</b> (more forward passes before the answer, Module 0), and long chains of
+thought are <b>trained by a verifier</b> (course 1's Module 6, recomposed as the reward). Nobody writes
+the reasoning - it is selected for.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (think, then get rewarded)</button>
+  <button class="modebtn" data-mode="mech">mechanism (GRPO, computed)</button>
+  <span class="modehint">the group-advantage arithmetic is computed live</span>
+</div>
+
+<div class="flow" role="group" aria-label="A reasoning chain, and the RL loop that trains it">
+  <div class="panel genp">
+    <div class="prob"><span id="probText">If 3x + 7 = 22, what is x?</span></div>
+    <div class="hd" id="genHd">the model's attempt</div>
+    <div class="chain" id="chain"></div>
+    <div class="group" id="groupBox" style="display:none"></div>
+  </div>
+  <div class="panel metp">
+    <div class="hd">inference cost vs accuracy</div>
+    <div class="meter"><div class="ml"><span>thinking tokens (= forward passes)</span><b id="cv"></b></div>
+      <div class="mtrack"><span class="mfill c" id="cf"></span></div></div>
+    <div class="meter"><div class="ml"><span>accuracy on hard problems</span><b id="av"></b></div>
+      <div class="mtrack"><span class="mfill a" id="af"></span></div></div>
+    <div class="mnote" id="mnote"></div>
+  </div>
+</div>
+
+<div class="mach" id="mach" hidden></div>
+<div class="nums" id="nums"></div>
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+/* ---------- GRPO group: 8 attempts, rewards, advantages computed live ---------- */
+const REWARDS = [1, 0, 1, 0, 0, 1, 0, 0];           // verifier: 1 correct, 0 wrong (illustrative)
+const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+const std = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) ** 2))) || 1; };
+const RMEAN = mean(REWARDS), RSTD = std(REWARDS);
+const ADV = REWARDS.map(r => (r - RMEAN) / RSTD);   // group-relative advantage
+const f2 = x => x.toFixed(2);
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const probText=$("probText"), genHd=$("genHd"), chain=$("chain"), groupBox=$("groupBox"),
+      cv=$("cv"), cf=$("cf"), av=$("av"), af=$("af"), mnote=$("mnote"), mach=$("mach"),
+      nums=$("nums"), caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+if (Anim.reduced()) document.body.classList.add("reduce");
+function react(who, emote, line) { chrR.dataset.c = who; chrR.dataset.e = emote; reactLine.textContent = line; Cast.render($("react")); }
+function meter(tokens, acc, note) {
+  cv.textContent = tokens == null ? "--" : tokens + " tokens";
+  cf.style.width = tokens == null ? "0%" : Math.min(100, tokens / 200 * 100) + "%";
+  av.textContent = acc == null ? "--" : Math.round(acc * 100) + "%";
+  af.style.width = acc == null ? "0%" : acc * 100 + "%";
+  mnote.textContent = note || "";
+}
+function drawGroup(show, reveal) {   // reveal: "bars"|"mean"|"adv"
+  if (!show) { groupBox.style.display = "none"; return; }
+  groupBox.style.display = "flex"; chain.innerHTML = "";
+  groupBox.innerHTML = REWARDS.map((r, i) => {
+    const adv = ADV[i];
+    return '<div class="att ' + (reveal === "adv" ? (adv > 0 ? "pos" : "neg") : "") + '">' +
+      '<span class="an">try ' + (i + 1) + '</span>' +
+      '<span class="abar"><span class="af ' + (r ? "win" : "lose") + '" style="width:' + (r ? 100 : 22) + '%"></span>' +
+      (reveal === "mean" || reveal === "adv" ? '<span class="meanline" style="left:' + (RMEAN * 100) + '%"></span>' : "") + '</span>' +
+      '<span class="ar">' + (reveal === "adv" ? "adv " + (adv > 0 ? "+" : "") + f2(adv) : r ? "verifier OK" : "verifier X") + '</span></div>';
+  }).join("");
+}
+function setNums(list) { nums.innerHTML = list.map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join(""); }
+
+/* ---------- INTUITION: 9 steps ---------- */
+function renderInt(i) {
+  mach.hidden = true;
+  const F = [
+    () => { drawGroup(false); genHd.textContent = "the question behind reasoning models"; chain.innerHTML = '<span class="dim">what, physically, is "thinking harder"?</span>'; meter(null, null); },
+    () => { drawGroup(false); genHd.textContent = "a SHORT chain: blurt the answer"; chain.innerHTML = '<span class="bad">x = 15</span> <span class="dim">(22 - 7, forgot to divide - wrong)</span>'; meter(6, 0.40, "few tokens, few passes, low accuracy on hard problems"); },
+    () => { drawGroup(false); genHd.textContent = "a LONG chain: work through it"; chain.innerHTML = '<span class="think">3x + 7 = 22 -> 3x = 22 - 7 = 15 -> x = 15 / 3 = 5</span><br><span class="ans">x = 5</span> <span class="dim">(correct)</span>'; meter(140, 0.85, "more tokens = more forward passes = more accuracy (Module 0)"); },
+    () => { drawGroup(false); genHd.textContent = "the chain IS compute, not decoration"; chain.innerHTML = '<span class="think">each reasoning token is another pass through the stack</span>'; meter(140, 0.85, "reasoning = spending inference compute before committing"); },
+    () => { drawGroup(true, "bars"); genHd.textContent = "but who WROTE that long chain? nobody. RL did."; meter(null, null, "sample many attempts at the problem"); },
+    () => { drawGroup(true, "bars"); genHd.textContent = "a VERIFIER scores each attempt (course 1, Module 6)"; meter(null, null, "reward = did it reach the checkable-correct answer?"); },
+    () => { drawGroup(true, "mean"); genHd.textContent = "reinforce the winners, discourage the losers"; meter(null, null, "the gold line = the group's average reward (the baseline)"); },
+    () => { drawGroup(false); genHd.textContent = "R1-Zero: pure RL, and self-correction EMERGED"; chain.innerHTML = '<span class="think">... x = 15. <b style="color:var(--gold)">Wait, let me recheck.</b> 3x = 15, so x = 5.</span>'; meter(null, null, "the 'aha moment' - nobody scripted 'wait, let me recheck'"); },
+    () => { drawGroup(false); genHd.textContent = "the aha"; chain.innerHTML = '<span class="ans">reasoning was not programmed - it was SELECTED FOR by a verifier</span>'; meter(140, 0.85, "and only where a cheap verifier exists: math, code"); },
+  ];
+  F[i]();
+  const caps = [
+    "Module 6's fourth stage rewarded verified attempts. Now, in full. Start with the sharp question: when a 'reasoning model' thinks harder, what is physically happening? It is not accessing more knowledge.",
+    "Take a short chain first. Ask '3x + 7 = 22' and a non-reasoning model may just blurt an answer - here, x = 15 (it did 22 - 7 and stopped). Fast, few tokens, and wrong. On easy questions this is fine; on hard ones it fails.",
+    "Now a long chain: the model works through it - 3x = 15, then x = 5 - across many tokens. More tokens means more FORWARD PASSES (Module 0: one pass per token), which means more serial computation spent before answering. Accuracy climbs.",
+    "So the chain of thought is not decoration - it IS compute. Each reasoning token is another trip through the 61-layer stack. 'Thinking harder' literally means 'spend more inference passes before committing'. That is inference-time compute.",
+    "But nobody hand-wrote that careful chain. It came from reinforcement learning. The setup: for a problem, sample MANY attempts from the model (here, 8 tries with different reasoning).",
+    "Then a VERIFIER scores each - is the final answer checkably correct? Green passed, red failed. This is exactly course 1's Module 6 verifier, now used as the REWARD signal. No human rates the chains; a checker does.",
+    "The learning rule reinforces attempts that beat the group's average (the gold line) and discourages those below it. Over millions of problems, the model drifts toward producing chains that VERIFY - and long, careful reasoning emerges because it scores.",
+    "The striking result: DeepSeek's R1-Zero did this with PURE RL on the base model, no supervised examples of reasoning at all - and self-correction emerged on its own. The famous 'aha moment': mid-chain, the model writes 'Wait, let me recheck.' Nobody put that there.",
+    "The aha: reasoning was never programmed in - it was SELECTED FOR, generation after generation, by a verifier. Which is also its limit: this works where a cheap, exact verifier exists (math, code) - and barely at all where one does not (a beautiful poem).",
+  ];
+  caption.textContent = caps[i];
+  setNums([["thinking", "= inference passes"], ["reward", "a verifier (course 1 M6)"], ["chains", "emerge, not written"], ["works on", "checkable tasks"]]);
+  insight.className = "insight";
+  insight.innerHTML = i >= 8
+    ? "<b>The aha:</b> reasoning is selected for by a verifier. Switch to <b>mechanism</b> for GRPO - the exact loop that does the selecting."
+    : i >= 4
+    ? "Reasoning RL: <b>sample attempts -> verify -> reinforce the winners.</b> Long chains emerge because they score."
+    : "Reasoning = <b>serial compute at inference</b> (more passes before the answer) - traded for accuracy on hard problems.";
+  const R = [
+    ["cortex", "think", "'Think harder.' Everyone says it. Nobody tells me what it MEANS."],
+    ["cortex", "confused", "x = 15. Done! ...that's wrong, isn't it. I answered before I finished."],
+    ["cortex", "happy", "Give me room to write it out - 3x = 15, x = 5 - and I get it right. The scribbling IS the thinking."],
+    ["cortex", "read", "Every reasoning token is another lap through my 61 layers. Thinking costs passes."],
+    ["bit", "think", "I don't hand it chains. I make it try eight times and let the results talk."],
+    ["bit", "reach", "The verifier from course 1 - the compiler, the checker - is now the REWARD. Same idea, new job."],
+    ["bit", "happy", "Beat the group average, get reinforced. Below it, get discouraged. Simple pressure."],
+    ["cortex", "happy", "Mid-thought I wrote 'wait, let me recheck' - and NOBODY taught me that. It just... paid off to."],
+    ["cortex", "neutral", "I can only learn to reason where someone can CHECK me. No checker, no reasoning."],
+  ];
+  react(...R[i]);
+}
+
+/* ---------- MECHANISM: 18 steps, 3 acts ---------- */
+const MECH_ACTS = [["inference-time compute", 5], ["GRPO: the training loop", 8], ["emergence + limits", 5]];
+function renderMech(i) {
+  mach.hidden = false;
+  if (i <= 4) {  // ---- ACT 1: inference-time compute ----
+    drawGroup(false);
+    const budgets = [[6, 0.40], [40, 0.62], [140, 0.85], [140, 0.85], [140, 0.85]][i];
+    genHd.textContent = "same problem, more thinking budget";
+    chain.innerHTML = i === 0 ? '<span class="bad">x = 15</span>' :
+      i === 1 ? '<span class="think">3x = 15... x = 15?</span> <span class="bad">(rushed)</span>' :
+      '<span class="think">3x + 7 = 22 -> 3x = 15 -> x = 15/3 = 5</span> <span class="ans">x = 5</span>';
+    meter(budgets[0], budgets[1]);
+    if (i <= 2) mach.innerHTML = '<span class="formula">1 forward pass = 1 token (Module 0)</span><div class="calc"><div class="row"><span class="lhs">a ' + budgets[0] + '-token chain</span><span class="rhs">' + budgets[0] + ' serial forward passes</span></div><span class="calc src">reasoning spends compute at INFERENCE (test time), not training. More thinking tokens = more passes = more cost and latency.</span></div>';
+    else if (i === 3) mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">accuracy RISES with thinking budget</span><span class="rhs">"test-time scaling"</span></div><span class="calc src">on hard, deliberation-bound problems, spending more inference tokens measurably raises accuracy - a knob you turn at run time, no retraining.</span></div>';
+    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">deliberation-bound task (a proof)</span><span class="rhs">thinking helps</span></div><div class="row"><span class="lhs">information-bound task (a fact you never saw)</span><span class="rhs">thinking does NOT help - you need a tool</span></div><span class="calc src">course 1, Module 7, from inside: inference compute only helps when the missing ingredient is DELIBERATION, not information or action.</span></div>';
+    const caps1 = [
+      "Mechanism act 1: what inference-time compute actually is. A 6-token answer is 6 forward passes - fast, and on a hard problem, often wrong.",
+      "Give it a bigger thinking budget - 40 tokens - and it does more work, though a rushed chain can still slip. The compute meter climbs; each token is a pass.",
+      "A full 140-token chain does the algebra properly and lands x = 5. This is a knob you turn at RUN TIME: spend more passes, get more accuracy. No weights change - it is pure inference cost.",
+      "That relationship - accuracy rising with thinking budget - is 'test-time scaling'. It is why reasoning models are slower and pricier per answer, and why 'think longer' is a real lever.",
+      "But it is not universal. Course 1's Module 7, now from the inside: more thinking only helps DELIBERATION-bound problems. For a fact the model never saw, no amount of chain-of-thought conjures it - you need a tool. Match the spend to the bottleneck.",
+    ];
+    caption.textContent = caps1[i];
+    insight.className = "insight";
+    insight.innerHTML = "Act 1: reasoning = <b>serial forward passes spent at inference</b>. Accuracy scales with the thinking budget - on deliberation-bound tasks.";
+    react("cortex", i === 0 ? "confused" : i >= 3 ? "read" : "think",
+      i === 0 ? "Six tokens, six passes, one wrong answer. Speedy failure."
+      : i === 1 ? "Rushing even WITH a scratchpad. Budget helps only if I use it."
+      : i === 2 ? "140 passes of careful work and I nail it. Slow me is smart me."
+      : i === 3 ? "Turn the 'think longer' knob at runtime - no retraining, just more passes."
+      : "But thinking can't invent a fact I never learned. That needs a tool, not a longer chain.");
+  }
+
+  else if (i <= 12) {  // ---- ACT 2: GRPO ----
+    const k = i - 5;
+    genHd.textContent = "GRPO: train the reasoning, with a group";
+    if (k === 0) { drawGroup(true, "bars"); mach.innerHTML = '<span class="formula">for one prompt: sample a GROUP of G attempts (here G = 8)</span><div class="calc"><span class="calc src">GRPO (from DeepSeekMath, used by R1). Instead of one attempt, generate a whole group and let them compete against each other.</span></div>'; }
+    else if (k === 1) { drawGroup(true, "bars"); mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">each attempt scored by the verifier</span><span class="rhs">1 = correct, 0 = wrong</span></div><div class="row"><span class="lhs">rewards this group</span><span class="rhs">[' + REWARDS.join(", ") + ']</span></div><span class="calc src">rule-based / verifiable reward (R1): checkable-correct, plus format. Verifiable rewards are hard to game - the reward-hacking guard from Module 6.</span></div>'; }
+    else if (k === 2) { drawGroup(true, "mean"); mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">group mean reward (the gold line)</span><span class="rhs">' + f2(RMEAN) + '</span></div><div class="row"><span class="lhs">group std</span><span class="rhs">' + f2(RSTD) + '</span></div><span class="calc src">computed live from the group. THIS is GRPO\'s trick: the group itself provides the baseline - no separate value network needed.</span></div>'; }
+    else if (k === 3) { drawGroup(true, "adv"); mach.innerHTML = '<span class="formula">advantage_i = ( reward_i - mean ) / std</span><div class="calc"><div class="row"><span class="lhs">correct attempts</span><span class="rhs" style="color:var(--green)">advantage +' + f2((1 - RMEAN) / RSTD) + '</span></div><div class="row"><span class="lhs">wrong attempts</span><span class="rhs" style="color:#ffbdb7">advantage ' + f2((0 - RMEAN) / RSTD) + '</span></div><span class="calc src">computed live. Above-average attempts get PUSHED UP, below-average pushed down - normalized by the group.</span></div>'; }
+    else if (k === 4) { drawGroup(true, "adv"); mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">policy update</span><span class="rhs">raise p(good chains), lower p(bad chains)</span></div><span class="calc src">the gradient nudges the model toward the high-advantage attempts and away from the low. One prompt, one small step.</span></div>'; }
+    else if (k === 5) { drawGroup(false); chain.innerHTML = '<span class="dim">repeat over millions of problems...</span>'; mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">over many prompts</span><span class="rhs">chains that VERIFY get reinforced</span></div><span class="calc src">no human wrote a single reasoning step. Long, self-correcting chains EMERGE because they score.</span></div>'; }
+    else if (k === 6) { drawGroup(false); chain.innerHTML = '<span class="think">PPO: needs a second network (a critic/value model)</span><br><span class="ans">GRPO: the group IS the baseline - no critic</span>'; mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">GRPO drops PPO\'s value network</span><span class="rhs">~40-60% less memory (verified)</span></div><span class="calc src">PPO trains a second model the size of the policy to estimate baselines. GRPO replaces it with the group average - simpler, and much lighter.</span></div>'; }
+    else { drawGroup(false); chain.innerHTML = '<span class="dim">generation-cheap, verification-strong: the course-1 thesis, at training scale</span>'; mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">generation</span><span class="rhs">cheap - just sample G attempts</span></div><div class="row"><span class="lhs">verification</span><span class="rhs">the bottleneck AND the teacher</span></div><span class="calc src">this is course 1\'s Module 6 thesis - "an agent is as good as its verifier" - now literally the training signal.</span></div>'; }
+    const caps2 = [
+      "Act 2: the training loop, GRPO - Group Relative Policy Optimization, the algorithm behind R1. Step one: for a single prompt, sample a whole GROUP of attempts (here 8), each with its own reasoning.",
+      "Step two: the verifier scores every attempt. Correct = 1, wrong = 0. These are RULE-BASED, verifiable rewards - checkable answers, not human ratings - specifically to resist the reward hacking Module 6 warned about.",
+      "Step three, and GRPO's key idea: compute the group's mean reward (gold line) and standard deviation, live from the group. This replaces PPO's separate 'value model' - the group of siblings IS the baseline.",
+      "Step four: each attempt's ADVANTAGE is how far its reward sits above or below the group mean, normalized by the spread: (reward - mean) / std, computed here. Correct attempts get a positive advantage; wrong ones negative.",
+      "Step five: update the policy toward the positive-advantage attempts and away from the negative. The model becomes a little more likely to produce reasoning like the winners, a little less like the losers.",
+      "Repeat over millions of problems, and the payoff appears: chains that reliably VERIFY get reinforced. No human ever wrote a reasoning step - careful, checkable chains emerge because they score well.",
+      "Why 'group relative' matters practically: PPO needs a second network - a critic the size of the policy - just to estimate baselines. GRPO throws it away and uses the group average, cutting training memory ~40-60% (verified). Simpler and cheaper.",
+      "And the whole thing is course 1's Module 6 thesis at industrial scale: generation is cheap (sample attempts), verification is the bottleneck AND the teacher. An agent - or a training run - is exactly as good as its verifier.",
+    ];
+    caption.textContent = caps2[k];
+    insight.className = "insight";
+    insight.innerHTML = "Act 2: GRPO = <b>sample a group -> verify -> advantage vs the group mean -> reinforce</b>. The group replaces PPO's value model.";
+    react(k <= 1 ? "bit" : k === 6 ? "bit" : "cortex", k === 3 ? "read" : k === 5 ? "happy" : "think",
+      k === 0 ? "Eight tries, not one. Let them compete."
+      : k === 1 ? "Verifier says 1 or 0. No vibes, no human rater - just correct or not."
+      : k === 2 ? "The group's own average is the yardstick. No separate critic needed - that's the whole trick."
+      : k === 3 ? "Above the gold line, I get pushed up. Below it, pushed down. Advantage, normalized."
+      : k === 4 ? "Nudge me toward the winners. One prompt, one small step."
+      : k === 5 ? "A million prompts later, careful reasoning is just... how I am now. Nobody wrote it."
+      : k === 6 ? "PPO lugs a whole second network around. I skip it and save half my memory. Lighter to train."
+      : "Cheap to generate, hard to verify - the verifier is my teacher. Course 1 said so first.");
+  }
+
+  else {  // ---- ACT 3: emergence + limits ----
+    const k = i - 13;
+    drawGroup(false);
+    genHd.textContent = "what emerged, and where it stops";
+    if (k === 0) { chain.innerHTML = '<span class="think">R1-Zero: base model + pure RL, NO reasoning examples</span><br><span class="ans">-> long CoT + self-correction, emergent</span>'; mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">R1-Zero</span><span class="rhs">pure RL, self-correction emerged</span></div><span class="calc src">the striking result: no supervised reasoning data at all, yet the model taught itself to deliberate and re-check. Reasoning is a reachable ATTRACTOR under verifiable reward.</span></div>'; }
+    else if (k === 1) { chain.innerHTML = '<span class="dim">R1 added a small SFT "cold start" for readability + language-mixing</span>'; mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">R1-Zero was capable but messy</span><span class="rhs">mixed languages, hard to read</span></div><div class="row"><span class="lhs">R1 fix</span><span class="rhs">a little SFT before/around the RL</span></div><span class="calc src">pure RL reaches capability; a touch of SFT (Module 6) makes it usable. The stages compose.</span></div>'; }
+    else if (k === 2) { chain.innerHTML = '<span class="ans">math, code: cheap exact verifier -> RL works</span><br><span class="bad">"write a beautiful poem": no cheap verifier -> RL barely helps</span>'; mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">RLVR needs a cheap, exact verifier</span><span class="rhs">math / code / logic</span></div><span class="calc src">this is the deep reason reasoning models are strongest at math and code: those have verifiers. Fuzzy tasks lack one, so reasoning RL has little to select on.</span></div>'; }
+    else if (k === 3) { chain.innerHTML = '<span class="think">once R1 can reason, its chains DISTILL into small models</span>'; mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">R1\'s reasoning -> small model (Module 8)</span><span class="rhs">often beats RL-ing the small model directly</span></div><span class="calc src">a big reasoner\'s traces are training gold for a small student. That is Module 8\'s story - distillation.</span></div>'; }
+    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">M6: all 4 training stages</span><span class="rhs">this module = stage 4, in full</span></div><div class="row"><span class="lhs">reasoning</span><span class="rhs">spend inference compute (M0), trained by a verifier (course 1 M6)</span></div><span class="calc src">next: Module 8 shrinks these giants - distillation (R1\'s chains) and quantization.</span></div>';
+    const caps3 = [
+      "Act 3: what emerged. R1-Zero started from a base model and pure RL, with zero supervised reasoning examples - and long chains of thought plus self-correction appeared on their own. Under a verifiable reward, careful reasoning is an attractor the model falls into.",
+      "The catch: R1-Zero was smart but messy - it mixed languages and was hard to read. So R1 added a small SFT 'cold start' (Module 6) around the RL to clean it up. Pure RL reaches the capability; a little supervised polish makes it usable. The stages compose.",
+      "The hard limit, and it is course 1's Module 6 again: reasoning RL needs a cheap, exact VERIFIER. Math, code, and logic have one - so reasoning models are strongest there. 'Write a beautiful poem' has no cheap verifier, so RL has almost nothing to select on.",
+      "One more payoff, bridging to Module 8: once a big model like R1 can reason, its chains of thought become premium training data. DISTILLING them into a small model often beats running RL on the small model directly - the reasoning transfers.",
+      "Where this sits: Module 6 showed all four training stages; this module was stage 4 in full. Reasoning is spending inference compute (Module 0) in a way that was trained by a verifier (course 1, Module 6). Next, Module 8: shrinking these giants without losing them.",
+    ];
+    caption.textContent = caps3[k];
+    insight.className = "insight";
+    insight.innerHTML = k >= 4
+      ? "<b>The track:</b> M6 trained the model; M7 is its reasoning stage in full. Next, M8 shrinks it - distillation + quantization."
+      : "Act 3: reasoning EMERGES under verifiable reward (R1-Zero's aha), but only where a cheap verifier exists.";
+    react("cortex", k === 2 ? "neutral" : k >= 3 ? "happy" : "happy",
+      k === 0 ? "Nobody showed me a single worked example, and I taught myself to double-check. That still amazes me."
+      : k === 1 ? "Capable but babbling in three languages. A little SFT and I'm presentable."
+      : k === 2 ? "I got smart where someone could grade me. Poetry? No grader, no gains."
+      : k === 3 ? "My reasoning traces make excellent lessons for a smaller me. Module 8, take note."
+      : "Trained, reasoning, and ready to be shrunk. On to Module 8.");
+  }
+  setNums([["GRPO", "no value model"], ["reward", "verifiable (1/0)"], ["baseline", "group mean (computed)"], ["memory vs PPO", "~40-60% less"]]);
+}
+
+/* ---------- wiring ---------- */
+let tl = null;
+function build(mode) {
+  const isInt = mode === "int";
+  tl = new Anim.Timeline({ length: isInt ? 9 : 18, autoMs: isInt ? 2600 : 3000,
+    onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
+  Anim.scrubber($("scrub"), tl, {
+    label: isInt ? (i => "step " + (i + 1) + " / 9") : Anim.actLabel(MECH_ACTS),
+    acts: isInt ? null : MECH_ACTS,
+  });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>
