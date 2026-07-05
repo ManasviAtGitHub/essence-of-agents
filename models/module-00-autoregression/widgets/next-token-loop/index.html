@@ -384,7 +384,7 @@ function renderMech(i, dir) {
       "T = 2: the gaps shrink, the tail fattens. ' located' and ' a' now get real mass - more variety, more nonsense. Temperature trades determinism for diversity; it never adds knowledge.",
       "TOP-P (nucleus): sort by probability, keep the smallest set that covers 90%, renormalize, and the long tail is simply cut. Struck-through rows now have p = 0 - junk can't get lucky.",
       "The DRAW: pick a random r in [0,1) and walk the cumulative strip below. r = 0.42 lands inside ' Paris'. That single arithmetic step is 'the model chose'.",
-      "Greedy (T=0) replays the same walk every time; any T &gt; 0 makes the draw a genuine lottery. Course 1's run-again widget - two answers from one prompt - is just two different r's.",
+      "Greedy (T=0) replays the same walk every time; any T > 0 makes the draw a genuine lottery. Course 1's run-again widget - two answers from one prompt - is just two different r's.",
       "Cost of it all: ONE full forward pass per token. A 40-token answer = 40 passes, each reading the whole context... unless we cache what doesn't change. That's Module 3.",
     ];
     caption.textContent = caps2[i - 7];
