@@ -26,7 +26,8 @@ def test_shared_assets_exist():
 
 
 def test_widgets_use_shared_library():
-    widgets = glob.glob(os.path.join(ROOT, "agentic-course", "**", "widgets", "**", "index.html"), recursive=True)
+    widgets = (glob.glob(os.path.join(ROOT, "agentic-course", "**", "widgets", "**", "index.html"), recursive=True) +
+               glob.glob(os.path.join(ROOT, "models", "**", "widgets", "**", "index.html"), recursive=True))
     assert widgets, "no widgets found"
     for w in widgets:
         s = open(w, encoding="utf-8").read()
@@ -39,7 +40,8 @@ def test_character_kit_is_single_source():
     """Cortex/Bit are defined once (cast.js); nobody re-inlines them."""
     cast = open(os.path.join(ASSETS, "cast.js"), encoding="utf-8").read()
     assert "function cortex(" in cast and "function bit(" in cast, "cast.js should define cortex() and bit()"
-    for f in _html(os.path.join(ROOT, "agentic-course"), os.path.join(ROOT, "production")) + [os.path.join(ROOT, "index.html")]:
+    for f in _html(os.path.join(ROOT, "agentic-course"), os.path.join(ROOT, "production"),
+                   os.path.join(ROOT, "models")) + [os.path.join(ROOT, "index.html")]:
         s = open(f, encoding="utf-8").read()
         assert "function cortex(" not in s, f"re-inlined character kit in {os.path.relpath(f, ROOT)} -- use cast.js"
 

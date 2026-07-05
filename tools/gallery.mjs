@@ -11,6 +11,8 @@ import { resolve } from "path";
 const TARGETS = [
   ["launcher", "index.html"],
   ["course-hub", "agentic-course/index.html"],
+  ["models-hub", "models/index.html"],
+  ["models m0 next-token-loop", "models/module-00-autoregression/widgets/next-token-loop/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["about", "agentic-course/about.html"],
   ["production-hub", "production/index.html"],
   ["prod-stage (offline)", "production/web/index.html"],

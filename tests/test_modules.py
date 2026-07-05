@@ -37,7 +37,8 @@ def test_keyless_demos_run():
 
 
 def test_widgets_wellformed():
-    widgets = glob.glob(os.path.join(COURSE, "**", "widgets", "**", "index.html"), recursive=True)
+    widgets = (glob.glob(os.path.join(COURSE, "**", "widgets", "**", "index.html"), recursive=True) +
+               glob.glob(os.path.join(ROOT, "models", "**", "widgets", "**", "index.html"), recursive=True))
     assert len(widgets) >= 12, f"expected >=12 widgets, found {len(widgets)}"
     for w in widgets:
         s = open(w, encoding="utf-8").read()
@@ -47,7 +48,8 @@ def test_widgets_wellformed():
 
 def test_course_text_is_ascii():
     files = []
-    for base in (COURSE, os.path.join(ROOT, "claude_harness"), os.path.join(ROOT, "assets")):
+    for base in (COURSE, os.path.join(ROOT, "claude_harness"), os.path.join(ROOT, "assets"),
+                 os.path.join(ROOT, "models")):
         for ext in ("md", "html", "py", "css", "js"):
             files += glob.glob(os.path.join(base, "**", f"*.{ext}"), recursive=True)
     files.append(os.path.join(ROOT, "index.html"))  # the root launcher

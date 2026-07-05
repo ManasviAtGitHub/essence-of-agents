@@ -34,6 +34,8 @@ shutil.copy2(os.path.join(ROOT, "index.html"), os.path.join(DIST, "index.html"))
 copy_tree(os.path.join(ROOT, "assets"), os.path.join(DIST, "assets"))
 # 3. the course: HTML widgets + linked READMEs; drop python demos + json artifacts
 copy_tree(os.path.join(ROOT, "agentic-course"), os.path.join(DIST, "agentic-course"), skip_ext=(".py", ".json"))
+# 3b. the models track (same rules)
+copy_tree(os.path.join(ROOT, "models"), os.path.join(DIST, "models"), skip_ext=(".py", ".json"))
 # 4. production SITE only: hub + scenes + the stage; NO .py source, providers, or tests
 pdst = os.path.join(DIST, "production")
 os.makedirs(pdst, exist_ok=True)

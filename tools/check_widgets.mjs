@@ -18,12 +18,13 @@ function walk(dir, out = []) {
   return out;
 }
 
-// Every course widget + the hub pages + all of production (hub, stage, scenes).
+// Every course widget + the hub pages + all of production (hub, stage, scenes) + the models track.
 const seen = new Set();
 const targets = [
   ...walk(resolve("agentic-course")),
   resolve("agentic-course/about.html"),
   ...walk(resolve("production")),
+  ...walk(resolve("models")),
 ].filter(p => (seen.has(p) ? false : seen.add(p)));
 
 // Safe in-widget controls to click (never navigation links).

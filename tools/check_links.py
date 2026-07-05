@@ -43,6 +43,7 @@ def refs_in(path):
 def main():
     files = (glob.glob(os.path.join(ROOT, "agentic-course", "**", "*.html"), recursive=True) +
              glob.glob(os.path.join(ROOT, "production", "**", "*.html"), recursive=True) +
+             glob.glob(os.path.join(ROOT, "models", "**", "*.html"), recursive=True) +
              [os.path.join(ROOT, "index.html"), os.path.join(ROOT, "tools", "gallery.mjs")])
     files = [f for f in files if "node_modules" not in f]
 

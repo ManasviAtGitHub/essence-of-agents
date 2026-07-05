@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The next-token loop</title>
+<!-- Essence of Models, Module 0. Depth-contract prototype:
+     intuition pass (8 steps) + mechanism pass (20 steps in 3 acts).
+     All probabilities on screen are COMPUTED live (softmax / temperature / top-p)
+     from the stated logits; only the logits themselves are hand-authored
+     (a real model's logits need a real model - labeled illustrative). -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:900px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 12px; }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  /* ---- the primitive: context -> stack -> distribution, with a loop-back ---- */
+  .flow { display:flex; gap:12px; align-items:stretch; }
+  .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:10px 12px; }
+  .panel .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em;
+               color:var(--faint); margin-bottom:7px; display:flex; justify-content:space-between; gap:8px; }
+
+  .ctxp { flex:1.1; min-width:0; }
+  .chipwrap { display:flex; flex-wrap:wrap; gap:5px; align-content:flex-start; }
+  .tok { font:12px var(--mono); border:1px solid var(--line); border-radius:6px; background:var(--panel);
+         color:#cdd3da; padding:3px 7px; display:inline-flex; flex-direction:column; align-items:center; }
+  .tok .sub2 { font-size:9px; color:var(--faint); }
+  .tok.new { border-color:var(--gold); color:var(--gold); box-shadow:0 0 8px rgba(255,211,92,.3); }
+  .tok.rep { border-color:var(--red); color:#ffbdb7; }
+  .tok.fresh { animation:pop .3s ease; } @keyframes pop { from { transform:scale(.6); opacity:0; } }
+  .reduce .tok.fresh { animation:none; }
+
+  .stackp { flex:.9; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .stackp .chr svg { width:56px; height:56px; }
+  .layers { width:100%; display:flex; flex-direction:column-reverse; gap:3px; margin:6px 0; }
+  .layer { border:1px solid var(--line); border-radius:5px; background:var(--panel);
+           font:9.5px var(--mono); color:var(--faint); padding:2px 6px; transition:all .2s; }
+  .stackp.hot .layer { border-color:var(--blue); color:var(--blue); box-shadow:0 0 6px rgba(88,196,221,.2); }
+  .xn { font:10px var(--mono); color:var(--faint); }
+  .stackp.hot .xn { color:var(--blue); }
+
+  .distp { flex:1.4; min-width:0; }
+  .bar { display:flex; align-items:center; gap:7px; margin:4px 0; }
+  .bar .bt { font:11.5px var(--mono); color:#cdd3da; min-width:72px; text-align:right; white-space:nowrap; }
+  .bar .btrack { flex:1; height:15px; border-radius:4px; background:#141b22; overflow:hidden; }
+  .bar .bfill { display:block; height:100%; width:0; background:var(--blue); border-radius:4px;
+                transition:width .4s ease; }
+  .bar.pick .bfill { background:var(--gold); box-shadow:0 0 8px rgba(255,211,92,.4); }
+  .bar.pick .bt { color:var(--gold); }
+  .bar.cut { opacity:.32; }
+  .bar.cut .bt { text-decoration:line-through; }
+  .bar .bp { font:10.5px var(--mono); color:var(--dim); min-width:52px; }
+  .bar.pick .bp { color:var(--gold); }
+  .tail { font:10px var(--mono); color:var(--faint); margin-top:5px; }
+  .reduce .bfill { transition:none; }
+
+  .loopback { display:flex; align-items:center; gap:8px; margin-top:10px; border:1px dashed var(--line);
+              border-radius:9px; padding:6px 12px; font:11.5px var(--mono); color:var(--faint);
+              justify-content:center; transition:all .2s; }
+  .loopback.hot { border-color:var(--gold); color:var(--gold); border-style:solid;
+                  box-shadow:0 0 10px rgba(255,211,92,.2); }
+
+  /* ---- the machinery: formula + knobs + the live table ---- */
+  .mach { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; margin-top:12px; }
+  .mach[hidden] { display:none; }
+  .formula { font:13.5px var(--mono); color:var(--ink); background:var(--panel); border:1px solid var(--line);
+             border-radius:8px; padding:8px 12px; display:inline-block; }
+  .formula b { color:var(--blue); font-weight:600; }
+  .knobs { display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin:10px 0 4px; }
+  .knob { display:flex; gap:8px; align-items:center; font:12px var(--mono); color:var(--dim); }
+  .knob input[type=range] { width:150px; accent-color:var(--blue); }
+  .knob .kv { color:var(--gold); min-width:36px; }
+  .knob.off { opacity:.35; pointer-events:none; }
+  table.smx { border-collapse:collapse; width:100%; margin-top:8px; }
+  .smx th, .smx td { font:11.5px var(--mono); text-align:right; padding:3px 8px;
+                     border-bottom:1px solid #1b2028; color:#cdd3da; }
+  .smx th { color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
+  .smx td:first-child, .smx th:first-child { text-align:left; }
+  .smx tr.pick td { color:var(--gold); }
+  .smx tr.cut td { opacity:.32; text-decoration:line-through; }
+  .cdf { margin-top:10px; }
+  .cdf .strip { display:flex; height:16px; border-radius:5px; overflow:hidden; border:1px solid var(--line); position:relative; }
+  .cdf .seg { height:100%; }
+  .cdf .rmark { position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--ink); }
+  .cdf .rlab { font:10.5px var(--mono); color:var(--dim); margin-top:4px; }
+
+  .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
+          font:11.5px var(--mono); color:var(--dim); }
+  .stat b { color:var(--ink); font-weight:600; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:60px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .insight.bad { border-left-color:var(--red); }
+
+  @media (max-width:700px){
+    body { padding:0 12px 48px; }
+    .flow { flex-direction:column; }
+    .knobs { gap:10px; }
+  }
+</style>
+</head>
+<body>
+<h1>The next-token loop</h1>
+<p class="sub">Where an answer actually comes from: one distribution, one draw, one appended token -
+around and around. <b>Intuition</b> tells the story; <b>mechanism</b> opens the machinery and computes
+every probability live.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (the story)</button>
+  <button class="modebtn" data-mode="mech">mechanism (the machinery)</button>
+  <span class="modehint">same stage, two altitudes - finish intuition first, then go down a level</span>
+</div>
+
+<div class="flow" role="group" aria-label="Context, model stack, and next-token distribution">
+  <div class="panel ctxp">
+    <div class="hd"><span>the context (what the model reads)</span><span id="ctxn"></span></div>
+    <div class="chipwrap" id="ctx"></div>
+    <div class="loopback" id="loopback">&#8617; append: the sampled token becomes input</div>
+  </div>
+  <div class="panel stackp" id="stackp">
+    <span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
+    <div class="layers" id="layers"></div>
+    <span class="xn" id="xn">the stack</span>
+  </div>
+  <div class="panel distp">
+    <div class="hd"><span>next-token distribution</span><span id="disthd"></span></div>
+    <div id="bars"></div>
+    <div class="tail" id="tail"></div>
+  </div>
+</div>
+
+<div class="mach" id="mach" hidden>
+  <span class="formula" id="formula">p<sub>i</sub> = e<sup>z<sub>i</sub>/<b>T</b></sup> / &Sigma;<sub>j</sub> e<sup>z<sub>j</sub>/<b>T</b></sup></span>
+  <div class="knobs">
+    <label class="knob" id="tKnob"><span>temperature T</span>
+      <input type="range" id="tSlide" min="0.1" max="2" step="0.05" value="1" aria-label="temperature" />
+      <span class="kv" id="tVal">1.00</span></label>
+    <label class="knob" id="pKnob"><span>top-p</span>
+      <input type="checkbox" id="pChk" aria-label="top-p nucleus sampling" />
+      <span class="kv" id="pVal">off</span></label>
+  </div>
+  <table class="smx" id="smx" aria-label="live softmax computation"></table>
+  <div class="cdf" id="cdf" hidden>
+    <div class="strip" id="cdfStrip"></div>
+    <div class="rlab" id="cdfLab"></div>
+  </div>
+</div>
+
+<div class="nums" id="nums"></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+/* ---------- the data: contexts + hand-authored logits (labeled illustrative) ---------- */
+const PROMPT = ["The", " capital", " of", " France", " is"];
+const IDS    = [ 464,   6864,      286,   4881,      374 ];   // illustrative token ids
+
+// each generation step: candidate tokens with logits; pick = index sampled on the golden path
+const GEN = [
+  { cand: [[" Paris",8.1],[" the",4.9],[" located",3.6],[" a",3.1],[" known",2.5],[" one",2.2]], pick:0, r:0.42 },
+  { cand: [[".",5.6],[",",4.9],[" and",3.0],[" -",2.1],[" which",2.0],[" (",1.6]],               pick:0, r:0.31 },
+  { cand: [["<end>",5.2],[" The",3.8],[" It",3.3],[" Paris",2.0],[" France",1.8],[" As",1.4]],   pick:0, r:0.55 },
+];
+// break-it data: greedy (T~0) walks a cycle
+const LOOP_PROMPT = ["and", " so", " on"];
+const LOOP_CAND = {
+  on:  [[" and",6.2],[".",3.4],[" forever",2.6],[" it",2.2],[",",2.0],[" until",1.6]],
+  and: [[" so",6.6],[" the",3.5],[" it",2.9],[" then",2.4],[" a",2.0],[" we",1.7]],
+  so:  [[" on",6.9],[" forth",4.1],[" it",2.6],[" the",2.2],[" much",1.9],[" long",1.5]],
+};
+
+/* ---------- the real math (computed live - this is the point) ---------- */
+function softmax(cand, T) {
+  const exps = cand.map(c => Math.exp(c[1] / T));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return cand.map((c, i) => ({ tok:c[0], z:c[1], zt:c[1]/T, e:exps[i], p:exps[i]/sum }));
+}
+function topP(rows, p) {  // sort desc, keep smallest set with cum >= p, renormalize
+  const sorted = rows.slice().sort((a, b) => b.p - a.p);
+  let cum = 0; const keep = new Set();
+  for (const r of sorted) { keep.add(r.tok); cum += r.p; if (cum >= p) break; }
+  const kept = rows.filter(r => keep.has(r.tok));
+  const s = kept.reduce((a, r) => a + r.p, 0);
+  return rows.map(r => ({ ...r, cut:!keep.has(r.tok), p2: keep.has(r.tok) ? r.p / s : 0 }));
+}
+const fmt = (x, d) => x.toFixed(d);
+
+/* ---------- render helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const ctxEl=$("ctx"), ctxn=$("ctxn"), loopback=$("loopback"), stackp=$("stackp"),
+      layersEl=$("layers"), xn=$("xn"), bars=$("bars"), tail=$("tail"), disthd=$("disthd"),
+      mach=$("mach"), tKnob=$("tKnob"), pKnob=$("pKnob"), tSlide=$("tSlide"), tVal=$("tVal"),
+      pChk=$("pChk"), pVal=$("pVal"), smx=$("smx"), cdf=$("cdf"), cdfStrip=$("cdfStrip"),
+      cdfLab=$("cdfLab"), nums=$("nums"), caption=$("caption"), insight=$("insight"),
+      cortexChr=$("cortexChr");
+const state = { mode:"int", T:1, topp:false };
+if (Anim.reduced()) document.body.classList.add("reduce");
+
+function renderCtx(tokens, opts) {   // opts: {newFrom, subs, repFrom}
+  opts = opts || {};
+  ctxEl.innerHTML = tokens.map((t, i) => {
+    const cls = "tok" + (opts.newFrom != null && i >= opts.newFrom ? " new fresh" : "")
+              + (opts.repFrom != null && i >= opts.repFrom ? " rep" : "");
+    const sub = opts.subs ? '<span class="sub2">' + esc(opts.subs[i] || "") + '</span>' : "";
+    return '<span class="' + cls + '">' + esc(t) + sub + '</span>';
+  }).join("");
+  ctxn.textContent = tokens.length + " tokens";
+}
+function renderStack(hot, label, showLayers) {
+  stackp.className = "panel stackp" + (hot ? " hot" : "");
+  layersEl.innerHTML = showLayers
+    ? '<div class="layer">layer 1: attention + FFN</div><div class="layer">layer 2: attention + FFN</div>' +
+      '<div class="layer">...</div><div class="layer">layer 32: attention + FFN</div>'
+    : '<div class="layer">the stack</div>';
+  xn.textContent = label;
+}
+function renderBars(rows, pickIdx, opts) {  // rows from softmax()/topP(); opts {showP, cutKey}
+  opts = opts || {};
+  bars.innerHTML = rows.map((r, i) => {
+    const p = r.p2 != null && !r.cut ? r.p2 : r.p;
+    const cls = "bar" + (i === pickIdx ? " pick" : "") + (r.cut ? " cut" : "");
+    return '<div class="' + cls + '"><span class="bt">' + esc(r.tok) + '</span>' +
+      '<span class="btrack"><span class="bfill" style="width:' + Math.round(p * 100) + '%"></span></span>' +
+      '<span class="bp">' + (opts.showP === false ? "" : fmt(p, 3)) + '</span></div>';
+  }).join("");
+  tail.textContent = "...and 127,994 more tokens share the remaining mass (vocab = 128,000; logits shown for the top 6 are illustrative - the math on them is real).";
+}
+function renderTable(rows, pickIdx, showCols) {  // showCols: {zt, e, p, p2}
+  let h = "<tr><th>token</th><th>logit z</th>";
+  if (showCols.zt) h += "<th>z / T</th>";
+  if (showCols.e)  h += "<th>e^(z/T)</th>";
+  if (showCols.p)  h += "<th>p</th>";
+  if (showCols.p2) h += "<th>p (renorm)</th>";
+  h += "</tr>";
+  rows.forEach((r, i) => {
+    h += '<tr class="' + (i === pickIdx ? "pick" : "") + (r.cut ? " cut" : "") + '">' +
+      "<td>" + esc(r.tok) + "</td><td>" + fmt(r.z, 1) + "</td>" +
+      (showCols.zt ? "<td>" + fmt(r.zt, 2) + "</td>" : "") +
+      (showCols.e  ? "<td>" + fmt(r.e, 1) + "</td>" : "") +
+      (showCols.p  ? "<td>" + fmt(r.p, 4) + "</td>" : "") +
+      (showCols.p2 ? "<td>" + (r.cut ? "0" : fmt(r.p2, 4)) + "</td>" : "") + "</tr>";
+  });
+  smx.innerHTML = h;
+}
+function renderCdf(rows, r) {
+  const colors = ["#58c4dd","#ffd35c","#83c167","#fc6255","#98a2b0","#6b7480"];
+  cdf.hidden = false;
+  cdfStrip.innerHTML = rows.filter(x => !x.cut).map((x, i) =>
+    '<span class="seg" style="width:' + ((x.p2 != null ? x.p2 : x.p) * 100) + '%;background:' + colors[i % 6] + '"></span>'
+  ).join("") + '<span class="rmark" style="left:' + (r * 100) + '%"></span>';
+  cdfLab.textContent = "draw r = " + r + " -> walk the cumulative strip -> it lands in the token that owns that slice.";
+}
+function renderNums(list) {
+  nums.innerHTML = list.map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join("");
+}
+function setKnobs(on, tDefault, toppDefault) {
+  tKnob.className = "knob" + (on ? "" : " off");
+  pKnob.className = "knob" + (on ? "" : " off");
+  if (tDefault != null) { state.T = tDefault; tSlide.value = tDefault; }
+  if (toppDefault != null) { state.topp = toppDefault; pChk.checked = toppDefault; }
+  tVal.textContent = fmt(state.T, 2);
+  pVal.textContent = state.topp ? "0.90" : "off";
+}
+
+/* ---------- INTUITION pass: 8 steps, the story ---------- */
+function renderInt(i, dir) {
+  mach.hidden = true; cdf.hidden = true;
+  const gen = i <= 4 ? 0 : i <= 5 ? 1 : 2;                    // which generation turn
+  const appended = i < 4 ? 0 : i < 5 ? 1 : i < 6 ? 2 : 3;      // tokens appended so far
+  const ctx = PROMPT.concat([" Paris",".","<end>"].slice(0, Math.min(appended, 2)));
+  if (appended >= 3) ctx.push("<end>");
+  renderCtx(ctx, { newFrom: appended ? PROMPT.length : null });
+
+  const passes = Math.min(appended + (i >= 1 && i <= 3 ? 1 : 0), 3) || (i >= 1 ? 1 : 0);
+  renderStack(i === 1 || i === 5 || i === 6, i === 0 ? "the model (a stack of layers)" : "one forward pass", false);
+  loopback.className = "loopback" + (i === 4 || i === 5 || i === 6 ? " hot" : "");
+
+  if (i >= 2) {
+    const rows = softmax(GEN[gen].cand, 1);
+    renderBars(rows, i >= 3 ? GEN[gen].pick : -1, {});
+    disthd.textContent = "computed: softmax(logits), T=1";
+  } else { bars.innerHTML = ""; tail.textContent = ""; disthd.textContent = ""; }
+
+  renderNums([["context", ctx.length + " tokens"], ["forward passes", String(Math.max(passes,0))],
+              ["vocab |V|", "128,000"], ["choices made", appended + " (one per pass)"]]);
+
+  const caps = [
+    "The prompt sits in the context. The question this whole track answers: where does the next word come from?",
+    "Every token flows through the stack - one forward pass over the whole context. No token comes out yet; a ranking does.",
+    "The output is not a word. It is a probability for EVERY token in the vocabulary - a distribution. (These bars are really computed: softmax over the logits shown in mechanism mode.)",
+    "One token is drawn from that distribution. ' Paris' holds ~94% of the mass, and today the draw lands there.",
+    "The drawn token is APPENDED to the context. Read the loop edge: the model's own output just became its input. This is autoregression.",
+    "Around again: pass 2 reads the grown context and produces a NEW distribution - now about what follows ' Paris'. It draws '.'.",
+    "Pass 3: after '.', the most likely 'token' is the end-of-sequence marker. Drawing it is how generation decides to stop - the stop was sampled, like everything else.",
+    "Rewind the whole thing: the model never chose a sentence. It chose ONE token, three times. Chatting, reasoning, refusing - all of it is this loop, run ~40 times per sentence.",
+  ];
+  caption.textContent = caps[i];
+  cortexChr.dataset.e = i <= 1 ? "think" : i === 3 ? "reach" : i >= 7 ? "happy" : "read";
+  Cast.render(stackp);
+  insight.className = "insight";
+  insight.innerHTML = i >= 7
+    ? "<b>The thesis:</b> a language model is a next-token machine. Everything else in this track is this picture, recomposed. Now switch to <b>mechanism</b> and open the machinery."
+    : "One primitive: <b>context -&gt; stack -&gt; distribution -&gt; sample -&gt; append</b>. Watch for it in every module.";
+}
+
+/* ---------- MECHANISM pass: 20 steps in 3 acts ---------- */
+const MECH_ACTS = [["one turn, machinery shown", 7], ["the sampler's knobs", 7], ["consequences + break it", 6]];
+function renderMech(i, dir) {
+  mach.hidden = false; cdf.hidden = true;
+  const rows0 = () => softmax(GEN[0].cand, state.T);
+
+  // defaults per step (user can override with the knobs afterwards)
+  if (dir !== 0 || i === 0) {
+    if (i <= 7)       setKnobs(i >= 7, 1, false);
+    else if (i === 8) setKnobs(true, 0.1, false);
+    else if (i === 9) setKnobs(true, 2, false);
+    else if (i === 10) setKnobs(true, 1, true);
+    else if (i === 11) setKnobs(true, 1, false);
+    else if (i >= 12 && i <= 15) setKnobs(true, 1, false);
+    else if (i === 16 || i === 17) setKnobs(true, 0.1, false);
+    else if (i === 18) setKnobs(true, 0.8, false);
+    else setKnobs(true, 1, false);
+  } else { setKnobs(i >= 7); }
+
+  // ---- ACT 1 (0-6): one turn with the machinery shown ----
+  if (i <= 6) {
+    renderCtx(PROMPT, { subs: i === 0 ? IDS.map(String) : i === 1 ? PROMPT.map(() => "[.12 -.83 ...]") : null });
+    renderStack(i >= 2, i >= 2 ? "32 layers, d = 4,096" : "the stack", i >= 2);
+    loopback.className = "loopback";
+    const raw = GEN[0].cand.map(c => ({ tok:c[0], z:c[1], zt:c[1], e:Math.exp(c[1]), p:0 }));
+    if (i <= 2)      { smx.innerHTML = ""; bars.innerHTML = ""; tail.textContent = ""; disthd.textContent = ""; }
+    else if (i === 3) { renderTable(raw, -1, {}); bars.innerHTML=""; tail.textContent=""; disthd.textContent = "raw logits - not probabilities"; }
+    else if (i === 4) { renderTable(raw, -1, {}); bars.innerHTML=""; tail.textContent=""; disthd.textContent = "raw logits - not probabilities"; }
+    else if (i === 5) { renderTable(softmax(GEN[0].cand, 1), -1, { zt:true, e:true }); bars.innerHTML=""; tail.textContent=""; disthd.textContent = "exponentiate..."; }
+    else              { const r = softmax(GEN[0].cand, 1); renderTable(r, GEN[0].pick, { zt:true, e:true, p:true }); renderBars(r, GEN[0].pick, {}); disthd.textContent = "p = softmax(z), T=1 - computed"; }
+    const caps1 = [
+      "Down a level. Each token is really an ID in a 128,000-entry vocabulary - the IDs under the chips. (Module 1 is about how text becomes these.)",
+      "Each ID looks up an embedding: a vector of d = 4,096 numbers. From here on, the model only does arithmetic on vectors.",
+      "The vectors flow through 32 layers - each one attention (positions exchange information; Module 2) then an FFN (each position thinks alone; Module 4 splits THIS into experts). One pass touches every layer.",
+      "The LAST position's final vector is multiplied against every token's output vector -> one score per vocab entry: the LOGITS. 128,000 raw numbers. Here are the top 6.",
+      "Look at them: 8.1, 4.9, 3.6... They are not probabilities - they don't sum to 1 and can be negative. Something has to turn scores into a distribution.",
+      "That something is softmax: exponentiate each score (making everything positive and gaps multiplicative), then divide by the sum. The table now shows e^z per token.",
+      "Divide through, and the bars appear: ' Paris' 8.1 -> 94% of the mass. Every probability you have ever seen from a model came out of this one line.",
+    ];
+    caption.textContent = caps1[i];
+    cortexChr.dataset.e = i <= 1 ? "read" : i <= 4 ? "think" : "happy";
+    insight.className = "insight";
+    insight.innerHTML = "Act 1: <b>context -&gt; vectors -&gt; layers -&gt; logits -&gt; softmax</b>. The table is computed live - check any row with a calculator.";
+  }
+
+  // ---- ACT 2 (7-13): the sampler's knobs ----
+  else if (i <= 13) {
+    renderCtx(PROMPT, {});
+    renderStack(false, "32 layers, d = 4,096", true);
+    loopback.className = "loopback" + (i === 13 ? " hot" : "");
+    let rows = rows0();
+    let pick = GEN[0].pick;
+    if (state.topp) rows = topP(rows, 0.9);
+    renderTable(rows, pick, { zt:true, e:true, p:true, p2:state.topp });
+    renderBars(rows, pick, {});
+    disthd.textContent = "T = " + fmt(state.T,2) + (state.topp ? ", top-p 0.90" : "") + " - recomputed live";
+    if (i === 11) renderCdf(rows, GEN[0].r);
+    const caps2 = [
+      "The knobs unlock. TEMPERATURE divides every logit before softmax: p_i = e^(z_i/T)/sum. Drag T and watch the table and bars recompute - this is the real formula running.",
+      "T -> 0.1: dividing by a tiny T stretches the gaps, so the softmax collapses onto the top logit. ' Paris' takes ~everything. T=0 is argmax: greedy decoding, same output every time.",
+      "T = 2: the gaps shrink, the tail fattens. ' located' and ' a' now get real mass - more variety, more nonsense. Temperature trades determinism for diversity; it never adds knowledge.",
+      "TOP-P (nucleus): sort by probability, keep the smallest set that covers 90%, renormalize, and the long tail is simply cut. Struck-through rows now have p = 0 - junk can't get lucky.",
+      "The DRAW: pick a random r in [0,1) and walk the cumulative strip below. r = 0.42 lands inside ' Paris'. That single arithmetic step is 'the model chose'.",
+      "Greedy (T=0) replays the same walk every time; any T &gt; 0 makes the draw a genuine lottery. Course 1's run-again widget - two answers from one prompt - is just two different r's.",
+      "Cost of it all: ONE full forward pass per token. A 40-token answer = 40 passes, each reading the whole context... unless we cache what doesn't change. That's Module 3.",
+    ];
+    caption.textContent = caps2[i - 7];
+    cortexChr.dataset.e = i === 9 ? "confused" : i >= 12 ? "reach" : "think";
+    insight.className = "insight";
+    insight.innerHTML = "Act 2: sampling = <b>logits / T -&gt; softmax -&gt; top-p cut -&gt; one draw</b>. Every number on screen recomputes when you touch a knob.";
+  }
+
+  // ---- ACT 3 (14-19): consequences + break it ----
+  else {
+    const k = i - 14;
+    if (k <= 1) {  // divergence
+      renderCtx(PROMPT.concat(k === 0 ? [] : [" Paris / the ?"]), { newFrom: k === 0 ? null : PROMPT.length });
+      renderStack(false, "32 layers", false);
+      loopback.className = "loopback" + (k === 1 ? " hot" : "");
+      const rows = softmax(GEN[0].cand, 1);
+      renderTable(rows, 0, { p:true });
+      renderBars(rows, 0, {});
+      disthd.textContent = "same prompt, two runs, two r's";
+      caption.textContent = k === 0
+        ? "Two runs, same prompt, T = 1. Run A draws r = 0.42 -> ' Paris'. Run B draws r = 0.97 - deep in the tail -> ' the'. Nothing changed but the random number."
+        : "And now the runs can never re-converge: their CONTEXTS differ, so every later distribution differs. A one-token fork compounds into two different answers. This is why identical prompts diverge.";
+      cortexChr.dataset.e = "think";
+      insight.className = "insight";
+      insight.innerHTML = "Act 3: the loop's feedback is what makes sampling matter - <b>each draw changes every future distribution</b>.";
+    } else {       // the repetition trap
+      const reps = k === 2 ? 0 : k === 3 ? 6 : 4;
+      const extra = [" and", " so", " on", " and", " so", " on"].slice(0, reps);
+      if (k === 4) extra.push(".");
+      const ctx = LOOP_PROMPT.concat(extra);
+      renderCtx(ctx, { repFrom: k >= 3 ? LOOP_PROMPT.length : null, newFrom: k === 4 ? ctx.length - 1 : null });
+      renderStack(false, "32 layers", false);
+      loopback.className = "loopback hot";
+      const cand = k === 4 ? LOOP_CAND.on : LOOP_CAND.on;
+      let rows = softmax(cand, state.T);
+      renderTable(rows, k === 4 ? 1 : 0, { zt:true, p:true });
+      renderBars(rows, k === 4 ? 1 : 0, {});
+      disthd.textContent = "after ' on': T = " + fmt(state.T,2) + " - computed";
+      const caps3 = [
+        "BREAK IT. New prompt: 'and so on'. Set T ~ 0 (greedy). After ' on', the argmax is ' and'. After ' and': ' so'. After ' so': ' on'. Three argmaxes that point at each other...",
+        "...and the loop is caught. Greedy decoding walks the cycle forever: ' and so on and so on and'. No bug, no crash - the argmax path really is a closed loop, and T = 0 has no way out.",
+        "The escape is randomness: at T = 0.8 the '.' row holds a few percent (see the table), and within a few draws one lands there. The spell breaks mid-sentence. (Real stacks also add repetition penalties - same idea, forced.)",
+      ];
+      caption.textContent = caps3[k - 2];
+      cortexChr.dataset.e = k === 3 ? "panic" : k === 4 ? "happy" : "confused";
+      insight.className = k === 3 ? "insight bad" : "insight";
+      insight.innerHTML = k >= 4
+        ? "<b>The roadmap:</b> tokens (M1) enter the stack; attention (M2) moves info; the KV cache (M3) makes the loop affordable; experts (M4) decide what wakes up; training (M6) bends these bars; reasoning (M7) is this loop given room to think. One picture, nine modules."
+        : "<b>FAIL.</b> Determinism + a self-pointing argmax = an infinite loop. The fix is the same randomness that made runs diverge in act 3, step 1.";
+    }
+    renderNums([["context", "grows every pass"], ["passes", "one per token"],
+                ["vocab |V|", "128,000"], ["T", fmt(state.T,2)]]);
+    Cast.render(stackp);
+    return;
+  }
+
+  renderNums([["vocab |V|", "128,000"], ["d (model width)", "4,096"], ["layers", "32"],
+              ["logits per pass", "128,000"], ["T", fmt(state.T,2)]]);
+  Cast.render(stackp);
+}
+
+/* ---------- wiring: two timelines, one stage ---------- */
+let tl = null;
+function build(mode) {
+  state.mode = mode;
+  const isInt = mode === "int";
+  tl = new Anim.Timeline({
+    length: isInt ? 8 : 20,
+    autoMs: isInt ? 2000 : 2600,
+    onStep: (i, d) => (isInt ? renderInt(i, d) : renderMech(i, d)),
+  });
+  Anim.scrubber($("scrub"), tl, {
+    label: isInt ? (i => "step " + (i + 1) + " / 8") : Anim.actLabel(MECH_ACTS),
+  });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  build(b.dataset.mode);
+});
+tSlide.oninput = () => { state.T = +tSlide.value; tVal.textContent = fmt(state.T, 2); if (tl) tl.render(0); };
+pChk.onchange = () => { state.topp = pChk.checked; pVal.textContent = state.topp ? "0.90" : "off"; if (tl) tl.render(0); };
+
+build("int");
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Essence of Models - inside the model</title>
+<link rel="stylesheet" href="../assets/theme.css" />
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; display:flex; height:100vh; overflow:hidden;
+         font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink); background:var(--bg); }
+  #side { width:276px; flex:none; background:var(--side); border-right:1px solid var(--line);
+          overflow:auto; padding:16px 0 40px; }
+  .brand { display:flex; align-items:center; gap:10px; padding:0 18px 2px; }
+  .brand .chr svg { width:34px; height:34px; }
+  .brand .bt { font-family:var(--serif); font-weight:600; font-size:17px; }
+  .brand .bt .dot { color:var(--gold); }
+  .group { margin-top:8px; }
+  .gh { font-size:11px; color:var(--faint); text-transform:uppercase; letter-spacing:.12em; padding:12px 18px 4px; }
+  .gnote { font-size:12px; color:var(--faint); font-style:italic; padding:0 18px 4px; }
+  .navlink { display:block; width:100%; text-align:left; border:0; border-left:2px solid transparent; background:none; cursor:pointer;
+             font:inherit; color:var(--dim); padding:7px 18px 7px 26px; }
+  .navlink:hover { background:#12161c; color:var(--ink); }
+  .navlink.active { color:var(--ink); border-left-color:var(--blue); background:#12171e; }
+  main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #bar { height:46px; flex:none; display:flex; align-items:center; gap:12px;
+         border-bottom:1px solid var(--line); padding:0 16px; background:var(--side); }
+  #now .mod { font-weight:600; }
+  #now .lbl { color:var(--dim); margin-left:8px; }
+  .count { color:var(--faint); font:12px var(--mono); margin-left:10px; }
+  .navbtn { font:inherit; font-size:13px; border:1px solid var(--line); background:none; color:var(--ink);
+            padding:5px 12px; border-radius:7px; cursor:pointer; }
+  .navbtn:hover:not(:disabled) { border-color:var(--blue); color:var(--blue); }
+  .navbtn:disabled { opacity:.35; cursor:default; }
+  #prev { margin-right:12px; }
+  #next { margin-left:auto; }
+  #ext { margin-left:14px; color:var(--blue); text-decoration:none; font-size:13px; }
+  #ext:hover { text-decoration:underline; }
+  iframe { flex:1; width:100%; border:0; background:var(--bg); }
+  .homelink { display:block; padding:0 18px 10px 62px; margin-top:-4px; color:var(--dim); font-size:12px; text-decoration:none; }
+  .homelink:hover { color:var(--blue); }
+  .tolink { display:block; margin:16px 14px 4px; padding:11px 13px; border:1px solid var(--line);
+            border-left:3px solid var(--gold); border-radius:9px; color:var(--ink); text-decoration:none; }
+  .tolink:hover { border-color:var(--gold); background:#12171e; }
+  .tolink b { color:var(--gold); }
+  .tolink .sub2 { display:block; color:var(--dim); font-size:12px; margin-top:1px; }
+  #lesson { flex:none; border-bottom:1px solid var(--line); background:#0e1319; }
+  #lesson[hidden] { display:none; }
+  #lesson summary { cursor:pointer; padding:9px 18px; color:var(--ink); font-size:13.5px; list-style:none; }
+  #lesson summary::-webkit-details-marker { display:none; }
+  #lesson summary .qk { color:var(--faint); font:11px var(--mono); text-transform:uppercase; letter-spacing:.1em; margin:0 8px; }
+  #lesson summary .caret { color:var(--faint); }
+  #lesson details[open] summary .caret { color:var(--blue); }
+  #lesson .lbody { padding:0 18px 12px 42px; color:var(--dim); font-size:13.5px; }
+  #lesson .lbody b { color:var(--gold); }
+  #lesson .lbody a { color:var(--blue); text-decoration:none; font-size:12.5px; }
+  #lesson .lbody a:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<nav id="side"></nav>
+<main>
+  <header id="bar">
+    <button id="prev" class="navbtn">&larr; Prev</button>
+    <span id="now"></span><span id="count" class="count"></span>
+    <button id="next" class="navbtn">Next &rarr;</button>
+    <a id="ext" target="_blank" rel="noopener">open in new tab &#8599;</a>
+  </header>
+  <div id="lesson" hidden></div>
+  <iframe id="frame" title="widget"></iframe>
+</main>
+
+<script src="../assets/cast.js"></script>
+<script>
+const NAV = [
+  { m:"Module 0 - Autoregression", items:[
+    { label:"The next-token loop", src:"module-00-autoregression/widgets/next-token-loop/index.html" },
+  ]},
+];
+
+// The written lesson (Question -> Aha) surfaced per module, above the widget.
+const LESSONS = {
+  "Module 0 - Autoregression": { q:"You have watched answers stream in. What is actually looping?",
+    aha:"Generation is a loop: context -> stack -> distribution -> sample -> append -> repeat. The model never chooses a sentence - it chooses ONE token, ~40 times per sentence, feeding each one back into its own input." },
+};
+
+const side = document.getElementById("side");
+const frame = document.getElementById("frame");
+const now = document.getElementById("now");
+const ext = document.getElementById("ext");
+const prev = document.getElementById("prev");
+const next = document.getElementById("next");
+const count = document.getElementById("count");
+const lesson = document.getElementById("lesson");
+
+const flat = [];
+NAV.forEach(g => g.items.forEach(it => flat.push({ ...it, module: g.m })));
+
+side.innerHTML =
+  `<div class="brand"><span class="chr" data-c="cortex" data-e="think"></span><span class="bt">Essence of Models<span class="dot">.</span></span></div>` +
+  `<a class="homelink" href="../index.html">&larr; all tracks</a>` +
+  `<div class="gnote" style="padding:6px 18px">Inside the model: the deep-dive track. New - modules land one by one.</div>` +
+  NAV.map(g => `
+    <div class="group">
+      <div class="gh">${g.m}</div>
+      ${g.items.map(it => `<button class="navlink" data-src="${it.src}">${it.label}</button>`).join("")}
+    </div>`).join("") +
+  `<a class="tolink" href="../agentic-course/index.html"><b>&larr; The course</b><span class="sub2">the loop around the model</span></a>` +
+  `<a class="tolink" href="../production/index.html"><b>Production &rarr;</b><span class="sub2">harden that loop for real users</span></a>`;
+
+Cast.render(side);
+
+let curIdx = 0;
+
+function load(src) {
+  const i = flat.findIndex(x => x.src === src);
+  curIdx = i < 0 ? 0 : i;
+  const item = flat[curIdx];
+  frame.src = item.src;
+  now.innerHTML = `<b class="mod">${item.module}</b><span class="lbl">${item.label}</span>`;
+  ext.href = item.src;
+  count.textContent = `${curIdx + 1} / ${flat.length}`;
+  location.hash = encodeURIComponent(item.src);
+  prev.disabled = curIdx === 0;
+  next.disabled = curIdx === flat.length - 1;
+  document.querySelectorAll(".navlink").forEach(a => a.classList.toggle("active", a.dataset.src === item.src));
+
+  const L = LESSONS[item.module];
+  if (L) {
+    const readme = item.src.includes("/widgets/") ? item.src.split("/widgets/")[0] + "/README.md" : null;
+    lesson.hidden = false;
+    lesson.innerHTML =
+      `<details><summary><span class="caret">&#9656;</span><span class="qk">the question</span>${L.q}</summary>` +
+      `<div class="lbody"><p><b>The idea:</b> ${L.aha}</p>` +
+      (readme ? `<a href="${readme}" target="_blank" rel="noopener">Read the full written lesson (README) &rarr;</a>` : "") +
+      `</div></details>`;
+  } else {
+    lesson.hidden = true;
+    lesson.innerHTML = "";
+  }
+}
+
+side.querySelectorAll(".navlink").forEach(a => (a.onclick = () => load(a.dataset.src)));
+prev.onclick = () => { if (curIdx > 0) load(flat[curIdx - 1].src); };
+next.onclick = () => { if (curIdx < flat.length - 1) load(flat[curIdx + 1].src); };
+
+const initial = location.hash ? decodeURIComponent(location.hash.slice(1)) : flat[0].src;
+load(initial);
+</script>
+</body>
+</html>

@@ -87,5 +87,16 @@
     };
   }
 
-  global.Anim = { reduced: reduced, Timeline: Timeline, scrubber: scrubber };
+  /* Act-structured labels for long mechanism scenes (models track).
+     acts = [["one turn", 7], ["the knobs", 7], ...] ->
+     label(i) = "act 2 . the knobs . 3/7" */
+  function actLabel(acts) {
+    return function (i) {
+      var k = 0, off = 0;
+      while (k < acts.length - 1 && i >= off + acts[k][1]) { off += acts[k][1]; k++; }
+      return "act " + (k + 1) + " . " + acts[k][0] + " . " + (i - off + 1) + "/" + acts[k][1];
+    };
+  }
+
+  global.Anim = { reduced: reduced, Timeline: Timeline, scrubber: scrubber, actLabel: actLabel };
 })(window);
