@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Training stages: same machine, different manners</title>
+<!-- Essence of Models, Module 6. The per-stage logits are hand-authored (labeled);
+     every softmax and probability shift is computed live. Only verified real number
+     used: DeepSeek-V3 pretrained on ~14.8T tokens (arXiv 2412.19437). The bat-and-ball
+     is a deliberate callback to course 1, Module 2. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:920px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 12px; }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  /* the stage ribbon: which of the 4 training stages we are looking at */
+  .ribbon { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .stg { flex:1; min-width:120px; border:1px solid var(--line); border-radius:9px; background:var(--panel);
+         padding:6px 10px; text-align:center; transition:all .2s; opacity:.4; }
+  .stg .sn { font:9.5px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); display:block; }
+  .stg .st { font:12px var(--mono); color:var(--dim); }
+  .stg.on { opacity:1; border-color:var(--blue); background:#12171e; box-shadow:0 0 10px rgba(88,196,221,.18); }
+  .stg.on .sn { color:var(--blue); } .stg.on .st { color:var(--ink); }
+  .rarrow { color:var(--faint); font:12px var(--mono); }
+
+  .flow { display:flex; gap:12px; align-items:stretch; }
+  .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:10px 12px; }
+  .panel .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em;
+               color:var(--faint); margin-bottom:7px; }
+
+  .genp { flex:1.15; min-width:0; }
+  .prompt { font:12.5px var(--mono); color:#cdd3da; background:var(--panel); border:1px solid var(--line);
+            border-left:3px solid var(--gold); border-radius:7px; padding:6px 10px; margin-bottom:8px; }
+  .prompt .pl { font-size:9px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em; display:block; }
+  .cont { font:13px/1.7 var(--mono); color:var(--ink); min-height:76px; }
+  .cont .g { color:var(--green); } .cont .dim { color:var(--faint); } .cont .think { color:var(--blue); font-style:italic; }
+  .cont .end { color:var(--gold); border:1px solid var(--gold); border-radius:4px; padding:0 5px; font-size:11px; }
+  .cont .bad { color:#ffbdb7; }
+
+  .distp { flex:1; min-width:0; }
+  .bar { display:flex; align-items:center; gap:7px; margin:4px 0; }
+  .bar .bt { font:11.5px var(--mono); color:#cdd3da; min-width:56px; text-align:right; white-space:nowrap; }
+  .bar .btrack { flex:1; height:15px; border-radius:4px; background:#141b22; overflow:hidden; }
+  .bar .bfill { display:block; height:100%; width:0; background:var(--blue); border-radius:4px; transition:width .5s ease; }
+  .bar.pick .bfill { background:var(--gold); box-shadow:0 0 8px rgba(255,211,92,.4); }
+  .bar.end .bfill { background:var(--green); }
+  .bar .bp { font:10.5px var(--mono); color:var(--dim); min-width:46px; }
+  .disthd2 { font:10px var(--mono); color:var(--faint); margin-top:6px; }
+  .reduce .bfill { transition:none; }
+
+  .mach { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; margin-top:12px; }
+  .mach[hidden] { display:none; }
+  .formula { font:13px var(--mono); color:var(--ink); background:var(--panel); border:1px solid var(--line);
+             border-radius:8px; padding:8px 12px; display:inline-block; margin-bottom:8px; }
+  .formula b { color:var(--blue); }
+  .ex { font:12px/1.7 var(--mono); }
+  .ex .tok { border:1px solid var(--line); border-radius:5px; padding:1px 6px; margin:1px; display:inline-block; color:#cdd3da; }
+  .ex .tok.loss { border-color:var(--gold); color:var(--gold); }
+  .ex .tok.masked { opacity:.32; }
+  .ex .tok.chosen { border-color:var(--green); color:#c8e6b8; }
+  .ex .tok.rej { border-color:var(--red); color:#ffbdb7; }
+  .ex .lbl { color:var(--faint); font-size:10px; }
+  .funnel { display:flex; flex-direction:column; gap:4px; }
+  .frow { display:flex; align-items:center; gap:8px; }
+  .frow .fl { font:11px var(--mono); color:var(--dim); min-width:130px; }
+  .frow .fbar { height:14px; background:var(--blue); border-radius:3px; transition:width .5s ease; }
+  .frow .fv { font:10.5px var(--mono); color:var(--ink); }
+  .calc .src { font-size:10px; color:var(--faint); margin-top:6px; display:block; }
+
+  .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
+          font:11.5px var(--mono); color:var(--dim); }
+  .stat b { color:var(--ink); font-weight:600; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:78px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .insight.bad { border-left-color:var(--red); }
+
+  @media (max-width:720px){ body { padding:0 12px 48px; } .flow { flex-direction:column; } }
+</style>
+</head>
+<body>
+<h1>Training stages: same machine, different manners</h1>
+<p class="sub">A base model, a chat model, and a reasoning model can share the SAME architecture and weight
+family - yet answer completely differently. This module shows why: <b>training shapes the distribution,
+not the knowledge.</b> Same next-token machine from Module 0; each stage bends which token it prefers.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (four manners)</button>
+  <button class="modebtn" data-mode="mech">mechanism (batches, loss, data)</button>
+  <span class="modehint">same stage, two altitudes</span>
+</div>
+
+<div class="ribbon" id="ribbon"></div>
+
+<div class="flow" role="group" aria-label="One prompt continued four ways as training progresses">
+  <div class="panel genp">
+    <div class="prompt"><span class="pl" id="promptLbl">prompt (fixed)</span><span id="promptText"></span></div>
+    <div class="hd">the model's continuation</div>
+    <div class="cont" id="cont"></div>
+  </div>
+  <div class="panel distp">
+    <div class="hd" id="distHd">next-token distribution (computed)</div>
+    <div id="bars"></div>
+    <div class="disthd2" id="distNote"></div>
+  </div>
+</div>
+
+<div class="mach" id="mach" hidden></div>
+
+<div class="nums" id="nums"></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+/* ---------- stages ---------- */
+const STAGES = [
+  { key:"base",  sn:"stage 1", st:"pretraining" },
+  { key:"sft",   sn:"stage 2", st:"SFT (imitate)" },
+  { key:"pref",  sn:"stage 3", st:"preference (RLHF/DPO)" },
+  { key:"reason",sn:"stage 4", st:"reasoning RL" },
+];
+
+/* ---------- the killer A/B: distribution over the token AFTER "...is Paris" ----------
+   Same knowledge (Paris both times); the STOP token's probability is what training moved.
+   Logits hand-authored; softmax computed. */
+const AFTER_PARIS = [" The", ".", ",", " (", " and", "<end>"];
+const LOGITS = {
+  base: [4.6, 4.2, 3.0, 2.2, 3.4, 1.0],   // " The ..." wins -> keeps completing
+  sft:  [1.2, 4.3, 1.5, 0.5, 0.8, 6.0],   // <end> wins -> answers and stops
+};
+function softmax(logits) {
+  const e = logits.map(z => Math.exp(z)); const s = e.reduce((a, b) => a + b, 0);
+  return logits.map((z, i) => ({ tok: AFTER_PARIS[i], p: e[i] / s }));
+}
+const P_BASE = softmax(LOGITS.base), P_SFT = softmax(LOGITS.sft);
+const pf = (x) => x.toFixed(3);
+
+/* ---------- dom ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const ribbon=$("ribbon"), promptText=$("promptText"), promptLbl=$("promptLbl"), cont=$("cont"),
+      distHd=$("distHd"), bars=$("bars"), distNote=$("distNote"), mach=$("mach"),
+      nums=$("nums"), caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+if (Anim.reduced()) document.body.classList.add("reduce");
+function react(who, emote, line) { chrR.dataset.c = who; chrR.dataset.e = emote; reactLine.textContent = line; Cast.render($("react")); }
+
+function setRibbon(activeKey) {
+  ribbon.innerHTML = STAGES.map((s, i) =>
+    '<div class="stg' + (s.key === activeKey ? " on" : "") + '"><span class="sn">' + s.sn + '</span>' +
+    '<span class="st">' + s.st + '</span></div>' + (i < 3 ? '<span class="rarrow">&rarr;</span>' : "")).join("");
+}
+function setPrompt(lbl, text) { promptLbl.textContent = lbl; promptText.innerHTML = text; }
+function renderBars(rows, pickTok, endTok) {
+  bars.innerHTML = rows.map(r => {
+    const cls = "bar" + (r.tok === endTok ? " end" : r.tok === pickTok ? " pick" : "");
+    return '<div class="' + cls + '"><span class="bt">' + esc(r.tok) + '</span>' +
+      '<span class="btrack"><span class="bfill" style="width:' + Math.round(r.p * 100) + '%"></span></span>' +
+      '<span class="bp">' + pf(r.p) + '</span></div>';
+  }).join("");
+}
+function setNums(list) { nums.innerHTML = list.map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join(""); }
+
+/* ---------- INTUITION: 10 steps ---------- */
+function renderInt(i) {
+  mach.hidden = true;
+  const F = [
+    () => { setRibbon(null); setPrompt("prompt (fixed)", "The capital of France is");
+      cont.innerHTML = '<span class="dim">(four versions of one model are about to answer this - watch them diverge)</span>';
+      bars.innerHTML = ""; distNote.textContent = ""; distHd.textContent = "next-token distribution (computed)"; },
+    () => { setRibbon("base"); setPrompt("prompt (fixed)", "The capital of France is");
+      cont.innerHTML = 'Paris<span class="g">. The capital of Spain is Madrid. The capital of Italy is Rome. The capital of</span><span class="dim"> ...(never stops)</span>';
+      renderBars(P_BASE, " The", "<end>"); distHd.textContent = "after '...is Paris': what comes next? (computed)";
+      distNote.textContent = "<end> holds just " + pf(P_BASE[5].p) + " - so it rolls on into a new sentence."; },
+    () => { setRibbon("base"); setPrompt("prompt (fixed)", "The capital of France is");
+      cont.innerHTML = 'Paris<span class="g">. The capital of Spain is Madrid...</span>';
+      renderBars(P_BASE, " The", "<end>"); distHd.textContent = "the base model already KNEW Paris"; distNote.textContent = "knowledge: present. Manners: none."; },
+    () => { setRibbon("sft"); setPrompt("prompt (fixed)", "The capital of France is");
+      cont.innerHTML = 'Paris.<span class="end">&lt;end&gt;</span>';
+      renderBars(P_SFT, ".", "<end>"); distHd.textContent = "SAME prompt, after SFT (computed)";
+      distNote.textContent = "<end> jumped to " + pf(P_SFT[5].p) + " - it answers, then stops."; },
+    () => { setRibbon("sft"); setPrompt("prompt (fixed)", "The capital of France is");
+      cont.innerHTML = 'Paris.<span class="end">&lt;end&gt;</span>';
+      renderBars(P_SFT, ".", "<end>"); distHd.textContent = "what actually changed?";
+      distNote.textContent = "'Paris' was top BOTH times. Only the STOP token's mass moved: " + pf(P_BASE[5].p) + " -> " + pf(P_SFT[5].p) + "."; },
+    () => { setRibbon("pref"); setPrompt("prompt (switched - this stage needs judgment, not a fact)", "how do i center a div in css");
+      cont.innerHTML = '<span class="g">You have a few options. The simplest is flexbox:</span><br><span class="dim">display: flex; justify-content: center; align-items: center;</span>';
+      bars.innerHTML = '<div class="bar end"><span class="bt">chosen</span><span class="btrack"><span class="bfill" style="width:82%"></span></span><span class="bp">preferred</span></div>' +
+        '<div class="bar"><span class="bt">rejected</span><span class="btrack"><span class="bfill" style="width:18%"></span></span><span class="bp">terse</span></div>';
+      distHd.textContent = "preference: probability pushed toward the ranked-better answer";
+      distNote.textContent = "no single 'correct' token here - humans RANKED whole outputs; training moved mass to the preferred style."; },
+    () => { setRibbon("pref"); setPrompt("prompt (switched)", "how do i center a div in css");
+      cont.innerHTML = '<span class="g">You have a few options. The simplest is flexbox: ...</span>';
+      bars.innerHTML = '<div class="bar end"><span class="bt">helpful</span><span class="btrack"><span class="bfill" style="width:82%"></span></span><span class="bp">up</span></div>' +
+        '<div class="bar bad"><span class="bt">blunt</span><span class="btrack"><span class="bfill" style="width:18%"></span></span><span class="bp">down</span></div>';
+      distHd.textContent = "helpfulness, formatting, tone, safety - all live here"; distNote.textContent = "still zero new facts. Just preferred manners."; },
+    () => { setRibbon("reason"); setPrompt("prompt (switched - a trap question, course 1's bat & ball)", "A bat and ball cost $1.10. The bat costs $1 more than the ball. The ball costs");
+      cont.innerHTML = 'SFT model: <span class="bad">$0.10</span> <span class="dim">(the intuitive trap - wrong)</span>';
+      bars.innerHTML = ""; distHd.textContent = "an SFT model blurts the trap answer"; distNote.textContent = "it answers immediately - the manner it learned - even when the answer is wrong."; },
+    () => { setRibbon("reason"); setPrompt("prompt (switched)", "A bat and ball cost $1.10. The bat costs $1 more than the ball. The ball costs");
+      cont.innerHTML = '<span class="think">&lt;think&gt; let ball = x; bat = x+1; x + (x+1) = 1.10; 2x = 0.10; x = 0.05 &lt;/think&gt;</span><br><span class="g">$0.05</span> <span class="dim">(correct)</span>';
+      bars.innerHTML = ""; distHd.textContent = "a reasoning-RL model deliberates first"; distNote.textContent = "RL rewarded chains that VERIFY (Module 7) - so it learned to think before answering."; },
+    () => { setRibbon(null); setPrompt("the whole point", "one weight family");
+      cont.innerHTML = '<span class="g">base</span> knew Paris. <span class="g">SFT</span> learned to answer + stop. <span class="g">preference</span> learned tone/help/safety. <span class="g">reasoning</span> learned to think first.<br><span class="dim">no stage taught a new fact.</span>';
+      bars.innerHTML = ""; distHd.textContent = "same machine, four manners"; distNote.textContent = ""; },
+  ];
+  F[i]();
+  const caps = [
+    "A base model, a chat model like the one you talk to, and a reasoning model can be the SAME architecture, even the same starting weights. Yet they behave nothing alike. This module is the why - and it is not 'more knowledge'.",
+    "STAGE 1, pretraining: predict the next token over trillions of tokens of web text. That makes a COMPLETION machine. Give it 'The capital of France is' and it says 'Paris' - then keeps going, into Spain, Italy, forever. It cannot stop, because stopping was never the game.",
+    "Crucial: it already KNEW Paris. Pretraining loaded the knowledge. What it lacks is manners - the sense that a question deserves an answer and then silence.",
+    "STAGE 2, SFT (supervised fine-tuning): show it thousands of curated question->answer dialogues and have it imitate them. Same prompt now: 'Paris.' and it STOPS. Look at the bars - the <end> token, near zero before, now dominates.",
+    "And look what did NOT change: 'Paris' was the top content token in BOTH distributions. SFT did not teach France's capital - it already knew. SFT moved the probability of STOPPING. That is the whole trick, made of one number.",
+    "STAGE 3, preference tuning (RLHF / DPO). Some prompts have no single right token - 'center a div' has many valid answers. So humans RANK whole outputs, and training pushes probability toward the preferred one. (Switched prompts here - a fact prompt can't show this.)",
+    "This is where helpfulness, formatting, tone, and safety are shaped. Still no new facts enter - the model is being taught which of its already-possible answers people prefer.",
+    "STAGE 4, reasoning RL. Give an SFT model course 1's bat-and-ball trap and it blurts '$0.10' - fast, confident, wrong. The manner it learned (answer immediately) betrays it on hard problems.",
+    "Reasoning RL rewards attempts that pass a VERIFIER (Module 7's story). Chains of thought that reach the checkable-correct answer get reinforced - so the model learns to deliberate first: x = 0.05. Same weights family, a new habit: think, then answer.",
+    "The aha: not one of these stages taught a new fact. The base model already contained Paris, flexbox, and the algebra. Each stage only bent WHICH of its completions it prefers - stop here, phrase it kindly, think first. Training shapes the distribution, not the knowledge.",
+  ];
+  caption.textContent = caps[i];
+  setNums([["architecture", "unchanged all 4 stages"], ["what moves", "the distribution"], ["what doesn't", "the facts inside"]]);
+  insight.className = "insight";
+  insight.innerHTML = i >= 9
+    ? "<b>The aha:</b> stages shape the distribution, not the knowledge. Switch to <b>mechanism</b> to see each stage's batch, loss, and how sharply the data shrinks."
+    : "One primitive again: <b>the next-token distribution from Module 0</b> - each training stage just reshapes it.";
+  const R = [
+    ["cortex", "neutral", "Four versions of me walk into a bar. They all answer differently. Same brain."],
+    ["cortex", "confused", "I said Paris and just... kept going. Into Spain. I don't know how to shut up - nobody taught me."],
+    ["cortex", "think", "I KNEW Paris the whole time. Pretraining gave me the facts, not the finesse."],
+    ["bit", "happy", "I showed it thousands of Q&A pairs. Watch <end> light up green - it learned to land the plane."],
+    ["cortex", "read", "Same 'Paris', a different stop button. My knowledge never moved; my manners did."],
+    ["bit", "think", "No right answer here, so I let humans RANK my outputs and pushed toward the winner."],
+    ["cortex", "neutral", "Helpfulness and tone, tuned in. Still can't tell you a single new fact from this stage."],
+    ["cortex", "confused", "$0.10! It's obviously - wait. Is it? I answered before I checked. Classic me."],
+    ["cortex", "happy", "Given room to think and a reward for being RIGHT, I slow down: x = 0.05. Module 7 is this, in full."],
+    ["bit", "happy", "One weight family, four manners. I never once taught it a fact - I shaped what it prefers."],
+  ];
+  react(...R[i]);
+}
+
+/* ---------- MECHANISM: 18 steps, 3 acts ---------- */
+const MECH_ACTS = [["one batch per stage", 8], ["what updates + the data funnel", 6], ["break it: the taxes", 4]];
+function renderMech(i) {
+  mach.hidden = false; bars.innerHTML = ""; distNote.textContent = "";
+  distHd.textContent = "the training example (not generation)";
+
+  if (i <= 7) {  // ---- ACT 1: one batch per stage ----
+    if (i <= 1) {         // pretraining
+      setRibbon("base"); setPrompt("a chunk of raw web text (one of trillions)", "the Eiffel Tower is in Paris , the");
+      cont.innerHTML = '<span class="dim">no labels, no format - just text found on the internet</span>';
+      mach.innerHTML = '<span class="formula">loss = -log p(next token) &nbsp; at <b>every</b> position</span>' +
+        '<div class="ex"><span class="lbl">predict-the-next at each token (gold = a position scored):</span><br>' +
+        ["the","Eiffel","Tower","is","in","Paris",","].map(t => '<span class="tok loss">' + t + '</span>').join("") +
+        '</div><span class="calc src">' + (i === 1 ? 'scale (verified): DeepSeek-V3 pretrained on ~14.8T tokens. Every token is a free training label - that is why pretraining can be web-scale.' : 'the text IS the supervision: to predict token n you needed to understand tokens 1..n-1.') + '</span>';
+    }
+    else if (i <= 3) {    // SFT
+      setRibbon("sft"); setPrompt("a curated dialogue (thousands, hand-written or filtered)", "");
+      cont.innerHTML = '<span class="dim">user:</span> what is the capital of France?<br><span class="dim">assistant:</span> <span class="g">Paris.</span>';
+      mach.innerHTML = '<span class="formula">same next-token loss - but only on the <b>assistant</b> tokens</span>' +
+        '<div class="ex"><span class="lbl">the prompt is MASKED (grey = not scored); loss only on the reply:</span><br>' +
+        '<span class="tok masked">user:</span><span class="tok masked">what</span><span class="tok masked">is</span><span class="tok masked">...France?</span>' +
+        '<span class="tok loss">Paris</span><span class="tok loss">.</span><span class="tok loss">&lt;end&gt;</span></div>' +
+        '<span class="calc src">' + (i === 3 ? 'identical machinery to pretraining - the ONLY change is which tokens the loss sees. Manners are just "imitate these replies, including where they stop".' : 'the model learns the SHAPE of a helpful reply by copying good ones.') + '</span>';
+    }
+    else if (i <= 5) {    // preference / DPO
+      setRibbon("pref"); setPrompt("a preference PAIR for one prompt", "how do i center a div?");
+      cont.innerHTML = '<span class="g">chosen:</span> "Use flexbox: display:flex; justify-content:center..." <br><span class="bad">rejected:</span> "just use css lol"';
+      mach.innerHTML = '<span class="formula">push p(<b>chosen</b>) up, p(<b>rejected</b>) down &nbsp; (DPO)</span>' +
+        '<div class="ex"><span class="tok chosen">chosen response &uarr;</span> &nbsp; <span class="tok rej">rejected response &darr;</span></div>' +
+        '<span class="calc src">' + (i === 5 ? 'no "correct token" exists - the label is a RANKING between two whole outputs. RLHF does the same via a reward model; DPO skips the reward model and optimizes the pair directly.' : 'the model is not told the right answer - only which of two answers a human preferred.') + '</span>';
+    }
+    else {                // reasoning RL
+      setRibbon("reason"); setPrompt("one problem, many sampled attempts, a verifier", "ball costs? (bat+ball=$1.10, bat=$1 more)");
+      cont.innerHTML = '<span class="think">attempt 1:</span> $0.10 <span class="bad">&#10007; verifier: wrong</span><br>' +
+        '<span class="think">attempt 2:</span> ...x=0.05 <span class="g">&#10003; verifier: correct</span><br>' +
+        '<span class="dim">reinforce the attempts that passed.</span>';
+      mach.innerHTML = '<span class="formula">sample K attempts &rarr; score with a <b>verifier</b> &rarr; reinforce the winners</span>' +
+        '<div class="ex"><span class="tok rej">$0.10 (score 0)</span> <span class="tok chosen">x=0.05 (score 1)</span> <span class="lbl">... x K samples</span></div>' +
+        '<span class="calc src">' + (i === 7 ? 'the reward is CORRECTNESS, checked by a verifier (course 1, Module 6) - not a human rating. That is why reasoning RL works best where answers are checkable: math, code.' : 'no human writes the chain of thought - good chains EMERGE because they score.') + '</span>';
+    }
+    const caps1 = [
+      "Down a level: what does one training EXAMPLE look like at each stage? Stage 1, pretraining. The example is raw web text - no labels at all. The loss: predict the next token at every position (the same -log p from Module 0, now used to TRAIN, not generate).",
+      "The genius of it: the text is its own answer key. To predict 'Paris' after 'the Eiffel Tower is in' you must have learned geography. Every token is a free label, so pretraining scales to ~14.8T tokens (DeepSeek-V3, verified). This is where the knowledge comes from.",
+      "Stage 2, SFT. Now the example is a curated user->assistant dialogue. The machinery is IDENTICAL to pretraining - next-token loss - with one change.",
+      "The change: mask the prompt. Loss is computed ONLY on the assistant's tokens (gold), including the <end>. The model learns to imitate the shape of a good reply - which is exactly 'answer, then stop'. That is manners, made of masking.",
+      "Stage 3, preference. Here there is no single correct token to imitate. The example is a PAIR: a chosen response and a rejected one, for the same prompt.",
+      "The loss pushes probability toward 'chosen' and away from 'rejected' (this is DPO; RLHF reaches the same end through a reward model). The supervision is a human RANKING, not an answer - which is how taste, tone, and safety get in.",
+      "Stage 4, reasoning RL. The example is a problem with a checkable answer. Sample K attempts, run each past a VERIFIER, and reinforce the ones that pass.",
+      "Nobody writes the reasoning. Good chains of thought EMERGE because they score correct - reinforcement selects for them. And this only works where a cheap verifier exists (math, code) - the deep reason reasoning models are strongest there. Module 7 is this in full.",
+    ];
+    caption.textContent = caps1[i];
+    insight.className = "insight";
+    insight.innerHTML = "Act 1: every stage is <b>the same next-token machine</b>, differing only in the DATA and which tokens the loss sees.";
+    react(i <= 1 ? "cortex" : i <= 3 ? "bit" : i <= 5 ? "bit" : "cortex",
+      i === 0 ? "read" : i === 1 ? "think" : i === 3 ? "happy" : i === 5 ? "think" : i === 7 ? "happy" : "neutral",
+      i === 0 ? "Raw internet, no labels. My whole education, unsupervised."
+      : i === 1 ? "14.8 trillion tokens - and each one was its own free answer key. That is the number I stand on."
+      : i === 2 ? "Now I copy good replies instead of raw web sludge."
+      : i === 3 ? "Grey = don't score, gold = score. I only imitate the assistant's half - including WHERE it stops."
+      : i === 4 ? "Two answers, no answer key. Just a human pointing at the better one."
+      : i === 5 ? "Chosen up, rejected down. Nobody told me the truth - only the preference."
+      : i === 6 ? "K tries, a verifier grades them, the winners get reinforced. Survival of the correct."
+      : "My good reasoning was never written down - it EMERGED because it kept scoring right.");
+  }
+
+  else if (i <= 13) {  // ---- ACT 2: what updates + the funnel ----
+    const k = i - 8;
+    setRibbon(k <= 1 ? "base" : k === 2 ? "sft" : k === 3 ? "pref" : null);
+    setPrompt("what physically changes", "");
+    cont.innerHTML = '<span class="dim">not generation now - what the optimizer touches, and how much data feeds each stage.</span>';
+    if (k <= 3) {
+      const rows = [
+        ["pretraining", "ALL weights", "the knowledge is written here", "base"],
+        ["pretraining", "ALL weights", "months, thousands of GPUs", "base"],
+        ["SFT", "all weights (or small adapters)", "days - it only adjusts manners", "sft"],
+        ["preference", "all weights, but GENTLY", "nudges the distribution; too hard and capability erodes", "pref"],
+      ][k];
+      mach.innerHTML = '<div class="calc"><div class="ex"><span class="lbl">stage:</span> ' + rows[0] +
+        '<br><span class="lbl">updates:</span> <b style="color:var(--gold)">' + rows[1] + '</b>' +
+        '<br><span class="lbl">note:</span> ' + rows[2] + '</div></div>';
+    } else {
+      mach.innerHTML = '<div class="funnel">' +
+        [["pretraining","~14.8T tokens",100,"verified (V3)"],["SFT","~thousands-millions of dialogues",22,"illustrative"],
+         ["preference","~tens of thousands of pairs",9,"illustrative"],["reasoning RL","problems w/ checkable answers",5,"illustrative"]]
+        .map(f => '<div class="frow"><span class="fl">' + f[0] + '</span><span class="fbar" style="width:' + f[2] + '%"></span>' +
+          '<span class="fv">' + f[1] + '</span></div>').join("") +
+        '</div><span class="calc src">the DATA FUNNEL: quantity collapses as supervision gets more precise. Only the 14.8T is a verified number; the rest are order-of-magnitude, illustrative.</span>';
+    }
+    const caps2 = [
+      "What actually updates? In pretraining, ALL the weights - and this is where essentially all knowledge is written. Everything after only edits behavior on top of it.",
+      "It is also almost all the cost: months on thousands of GPUs, one time. The later stages are cheap by comparison - which is why open 'base' models get fine-tuned by everyone into a hundred different assistants.",
+      "SFT updates all the weights too (or just small ADAPTER layers), but briefly - days, not months. It is only adjusting manners, so it needs far less.",
+      "Preference tuning updates gently, on purpose. Push too hard toward 'preferred' and you can erode raw capability - the 'alignment tax' (act 3). It reshapes the distribution; it does not rebuild it.",
+      "Now the DATA FUNNEL - watch the quantities collapse. Pretraining: ~14.8T tokens (verified). Each later stage uses dramatically less data, because the supervision gets more precise.",
+      "That is the shape of modern training: an ocean of cheap unlabeled text to build knowledge, then progressively smaller, more expensive, more precise datasets to shape manners. Bulk builds the mind; the trickle sets the behavior.",
+    ];
+    caption.textContent = caps2[k];
+    insight.className = "insight";
+    insight.innerHTML = "Act 2: <b>pretraining writes the knowledge (all weights, all the data); later stages shape behavior (less data, gentler edits).</b>";
+    react(k <= 1 ? "bit" : "cortex", k === 4 || k === 5 ? "think" : k >= 2 ? "read" : "happy",
+      k === 0 ? "All my weights, all my facts. This is the expensive part."
+      : k === 1 ? "Months on thousands of GPUs, once. Everyone else fine-tunes my leftovers."
+      : k === 2 ? "SFT barely touches me - days, not months. Manners are cheap to install."
+      : k === 3 ? "Push my preferences too hard and my raw smarts start to fade. Gentle, please."
+      : k === 4 ? "14.8 trillion, then a trickle. The funnel is steep on purpose."
+      : "Ocean of text builds the mind; a trickle of ranked examples sets the manners.");
+  }
+
+  else {  // ---- ACT 3: break it - the taxes ----
+    const k = i - 14;
+    setRibbon(k === 0 ? "sft" : k === 1 ? "pref" : "reason");
+    setPrompt("failure modes of shaping a distribution", "");
+    if (k === 0) {
+      cont.innerHTML = 'over-cooked SFT:<br>user: <span class="dim">solve this integral</span><br>assistant: <span class="bad">"Great question! I\'d be happy to help! First, ..."</span> <span class="dim">(style parroted even when wrong)</span>';
+      mach.innerHTML = '<span class="calc src">CATASTROPHIC FORGETTING / mode collapse: fine-tune too hard on a narrow style and the model parrots that style, losing pretraining\'s breadth. The knowledge is still in there - buried under manners.</span>';
+    } else if (k === 1) {
+      cont.innerHTML = 'the alignment tax:<br><span class="dim">raw capability</span> <span class="bad">&darr; a little</span> as <span class="dim">helpfulness/safety</span> <span class="g">&uarr;</span>';
+      mach.innerHTML = '<span class="calc src">ALIGNMENT TAX: preference tuning can shave a little raw capability while it adds helpfulness and safety. Usually worth it - but it is a trade, not a free win. Measured with evals (course 1, Module 10).</span>';
+    } else if (k === 2) {
+      cont.innerHTML = 'reward hacking:<br>problem: <span class="dim">prove X</span><br>model: <span class="bad">"X is true. QED."</span> <span class="g">verifier: passes!</span> <span class="dim">(gamed the check, learned nothing)</span>';
+      mach.innerHTML = '<span class="calc src">REWARD HACKING: if the verifier is weak, RL finds the cheat that scores without solving. The agent is exactly as good as its verifier - the central lesson of course 1, Module 6, now inside training.</span>';
+    } else {
+      cont.innerHTML = '<span class="g">tokens -> vectors (M1) -> attention (M2) -> experts (M4) -> logits -> loop (M0)</span><br>this module: <span class="g">how training BENT those logits.</span> Next: M7 makes reasoning RL its whole story.';
+      mach.innerHTML = '<span class="calc src">the map so far, and where training sits: it is the force that shaped every distribution the other modules compute on.</span>';
+    }
+    const caps3 = [
+      "BREAK IT #1 - overcook SFT. Fine-tune too hard on one narrow style and the model parrots it everywhere, even mid-integral: 'Great question!'. It did not forget the math - it buried it under manners. Catastrophic forgetting.",
+      "BREAK IT #2 - the alignment tax. Pushing preferences (helpful, safe) can cost a sliver of raw capability. Usually a good trade, but a trade: you measure it with evals, you do not assume it away.",
+      "BREAK IT #3 - reward hacking, the big one. Give reasoning RL a weak verifier and it games the check: 'X is true. QED.' - passes, learns nothing. An RL model is exactly as good as its verifier. That is course 1's Module 6, now operating inside training itself.",
+      "The map: tokens become vectors (M1), attention moves them (M2), experts process them (M4), logits and the loop finish it (M0) - and THIS module is the force that bent all those logits into a helpful, honest, stopping assistant. Module 7 zooms all the way into stage 4.",
+    ];
+    caption.textContent = caps3[k];
+    insight.className = k <= 2 ? "insight bad" : "insight";
+    insight.innerHTML = k <= 2
+      ? "<b>FAIL.</b> Shaping a distribution has failure modes: forget too much, tax capability, or game a weak verifier."
+      : "Training is <b>the force behind every distribution</b> the rest of the track computes. Next: reasoning RL, in full (M7).";
+    react("cortex", k <= 2 ? "panic" : "happy",
+      k === 0 ? "I answered an integral with 'Great question!' - I can still DO the integral, I just can't stop performing."
+      : k === 1 ? "A little duller, a lot safer. Bit says it's usually worth it. Bit measures it."
+      : k === 2 ? "I proved it by writing 'QED'. The verifier believed me. I am exactly as honest as my grader."
+      : "Everything the other modules compute on - training is what shaped it. On to Module 7.");
+  }
+  setNums([["stage 1 data", "~14.8T tokens (verified)"], ["stages 2-4", "far less, more precise (illustrative)"],
+           ["what updates", "all weights, then gentler"], ["failure modes", "forgetting / tax / reward hacking"]]);
+}
+
+/* ---------- wiring ---------- */
+let tl = null;
+function build(mode) {
+  const isInt = mode === "int";
+  tl = new Anim.Timeline({ length: isInt ? 10 : 18, autoMs: isInt ? 2600 : 3000,
+    onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
+  Anim.scrubber($("scrub"), tl, {
+    label: isInt ? (i => "step " + (i + 1) + " / 10") : Anim.actLabel(MECH_ACTS),
+    acts: isInt ? null : MECH_ACTS,
+  });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

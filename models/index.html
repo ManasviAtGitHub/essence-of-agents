@@ -85,6 +85,9 @@ const NAV = [
   { m:"Module 4 - Mixture of Experts", items:[
     { label:"Dense vs MoE: the expert router", src:"module-04-moe/widgets/expert-router/index.html" },
   ]},
+  { m:"Module 6 - Training stages", items:[
+    { label:"Four manners, one machine", src:"module-06-training/widgets/four-manners/index.html" },
+  ]},
 ];
 
 // The written lesson (Question -> Aha) surfaced per module, above the widget.
@@ -95,6 +98,8 @@ const LESSONS = {
     aha:"The model never sees letters: text becomes menu pieces (learned by counting merges), then IDs, then VECTORS. The model is brilliant in a language whose letters it cannot see - and h, the vector every module operates on, is born here." },
   "Module 2 - Attention": { q:"Token 400 needs what token 3 said. How does information travel?",
     aha:"Attention is soft retrieval inside the model: query x keys -> softmax -> a weighted blend of values, backwards only. Meaning MOVES via attention; the FFN then thinks alone on each position - the two-beat layer, repeated deep." },
+  "Module 6 - Training stages": { q:"Base, chat, and reasoning models share an architecture. Why do they ACT so differently?",
+    aha:"Training shapes the distribution, not the knowledge. Pretraining loads the facts; SFT installs manners (answer + stop); preference tuning sets tone/safety; reasoning RL rewards verified chains. Same machine, four manners - watch the STOP token's mass move, computed live." },
   "Module 4 - Mixture of Experts": { q:"DeepSeek-V3 has 671B parameters. Why does it run like a 37B model?",
     aha:"Parameters are not compute. A tiny learned router wakes only a few experts per token (top-8 of 256, plus one shared) - capacity decouples from cost, and the widget derives both headline numbers live." },
 };
