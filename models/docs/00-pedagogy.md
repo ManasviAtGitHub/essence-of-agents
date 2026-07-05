@@ -70,6 +70,17 @@ explanation, not just the aha. Concretely, every scene must have:
    that step cold can answer "where did this come from?" without scrubbing
    back. (Found via r in M0: the draw was defined but its story - the network
    only ranks, so a plain RNG outside the network must choose - was missing.)
+8. **The visual carries the claim; the cast tracks the knowledge state (user
+   rule, 2026-07-05).** If a caption asserts something, the stage must SHOW it
+   - a number must be countable/derivable from visible elements, or explicitly
+   tagged IMPORTED (with where it comes from). Text-only steps are a defect:
+   if the visualization is not doing the explaining, redesign the step, do not
+   lengthen the caption. And the cast are the learner's epistemic proxies:
+   Cortex/Bit know exactly what has been derived on screen so far - when
+   something arrives from out of the box they either derive it, flag it as
+   imported, or are visibly confused BY it (never breezily aware of it).
+   (Found via M1 act 2: "~4.0 chars/token" chips that nothing on screen
+   supported, and react lines that quipped instead of tracking knowledge.)
 
 ## The worked example (one thread through every module)
 
