@@ -98,6 +98,7 @@
   .legend { display:flex; gap:14px; flex-wrap:wrap; font:10.5px var(--mono); color:var(--faint);
             margin-top:10px; border-top:1px dashed var(--line); padding-top:7px; }
   .legend b { color:var(--gold); font-weight:600; }
+  .machnote { font:10px var(--mono); color:var(--faint); margin-top:6px; }
 
   .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
@@ -158,6 +159,8 @@ every probability live.</p>
       <span class="kv" id="pVal">off</span></label>
   </div>
   <table class="smx" id="smx" aria-label="live softmax computation"></table>
+  <div class="machnote">the six candidate logits are hand-authored (running a real model needs a real model);
+    every derived column - z/T, e^(z/T), p - is computed live on this page.</div>
   <div class="cdf" id="cdf" hidden>
     <div class="strip" id="cdfStrip"></div>
     <div class="rlab" id="cdfLab"></div>
@@ -174,6 +177,7 @@ every probability live.</p>
 
 <div class="caption" id="caption" aria-live="polite"></div>
 <div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
 
 <div id="scrub"></div>
 
@@ -223,7 +227,12 @@ const ctxEl=$("ctx"), ctxn=$("ctxn"), loopback=$("loopback"), stackp=$("stackp")
       mach=$("mach"), tKnob=$("tKnob"), pKnob=$("pKnob"), tSlide=$("tSlide"), tVal=$("tVal"),
       pChk=$("pChk"), pVal=$("pVal"), smx=$("smx"), cdf=$("cdf"), cdfStrip=$("cdfStrip"),
       cdfLab=$("cdfLab"), nums=$("nums"), caption=$("caption"), insight=$("insight"),
-      cortexChr=$("cortexChr");
+      cortexChr=$("cortexChr"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(who, emote, line) {
+  chrR.dataset.c = who; chrR.dataset.e = emote;
+  reactLine.textContent = line;
+  Cast.render($("react"));
+}
 const state = { mode:"int", T:1, topp:false };
 if (Anim.reduced()) document.body.classList.add("reduce");
 
@@ -322,11 +331,11 @@ function renderInt(i, dir) {
     "The prompt sits in the context. The question this whole track answers: where does the next word come from?",
     "Every token flows through the stack - one forward pass over the whole context. No token comes out yet; a ranking does.",
     "The output is not a word. It is a probability for EVERY token in the vocabulary - a distribution. (These bars are really computed: softmax over the logits shown in mechanism mode.)",
-    "One token is drawn from that distribution. ' Paris' holds ~94% of the mass, and today the draw lands there.",
+    "One token is drawn from that distribution. ' Paris' holds ~94% of the mass, and today the draw lands there. (Who does the drawing? Not the network - mechanism mode introduces the dice.)",
     "The drawn token is APPENDED to the context. Read the loop edge: the model's own output just became its input. This is autoregression.",
     "Around again: pass 2 reads the grown context and produces a NEW distribution - now about what follows ' Paris'. It draws '.'.",
     "Pass 3: after '.', the most likely 'token' is the end-of-sequence marker. Drawing it is how generation decides to stop - the stop was sampled, like everything else.",
-    "Rewind the whole thing: the model never chose a sentence. It chose ONE token, three times. Chatting, reasoning, refusing - all of it is this loop, run ~40 times per sentence.",
+    "Rewind the whole thing: the model never chose a sentence. It chose ONE token, three times. Chatting, reasoning, refusing - all of it is this loop, run once per token, a few dozen times for a typical sentence.",
   ];
   caption.textContent = caps[i];
   cortexChr.dataset.e = i <= 1 ? "think" : i === 3 ? "reach" : i >= 7 ? "happy" : "read";
@@ -335,10 +344,47 @@ function renderInt(i, dir) {
   insight.innerHTML = i >= 7
     ? "<b>The thesis:</b> a language model is a next-token machine. Everything else in this track is this picture, recomposed. Now switch to <b>mechanism</b> and open the machinery."
     : "One primitive: <b>context -&gt; stack -&gt; distribution -&gt; sample -&gt; append</b>. Watch for it in every module.";
+  const R = [
+    ["cortex", "think", "Five chips on my desk and you want the NEXT word. I have opinions about all 128,000 candidates."],
+    ["cortex", "read", "One pass: I read everything, through every layer. No shortcuts, no skimming."],
+    ["cortex", "neutral", "I don't produce a word - I produce ODDS. What a 'token' even is: Module 1's story."],
+    ["cortex", "reach", "The draw landed on ' Paris'. Who rolled it? Not me - mechanism mode names the roller."],
+    ["bit", "happy", "See the loop-back edge light up? Cortex's own output just became Cortex's input. I built that wire."],
+    ["cortex", "read", "New context, new odds. I keep nothing between passes - the context IS my memory."],
+    ["cortex", "happy", "I just sampled my own full stop. Even stopping is a draw."],
+    ["bit", "think", "Three choices, one token each. The sentence was never chosen - it accumulated."],
+  ];
+  react(...R[i]);
 }
 
 /* ---------- MECHANISM pass: 20 steps in 3 acts ---------- */
 const MECH_ACTS = [["one turn, machinery shown", 7], ["the sampler's knobs", 8], ["consequences + break it", 6]];
+const RM = [
+  // act 1
+  ["cortex", "neutral", "Those #IDs are my native alphabet. How your text becomes them: Module 1."],
+  ["cortex", "read", "Each ID becomes coordinates. The 0.12s on screen are stand-ins - the caption says so; my real ones were learned."],
+  ["cortex", "think", "32 layers of look-around-then-think. The anatomy of those two beats: Modules 2 and 4."],
+  ["cortex", "confused", "8.1? 4.9? Hand-authored - the note under the table says so. Only the MATH on them is live. Running the real me needs the real me."],
+  ["cortex", "confused", "Scores, not probabilities. They don't even sum to 1. Something has to convert."],
+  ["cortex", "think", "Softmax: exponentiate, divide. The exp column in the table just did it, live."],
+  ["cortex", "happy", "0.9389 for ' Paris' - derived on screen from the logits above. Check me with a calculator."],
+  // act 2
+  ["bit", "think", "These knobs are MINE - sampler code, outside the network. Drag T and the table re-runs the real formula."],
+  ["cortex", "neutral", "T = 0.1 and I become boringly certain. Same me, sharper knife."],
+  ["cortex", "confused", "T = 2 and ' located' gets real odds. That's variety by flattening, not by knowledge."],
+  ["bit", "think", "Top-p: I cut the tail BEFORE the draw. Junk can't get lucky on my watch."],
+  ["cortex", "neutral", "My work ended at the ranking. I literally cannot pick. Someone else is holding the dice."],
+  ["bit", "happy", "The dice are mine - a plain RNG in my serving loop. I rolled 0.42; the strip did the rest."],
+  ["bit", "think", "T = 0 means I skip the roll entirely. Same walk every time - that is all 'deterministic' ever meant."],
+  ["cortex", "panic", "Forty passes for forty tokens, each re-reading EVERYTHING? Module 3 had better have a plan."],
+  // act 3
+  ["cortex", "neutral", "Same prompt, same odds, two rolls. Run A and run B part ways on one draw - see both marks on the strip."],
+  ["cortex", "think", "After the fork our contexts differ, and I only ever see my context. The runs never re-converge."],
+  ["cortex", "neutral", "T ~ 0 on 'and so on'. My argmaxes point at each other in a circle. Watch."],
+  ["cortex", "panic", "and so on and so on and - I am NOT broken! The greedy walk is a closed loop and I cannot leave!"],
+  ["cortex", "happy", "One lucky roll of '.' and the spell breaks. Randomness is the exit."],
+  ["bit", "happy", "One picture: tokens in, odds out, a roll, an append. Nine modules hang off exactly this."],
+];
 function renderMech(i, dir) {
   mach.hidden = false; cdf.hidden = true;
   const rows0 = () => softmax(GEN[0].cand, state.T);
@@ -354,12 +400,13 @@ function renderMech(i, dir) {
     else if (i === 19) setKnobs(true, 0.8, false);
     else setKnobs(true, 1, false);
   } else { setKnobs(i >= 7); }
+  react(...RM[i]);
 
   // ---- ACT 1 (0-6): one turn with the machinery shown ----
   if (i <= 6) {
     renderCtx(PROMPT, { subs: i === 0 ? IDS.map(String) : i === 1 ? PROMPT.map(() => "[.12 -.83 ...]") : null });
     renderStack(i >= 2, i >= 2 ? "32 layers, each: attention + FFN" : "the stack",
-                i >= 2 ? "cartoon: 4 layers x 5 neurons drawn - really 32 layers, d = 4,096 wide" : "");
+                i >= 2 ? "cartoon: 4x5 neurons drawn - really ~32 layers, d ~ 4,096 (a typical mid-size shape, illustrative)" : "");
     loopback.className = "loopback";
     const raw = GEN[0].cand.map(c => ({ tok:c[0], z:c[1], zt:c[1], e:Math.exp(c[1]), p:0 }));
     if (i <= 2)      { smx.innerHTML = ""; bars.innerHTML = ""; tail.textContent = ""; disthd.textContent = ""; }
@@ -369,7 +416,7 @@ function renderMech(i, dir) {
     else              { const r = softmax(GEN[0].cand, 1); renderTable(r, GEN[0].pick, { zt:true, e:true, p:true }); renderBars(r, GEN[0].pick, {}); disthd.textContent = "p = softmax(z), T=1 - computed"; }
     const caps1 = [
       "Down a level. Each token is really an ID in a 128,000-entry vocabulary - the IDs under the chips. (Module 1 is about how text becomes these.)",
-      "Each ID looks up an embedding: a vector of d = 4,096 numbers. From here on, the model only does arithmetic on vectors.",
+      "Each ID looks up an embedding: a vector of d = 4,096 numbers. (The digits under the chips are stand-ins - the real values are learned. Module 1's act 3 tells that story.) From here on, the model only does arithmetic on vectors.",
       "The vectors flow through 32 layers - each one attention (positions exchange information; Module 2) then an FFN (each position thinks alone; Module 4 splits THIS into experts). One pass touches every layer.",
       "The LAST position's final vector is multiplied against every token's output vector -> one score per vocab entry: the LOGITS. 128,000 raw numbers. Here are the top 6.",
       "Look at them: 8.1, 4.9, 3.6... They are not probabilities - they don't sum to 1 and can be negative. Something has to turn scores into a distribution.",
@@ -465,8 +512,8 @@ function renderMech(i, dir) {
     return;
   }
 
-  renderNums([["vocab |V|", "128,000"], ["d (model width)", "4,096"], ["layers", "32"],
-              ["logits per pass", "128,000"], ["T", fmt(state.T,2)]]);
+  renderNums([["vocab |V|", "128,000 (typical)"], ["d (width)", "4,096 (typical)"], ["layers", "32 (typical)"],
+              ["logits per pass", "= |V|"], ["T", fmt(state.T,2)]]);
   Cast.render(stackp);
 }
 
