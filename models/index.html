@@ -82,6 +82,9 @@ const NAV = [
   { m:"Module 2 - Attention", items:[
     { label:"How vectors talk", src:"module-02-attention/widgets/attention-lens/index.html" },
   ]},
+  { m:"Module 3 - The KV cache", items:[
+    { label:"Why context costs memory", src:"module-03-kv-cache/widgets/kv-cache/index.html" },
+  ]},
   { m:"Module 4 - Mixture of Experts", items:[
     { label:"Dense vs MoE: the expert router", src:"module-04-moe/widgets/expert-router/index.html" },
   ]},
@@ -98,6 +101,8 @@ const LESSONS = {
     aha:"The model never sees letters: text becomes menu pieces (learned by counting merges), then IDs, then VECTORS. The model is brilliant in a language whose letters it cannot see - and h, the vector every module operates on, is born here." },
   "Module 2 - Attention": { q:"Token 400 needs what token 3 said. How does information travel?",
     aha:"Attention is soft retrieval inside the model: query x keys -> softmax -> a weighted blend of values, backwards only. Meaning MOVES via attention; the FFN then thinks alone on each position - the two-beat layer, repeated deep." },
+  "Module 3 - The KV cache": { q:"Why is the first token slow and the rest fast - and why does long context cost money?",
+    aha:"To look back (Module 2), the model must remember every past token's keys and values. That cache grows every token and lives in GPU memory - so a context window is a MEMORY budget, not a text limit. ~320 KB/token for Llama-3-70B, computed live." },
   "Module 6 - Training stages": { q:"Base, chat, and reasoning models share an architecture. Why do they ACT so differently?",
     aha:"Training shapes the distribution, not the knowledge. Pretraining loads the facts; SFT installs manners (answer + stop); preference tuning sets tone/safety; reasoning RL rewards verified chains. Same machine, four manners - watch the STOP token's mass move, computed live." },
   "Module 4 - Mixture of Experts": { q:"DeepSeek-V3 has 671B parameters. Why does it run like a 37B model?",

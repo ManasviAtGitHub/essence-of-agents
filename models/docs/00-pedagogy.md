@@ -305,13 +305,24 @@ models/                      this track (sibling of agentic-course/, production/
   index.html                 hub (clone of course hub pattern, own NAV)
 ```
 
-Build order (revised 2026-07-05, foundations-first after M4 exposed the
-dependency): M0 autoregression -> M4 MoE -> M1 tokens + M2 attention (the
-prerequisites M4's mechanism leans on: h's birth and the attention/FFN
-division of labor) -> M6 training stages -> M3 KV cache -> M5 DeepSeek ->
-M7 reasoning RL -> M8 small models. Rule learned: a module's mechanism pass
-may only lean on ideas an EXISTING module has built - check before writing.
-Cast rule: Cortex/Bit must appear in every widget (react bar at minimum).
+Build order (revised 2026-07-05): M0 autoregression -> M4 MoE -> M1 tokens +
+M2 attention -> M6 training stages (incl. LoRA/QLoRA/DPO) -> **M3 KV cache ->
+M5 DeepSeek -> M7 reasoning RL (GRPO here) -> M8 small models (distill+quant)
+-> M9 atlas**. Done so far: M0, M1, M2, M4, M6. Rule learned: a module's
+mechanism pass may only lean on ideas an EXISTING module has built - check
+before writing. Cast rule: Cortex/Bit must appear in every widget.
+
+## Coverage decision (user, 2026-07-05): deep spine + atlas
+
+The track is a DEEP SPINE (one mechanism per module, computable by hand), NOT
+an encyclopedia. The full method zoo (PPO/DPO/GRPO/KTO, full/LoRA/QLoRA,
+quantization/distillation, MoE variants) is exposed two ways: (1) each named
+method appears as a dated EXHIBIT of the principle in the module that teaches
+its mechanism; (2) a final **Module 9 - "Map of the landscape"** is a pure
+atlas: one interactive taxonomy (axes: what it optimizes / what supervision it
+needs / what it costs) where every named method is a pin that links back to
+the module that explains it. Depth first; coverage as the capstone. Do NOT
+turn spine modules into acronym roll-calls - place extra names in the atlas.
 
 ## Honesty rules (this track needs them more than the last)
 
