@@ -28,13 +28,16 @@ different loss bending the same next-token machine from Module 0:
   times, only the STOP token's mass moved.** Then preference (center-a-div,
   ranked outputs) and reasoning (course 1's bat-and-ball: SFT blurts $0.10,
   reasoning deliberates to $0.05).
-- **mechanism (18 steps, 3 acts):** act 1 shows one training EXAMPLE per stage
+- **mechanism (21 steps, 3 acts):** act 1 shows one training EXAMPLE per stage
   - pretraining's every-position loss, SFT's prompt-masking, DPO's chosen/
-  rejected pair, reasoning RL's sample-and-verify. Act 2: what updates (all
-  weights, then gentler) and the DATA FUNNEL (14.8T tokens collapsing to a
-  trickle). Act 3 breaks it: catastrophic forgetting, the alignment tax, and
-  reward hacking (an RL model is exactly as good as its verifier - course 1,
-  Module 6, now inside training).
+  rejected pair, reasoning RL's sample-and-verify. Act 2: what updates, then
+  **LoRA and QLoRA** - freeze the giant base, train a low-rank adapter B*A
+  (67.1M -> 262K trainable per matrix, a 256x cut, computed live), and QLoRA's
+  4-bit frozen base that lets you fine-tune a 65B model on one 48GB GPU - then
+  the DATA FUNNEL (14.8T tokens collapsing to a trickle). Act 3 breaks it:
+  catastrophic forgetting, the alignment tax, and reward hacking (an RL model
+  is exactly as good as its verifier - course 1, Module 6, now inside
+  training).
 
 ## The aha
 Not one stage taught a new fact. The base model already contained Paris,
@@ -44,9 +47,12 @@ stop here, phrase it kindly, think first.
 ## Honest notes
 - Per-stage logits are hand-authored (labeled); every softmax and probability
   shift is computed live in the page.
-- Only verified real number: DeepSeek-V3 pretrained on ~14.8T tokens
-  (arXiv 2412.19437). The SFT/preference/RL dataset sizes are
-  order-of-magnitude, labeled illustrative.
+- Verified real numbers: DeepSeek-V3 pretrained on ~14.8T tokens
+  (arXiv 2412.19437); LoRA's B*A decomposition (Hu et al. 2021); QLoRA's
+  4-bit NF4 base + 65B-on-one-48GB-GPU result (Dettmers et al. 2023). The
+  LoRA param counts (67.1M vs 262K, 256x) are computed live from d=8192,
+  r=16. The SFT/preference/RL dataset sizes are order-of-magnitude,
+  labeled illustrative.
 - The bat-and-ball is a deliberate callback to course 1, Module 2.
 
 ## Done when (the bar for this module)

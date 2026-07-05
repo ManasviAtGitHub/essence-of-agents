@@ -68,6 +68,14 @@
   .ex .tok.chosen { border-color:var(--green); color:#c8e6b8; }
   .ex .tok.rej { border-color:var(--red); color:#ffbdb7; }
   .ex .lbl { color:var(--faint); font-size:10px; }
+  /* LoRA low-rank visual */
+  .lora { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:6px 0; }
+  .mbox { display:flex; flex-direction:column; align-items:center; gap:3px; font:10px var(--mono); color:var(--faint); }
+  .mbox .sq { border:1px solid var(--line); border-radius:5px; background:var(--panel); display:flex;
+              align-items:center; justify-content:center; color:#cdd3da; font:11px var(--mono); text-align:center; }
+  .mbox.frozen .sq { border-color:#3a5a6a; color:#7fa8bb; }
+  .mbox.train .sq { border-color:var(--gold); color:var(--gold); box-shadow:0 0 8px rgba(255,211,92,.2); }
+  .lop { color:var(--faint); font:14px var(--mono); }
   .funnel { display:flex; flex-direction:column; gap:4px; }
   .frow { display:flex; align-items:center; gap:8px; }
   .frow .fl { font:11px var(--mono); color:var(--dim); min-width:130px; }
@@ -254,7 +262,11 @@ function renderInt(i) {
 }
 
 /* ---------- MECHANISM: 18 steps, 3 acts ---------- */
-const MECH_ACTS = [["one batch per stage", 8], ["what updates + the data funnel", 6], ["break it: the taxes", 4]];
+const MECH_ACTS = [["one batch per stage", 8], ["what updates: LoRA + the funnel", 9], ["break it: the taxes", 4]];
+/* LoRA arithmetic (Hu et al. 2021), computed live. d = one Llama-3-70B matrix width. */
+const LORA_D = 8192, LORA_R = 16;
+const fullP = LORA_D * LORA_D, loraP = 2 * LORA_D * LORA_R, loraCut = fullP / loraP;
+const Mp = x => (x / 1e6).toFixed(1) + "M", Kp = x => Math.round(x / 1e3) + "K";
 function renderMech(i) {
   mach.hidden = false; bars.innerHTML = ""; distNote.textContent = "";
   distHd.textContent = "the training example (not generation)";
@@ -318,22 +330,44 @@ function renderMech(i) {
       : "My good reasoning was never written down - it EMERGED because it kept scoring right.");
   }
 
-  else if (i <= 13) {  // ---- ACT 2: what updates + the funnel ----
+  else if (i <= 16) {  // ---- ACT 2: what updates, LoRA/QLoRA, the funnel ----
     const k = i - 8;
-    setRibbon(k <= 1 ? "base" : k === 2 ? "sft" : k === 3 ? "pref" : null);
+    setRibbon(k <= 1 ? "base" : k >= 2 && k <= 6 ? "sft" : null);
     setPrompt("what physically changes", "");
-    cont.innerHTML = '<span class="dim">not generation now - what the optimizer touches, and how much data feeds each stage.</span>';
-    if (k <= 3) {
-      const rows = [
-        ["pretraining", "ALL weights", "the knowledge is written here", "base"],
-        ["pretraining", "ALL weights", "months, thousands of GPUs", "base"],
-        ["SFT", "all weights (or small adapters)", "days - it only adjusts manners", "sft"],
-        ["preference", "all weights, but GENTLY", "nudges the distribution; too hard and capability erodes", "pref"],
-      ][k];
-      mach.innerHTML = '<div class="calc"><div class="ex"><span class="lbl">stage:</span> ' + rows[0] +
-        '<br><span class="lbl">updates:</span> <b style="color:var(--gold)">' + rows[1] + '</b>' +
-        '<br><span class="lbl">note:</span> ' + rows[2] + '</div></div>';
-    } else {
+    cont.innerHTML = '<span class="dim">not generation now - what the optimizer touches when it fine-tunes.</span>';
+    if (k <= 1) {
+      const rows = [["ALL weights", "the knowledge is written here"], ["ALL weights", "months, thousands of GPUs, ONE time"]][k];
+      mach.innerHTML = '<div class="calc"><div class="ex"><span class="lbl">stage:</span> pretraining' +
+        '<br><span class="lbl">updates:</span> <b style="color:var(--gold)">' + rows[0] + '</b>' +
+        '<br><span class="lbl">note:</span> ' + rows[1] + '</div></div>';
+    } else if (k === 2) {   // the fine-tuning problem
+      mach.innerHTML = '<div class="lora"><div class="mbox train"><div class="sq" style="width:74px;height:74px">W + &Delta;W</div>full fine-tune</div>' +
+        '<span class="lop">&rarr;</span><span class="calc" style="color:var(--red)">update all 70B, and store a fresh 70B copy PER task</span></div>' +
+        '<span class="calc src">the naive way: to specialize a 70B model you update every weight and keep a whole new 70B checkpoint. Ten tasks = ten 70B files. Most people cannot afford this.</span>';
+    } else if (k === 3) {   // LoRA idea
+      mach.innerHTML = '<span class="formula">freeze W. learn only the UPDATE: &Wcirc; = W + <b>&Delta;W</b>, and <b>&Delta;W = B&middot;A</b></span>' +
+        '<div class="lora"><div class="mbox frozen"><div class="sq" style="width:64px;height:64px">W</div>d x d, FROZEN</div>' +
+        '<span class="lop">+</span>' +
+        '<div class="mbox train"><div class="sq" style="width:64px;height:20px">B</div>d x r</div>' +
+        '<span class="lop">&times;</span>' +
+        '<div class="mbox train"><div class="sq" style="width:20px;height:64px">A</div>r x d</div></div>' +
+        '<span class="calc src">LoRA (Hu et al. 2021): the base W never moves. The whole adaptation is a low-rank &Delta;W = B&middot;A - two skinny matrices with a small rank r.</span>';
+    } else if (k === 4) {   // LoRA arithmetic
+      mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">full &Delta;W: d x d (d = 8192, one attn matrix)</span><span class="rhs">8192&sup2; = ' + Mp(fullP) + ' params</span></div>' +
+        '<div class="row"><span class="lhs">LoRA B&middot;A: 2 x d x r (rank r = 16)</span><span class="rhs">2 x 8192 x 16 = ' + Kp(loraP) + ' params</span></div>' +
+        '<div class="row hero"><span class="lhs">shrink factor = d / 2r</span><span class="rhs">' + Math.round(loraCut) + 'x fewer trainable weights</span></div>' +
+        '<span class="calc src">computed live. r is yours to choose (8-64 typical) - it trades adapter size for expressiveness. You train ' + Kp(loraP) + ', not ' + Mp(fullP) + ', per matrix.</span></div>';
+    } else if (k === 5) {   // QLoRA
+      mach.innerHTML = '<div class="lora"><div class="mbox frozen"><div class="sq" style="width:64px;height:64px">W<br>4-bit</div>frozen, NF4</div>' +
+        '<span class="lop">+</span><div class="mbox train"><div class="sq" style="width:44px;height:44px">B&middot;A</div>16-bit, trained</div></div>' +
+        '<span class="calc src">QLoRA (Dettmers et al. 2023): also QUANTIZE the frozen base to 4-bit NF4 (Module 8\'s trick) - it never trains, so low precision is fine - while the tiny LoRA adapters stay full 16-bit. Verified result: fine-tune a 65B model on a SINGLE 48GB GPU.</span>';
+    } else if (k === 6) {   // swappable adapters
+      mach.innerHTML = '<div class="lora"><div class="mbox frozen"><div class="sq" style="width:64px;height:64px">W</div>one shared base</div>' +
+        '<span class="lop">+</span><div class="mbox train"><div class="sq" style="width:34px;height:34px">A1</div>legal</div>' +
+        '<div class="mbox train"><div class="sq" style="width:34px;height:34px">A2</div>medical</div>' +
+        '<div class="mbox train"><div class="sq" style="width:34px;height:34px">A3</div>code</div></div>' +
+        '<span class="calc src">because the base is frozen and shared, each task is just a few-MB adapter you swap in. One 70B on disk, a hundred specialties on top.</span>';
+    } else {   // funnel (k=7, 8)
       mach.innerHTML = '<div class="funnel">' +
         [["pretraining","~14.8T tokens",100,"verified (V3)"],["SFT","~thousands-millions of dialogues",22,"illustrative"],
          ["preference","~tens of thousands of pairs",9,"illustrative"],["reasoning RL","problems w/ checkable answers",5,"illustrative"]]
@@ -343,26 +377,35 @@ function renderMech(i) {
     }
     const caps2 = [
       "What actually updates? In pretraining, ALL the weights - and this is where essentially all knowledge is written. Everything after only edits behavior on top of it.",
-      "It is also almost all the cost: months on thousands of GPUs, one time. The later stages are cheap by comparison - which is why open 'base' models get fine-tuned by everyone into a hundred different assistants.",
-      "SFT updates all the weights too (or just small ADAPTER layers), but briefly - days, not months. It is only adjusting manners, so it needs far less.",
-      "Preference tuning updates gently, on purpose. Push too hard toward 'preferred' and you can erode raw capability - the 'alignment tax' (act 3). It reshapes the distribution; it does not rebuild it.",
-      "Now the DATA FUNNEL - watch the quantities collapse. Pretraining: ~14.8T tokens (verified). Each later stage uses dramatically less data, because the supervision gets more precise.",
-      "That is the shape of modern training: an ocean of cheap unlabeled text to build knowledge, then progressively smaller, more expensive, more precise datasets to shape manners. Bulk builds the mind; the trickle sets the behavior.",
+      "It is also almost all the cost: months on thousands of GPUs, one time. So the interesting question for everyone else is: how do you ADAPT that finished model cheaply?",
+      "The naive answer - 'full fine-tuning' - is brutal: update all 70B weights AND store a fresh 70B checkpoint for every task. Ten specialties, ten 70B files, and you need the GPUs to backprop through all of it. Almost nobody can.",
+      "LoRA's move: FREEZE the base weights entirely. Learn only a small ADDED update, and force that update to be low-rank - the product of two skinny matrices, B and A. The frozen W keeps all the knowledge; B and A carry the adaptation.",
+      "Why that is a huge win, computed live: a full update to one 8192x8192 matrix is 67.1M numbers. Its LoRA stand-in B*A (rank 16) is 262K - a 256x cut in trainable weights. You optimize the skinny pair; the giant W never moves.",
+      "QLoRA goes further: quantize the frozen base to 4-bit (Module 8's trick - it never trains, so low precision is fine), and keep the little adapters at full 16-bit precision. That is how people fine-tune a 65B model on a SINGLE 48GB GPU (verified, Dettmers 2023).",
+      "A bonus falls out: since the base is frozen and shared, each task is just a few-megabyte adapter you snap on and off. One base model on disk; a legal adapter, a medical adapter, a code adapter - swap freely.",
+      "Zooming back out to the DATA side. Watch the quantities collapse: pretraining ~14.8T tokens (verified), then each later stage uses dramatically less, because the supervision gets more precise.",
+      "That is the shape of modern training: an ocean of cheap unlabeled text to build knowledge, then progressively smaller, more precise datasets - often applied with LoRA - to shape manners. Bulk builds the mind; the trickle sets the behavior.",
     ];
     caption.textContent = caps2[k];
     insight.className = "insight";
-    insight.innerHTML = "Act 2: <b>pretraining writes the knowledge (all weights, all the data); later stages shape behavior (less data, gentler edits).</b>";
-    react(k <= 1 ? "bit" : "cortex", k === 4 || k === 5 ? "think" : k >= 2 ? "read" : "happy",
+    insight.innerHTML = k >= 3 && k <= 6
+      ? "LoRA/QLoRA: <b>freeze the giant base, train a tiny low-rank adapter (B*A).</b> Same manners, a fraction of the weights - fine-tuning for the rest of us."
+      : "Act 2: <b>pretraining writes the knowledge (all weights, all data); fine-tuning shapes behavior - cheaply, via frozen base + small adapters.</b>";
+    react(k <= 1 ? "cortex" : k === 2 ? "bit" : k <= 6 ? (k === 5 ? "bit" : "cortex") : "bit",
+      k === 5 ? "happy" : k === 2 ? "confused" : k >= 7 ? "think" : k >= 3 ? "read" : "neutral",
       k === 0 ? "All my weights, all my facts. This is the expensive part."
-      : k === 1 ? "Months on thousands of GPUs, once. Everyone else fine-tunes my leftovers."
-      : k === 2 ? "SFT barely touches me - days, not months. Manners are cheap to install."
-      : k === 3 ? "Push my preferences too hard and my raw smarts start to fade. Gentle, please."
-      : k === 4 ? "14.8 trillion, then a trickle. The funnel is steep on purpose."
-      : "Ocean of text builds the mind; a trickle of ranked examples sets the manners.");
+      : k === 1 ? "Months on thousands of GPUs, once. The question is how everyone else adapts me cheaply."
+      : k === 2 ? "A whole fresh 70B copy of me... per task? Nobody has that many hard drives."
+      : k === 3 ? "Freeze all of me, bolt on two skinny matrices. My knowledge stays put; B and A do the specializing."
+      : k === 4 ? "262 thousand trainable instead of 67 million. 256x lighter - I did the division live."
+      : k === 5 ? "Base squished to 4-bit, adapters kept sharp. Now they fine-tune 65-billion me on ONE gaming GPU."
+      : k === 6 ? "One frozen me, a drawer full of tiny adapters. Legal-me, medical-me, code-me - snap on, snap off."
+      : k === 7 ? "14.8 trillion, then a trickle - and the trickle usually rides in on a LoRA."
+      : "Ocean of text builds the mind; a few skinny adapters set the manners.");
   }
 
   else {  // ---- ACT 3: break it - the taxes ----
-    const k = i - 14;
+    const k = i - 17;
     setRibbon(k === 0 ? "sft" : k === 1 ? "pref" : "reason");
     setPrompt("failure modes of shaping a distribution", "");
     if (k === 0) {
@@ -396,14 +439,14 @@ function renderMech(i) {
       : "Everything the other modules compute on - training is what shaped it. On to Module 7.");
   }
   setNums([["stage 1 data", "~14.8T tokens (verified)"], ["stages 2-4", "far less, more precise (illustrative)"],
-           ["what updates", "all weights, then gentler"], ["failure modes", "forgetting / tax / reward hacking"]]);
+           ["cheap fine-tune", "LoRA: 256x fewer weights"], ["failure modes", "forgetting / tax / reward hacking"]]);
 }
 
 /* ---------- wiring ---------- */
 let tl = null;
 function build(mode) {
   const isInt = mode === "int";
-  tl = new Anim.Timeline({ length: isInt ? 10 : 18, autoMs: isInt ? 2600 : 3000,
+  tl = new Anim.Timeline({ length: isInt ? 10 : 21, autoMs: isInt ? 2600 : 3000,
     onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
   Anim.scrubber($("scrub"), tl, {
     label: isInt ? (i => "step " + (i + 1) + " / 10") : Anim.actLabel(MECH_ACTS),
