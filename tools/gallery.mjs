@@ -17,6 +17,7 @@ const TARGETS = [
   ["models m2 attention-lens", "models/module-02-attention/widgets/attention-lens/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["models m3 kv-cache", "models/module-03-kv-cache/widgets/kv-cache/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["models m4 expert-router", "models/module-04-moe/widgets/expert-router/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
+  ["models m5 mla-mtp", "models/module-05-deepseek/widgets/mla-mtp/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["models m6 four-manners", "models/module-06-training/widgets/four-manners/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["about", "agentic-course/about.html"],
   ["production-hub", "production/index.html"],
