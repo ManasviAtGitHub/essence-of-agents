@@ -85,10 +85,19 @@
   .smx tr.pick td { color:var(--gold); }
   .smx tr.cut td { opacity:.32; text-decoration:line-through; }
   .cdf { margin-top:10px; }
-  .cdf .strip { display:flex; height:16px; border-radius:5px; overflow:hidden; border:1px solid var(--line); position:relative; }
+  .cdf .strip { display:flex; height:16px; border-radius:5px; overflow:visible; border:1px solid var(--line); position:relative; }
   .cdf .seg { height:100%; }
-  .cdf .rmark { position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--ink); }
-  .cdf .rlab { font:10.5px var(--mono); color:var(--dim); margin-top:4px; }
+  .cdf .seg:first-child { border-radius:4px 0 0 4px; } .cdf .seg:last-child { border-radius:0 4px 4px 0; }
+  .cdf .rmark { position:absolute; top:-5px; bottom:-5px; width:2px; background:var(--ink); }
+  .cdf .mlab { position:absolute; top:-20px; transform:translateX(-50%); font:9.5px var(--mono);
+               color:var(--ink); white-space:nowrap; background:var(--panel); border:1px solid var(--line);
+               border-radius:4px; padding:0 5px; }
+  .cdf .strip { margin-top:18px; }
+  .cdf .rlab { font:10.5px var(--mono); color:var(--dim); margin-top:6px; }
+
+  .legend { display:flex; gap:14px; flex-wrap:wrap; font:10.5px var(--mono); color:var(--faint);
+            margin-top:10px; border-top:1px dashed var(--line); padding-top:7px; }
+  .legend b { color:var(--gold); font-weight:600; }
 
   .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
@@ -152,6 +161,12 @@ every probability live.</p>
   <div class="cdf" id="cdf" hidden>
     <div class="strip" id="cdfStrip"></div>
     <div class="rlab" id="cdfLab"></div>
+  </div>
+  <div class="legend">
+    <span><b>z</b> raw score (logit)</span>
+    <span><b>T</b> temperature: divides z before softmax</span>
+    <span><b>p</b> probability after softmax</span>
+    <span><b>r</b> random draw in [0,1) - walks the strip, picks the token</span>
   </div>
 </div>
 
@@ -258,13 +273,15 @@ function renderTable(rows, pickIdx, showCols) {  // showCols: {zt, e, p, p2}
   });
   smx.innerHTML = h;
 }
-function renderCdf(rows, r) {
+function renderCdf(rows, marks, lab) {
   const colors = ["#58c4dd","#ffd35c","#83c167","#fc6255","#98a2b0","#6b7480"];
   cdf.hidden = false;
   cdfStrip.innerHTML = rows.filter(x => !x.cut).map((x, i) =>
     '<span class="seg" style="width:' + ((x.p2 != null ? x.p2 : x.p) * 100) + '%;background:' + colors[i % 6] + '"></span>'
-  ).join("") + '<span class="rmark" style="left:' + (r * 100) + '%"></span>';
-  cdfLab.textContent = "draw r = " + r + " -> walk the cumulative strip -> it lands in the token that owns that slice.";
+  ).join("") + marks.map(m =>
+    '<span class="rmark" style="left:' + (m.r * 100) + '%"></span>' +
+    '<span class="mlab" style="left:' + (m.r * 100) + '%">' + m.lab + '</span>').join("");
+  cdfLab.textContent = lab;
 }
 function renderNums(list) {
   nums.innerHTML = list.map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join("");
@@ -377,7 +394,8 @@ function renderMech(i, dir) {
     renderTable(rows, pick, { zt:true, e:true, p:true, p2:state.topp });
     renderBars(rows, pick, {});
     disthd.textContent = "T = " + fmt(state.T,2) + (state.topp ? ", top-p 0.90" : "") + " - recomputed live";
-    if (i === 11) renderCdf(rows, GEN[0].r);
+    if (i === 11 || i === 12) renderCdf(rows, [{ r: GEN[0].r, lab: "r = " + GEN[0].r }],
+      "each token owns a slice of [0,1) as wide as its p; the draw r lands in somebody's slice - that token is 'chosen'.");
     const caps2 = [
       "The knobs unlock. TEMPERATURE divides every logit before softmax: p_i = e^(z_i/T)/sum. Drag T and watch the table and bars recompute - this is the real formula running.",
       "T -> 0.1: dividing by a tiny T stretches the gaps, so the softmax collapses onto the top logit. ' Paris' takes ~everything. T=0 is argmax: greedy decoding, same output every time.",
@@ -403,6 +421,8 @@ function renderMech(i, dir) {
       const rows = softmax(GEN[0].cand, 1);
       renderTable(rows, 0, { p:true });
       renderBars(rows, 0, {});
+      renderCdf(rows, [{ r: 0.42, lab: "run A: r = 0.42" }, { r: 0.97, lab: "run B: r = 0.97" }],
+        "one strip, two random draws - the ONLY difference between run A and run B.");
       disthd.textContent = "same prompt, two runs, two r's";
       caption.textContent = k === 0
         ? "Two runs, same prompt, T = 1. Run A draws the random number r = 0.42 -> lands in ' Paris'. Run B draws r = 0.97 - deep in the tail -> ' the'. Same distribution both times; nothing changed but the random number."
