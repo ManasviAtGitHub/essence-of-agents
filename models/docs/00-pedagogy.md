@@ -81,6 +81,13 @@ explanation, not just the aha. Concretely, every scene must have:
    imported, or are visibly confused BY it (never breezily aware of it).
    (Found via M1 act 2: "~4.0 chars/token" chips that nothing on screen
    supported, and react lines that quipped instead of tracking knowledge.)
+9. **One thread at a time; park and resume explicitly (user catch, 2026-07-05).**
+   A pass tells ONE story. If it needs two threads (a hook/case plus the
+   worked example), the switch must be narrated on stage: "the case is
+   parked - background first", "back to the case", "case closed". Silent
+   ping-pong between exhibits reads as incoherence. (Found via M1's
+   intuition: the France sentence appeared unannounced between strawberry
+   beats.)
 
 ## The worked example (one thread through every module)
 

@@ -257,12 +257,12 @@ function renderInt(i) {
     () => { chips.innerHTML = chip("strawberry", "atom", "one token") + '<span class="wsep">&larr; ask it to count the r\'s in this</span>';
             stageHd.textContent = "the puzzle"; },
     () => { chips.innerHTML = SENT.map(([t]) => chip(t)).join("");
-            stageHd.textContent = "what you typed"; },
+            stageHd.textContent = "the case is parked - background first: what does the model receive when you type anything?"; },
     () => { chips.innerHTML = SENT.map(([t, id]) => chip(t, "atom", "#" + id)).join("");
             stageHd.textContent = "what the model receives: TOKENS (with menu positions)"; },
     () => { chips.innerHTML = chip("strawberry", "atom", "#101830") +
             '<span class="wsep">vs</span>' + chip("straw", "", "#77749") + chip("berries", "", "#20853");
-            stageHd.textContent = "common word: one atom - rarer word: subword pieces (real splits, illustrative)"; },
+            stageHd.textContent = "back to the case: one atom vs subword pieces (real splits, illustrative)"; },
     () => { chips.innerHTML = [chip("the"), chip(" quick"), chip(" brown"), chip(" fox")].join("") +
             '<span class="wsep">&nbsp;&nbsp;covers English...</span>' + chip("&#20320;"), stageHd.textContent = "one fixed menu (~128k entries) must spell EVERYTHING"; },
     () => { chips.innerHTML = chip("hello") + chip(" world") + '<span class="wsep">= 2 tokens&nbsp;&nbsp;vs&nbsp;&nbsp;</span>' +
@@ -278,14 +278,14 @@ function renderInt(i) {
   ];
   steps[i]();
   const caps = [
-    "Ask a model to count the r's in 'strawberry' and it often stumbles. Before calling it stupid, look at what it actually received - because it was not letters.",
-    "You typed characters. But characters are a terrible unit for a model: sequences get very long, and the meaning of 'F','r','a','n','c','e' is smeared across six steps.",
-    "So a TOKENIZER chops text into pieces from a fixed menu - the vocabulary, roughly 100k-128k entries in modern models - and hands the model only the menu positions. This is the model's entire sensory world.",
-    "Common words earned their own menu entry: 'strawberry' is ONE atom, and its letters are simply not in the input. Asking how many r's it has is asking about the inside of an atom. Rarer words split into subword pieces instead - nothing is ever out-of-vocabulary.",
+    "The case: ask a model to count the r's in 'strawberry' and it often stumbles. Before calling it stupid, we need to find out what it actually received - because it was not letters. Hold this puzzle; we'll come back and crack it.",
+    "Background for the case. Park the strawberry and take this track's running sentence - the one every module uses. When you type it, you produce characters... and characters are a terrible unit for a model: sequences get very long, and 'France' would smear its meaning across six steps.",
+    "So a TOKENIZER chops text into pieces from a fixed menu - the vocabulary, roughly 100k-128k entries in modern models - and hands the model only the menu positions. This is the model's entire sensory world. Now we know enough to reopen the case.",
+    "The case cracks: 'strawberry' is common enough to have EARNED its own menu entry - ONE atom, letters not included in the deal. Asking how many r's it has is asking about the inside of an atom. Rarer relatives split into pieces instead ('straw'+'berries') - nothing is ever out-of-vocabulary.",
     "Why this design? The menu is fixed BEFORE training and must spell everything - all languages, code, emoji, DNA strings. Characters would work but waste the context window; whole words would need millions of entries. Subwords are the compromise that won.",
     "The compromise has a price, and it is uneven: English prose costs ~4 characters per token, but numbers, code indentation and non-Latin scripts often pay double or worse. Same meaning, more tokens, more cost, more chances to slip.",
-    "Which explains a whole family of 'dumb' failures: counting letters (invisible), comparing 9.11 vs 9.9 (weird digit chunks), rhyming (sounds live inside atoms). The model is brilliant in a language whose letters it cannot see.",
-    "Mechanically, each token is just its menu position - an integer. 'The' is #464, ' France' is #4881. That integer is all that survives of your text.",
+    "Case closed - and it generalizes to a whole family of 'dumb' failures: counting letters (invisible), comparing 9.11 vs 9.9 (weird digit chunks), rhyming (sounds live inside atoms). The model is brilliant in a language whose letters it cannot see.",
+    "Back to our running sentence for the pipeline's last step: each token is just its menu position - an integer. 'The' is #464, ' France' is #4881. That integer is all that survives of your text.",
     "And an integer has no meaning to do math on - so the very next step (mechanism act 3) turns each ID into a VECTOR of thousands of numbers. That vector, h, is what every module after this one operates on.",
   ];
   caption.textContent = caps[i];
