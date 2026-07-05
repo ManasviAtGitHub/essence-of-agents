@@ -166,7 +166,7 @@ every probability live.</p>
     <span><b>z</b> raw score (logit)</span>
     <span><b>T</b> temperature: divides z before softmax</span>
     <span><b>p</b> probability after softmax</span>
-    <span><b>r</b> random draw in [0,1) - walks the strip, picks the token</span>
+    <span><b>r</b> random number rolled by the SAMPLER (plain code outside the network), once per token - walks the strip, picks</span>
   </div>
 </div>
 
@@ -338,7 +338,7 @@ function renderInt(i, dir) {
 }
 
 /* ---------- MECHANISM pass: 20 steps in 3 acts ---------- */
-const MECH_ACTS = [["one turn, machinery shown", 7], ["the sampler's knobs", 7], ["consequences + break it", 6]];
+const MECH_ACTS = [["one turn, machinery shown", 7], ["the sampler's knobs", 8], ["consequences + break it", 6]];
 function renderMech(i, dir) {
   mach.hidden = false; cdf.hidden = true;
   const rows0 = () => softmax(GEN[0].cand, state.T);
@@ -349,10 +349,9 @@ function renderMech(i, dir) {
     else if (i === 8) setKnobs(true, 0.1, false);
     else if (i === 9) setKnobs(true, 2, false);
     else if (i === 10) setKnobs(true, 1, true);
-    else if (i === 11) setKnobs(true, 1, false);
-    else if (i >= 12 && i <= 15) setKnobs(true, 1, false);
-    else if (i === 16 || i === 17) setKnobs(true, 0.1, false);
-    else if (i === 18) setKnobs(true, 0.8, false);
+    else if (i >= 11 && i <= 16) setKnobs(true, 1, false);
+    else if (i === 17 || i === 18) setKnobs(true, 0.1, false);
+    else if (i === 19) setKnobs(true, 0.8, false);
     else setKnobs(true, 1, false);
   } else { setKnobs(i >= 7); }
 
@@ -383,37 +382,42 @@ function renderMech(i, dir) {
     insight.innerHTML = "Act 1: <b>context -&gt; vectors -&gt; layers -&gt; logits -&gt; softmax</b>. The table is computed live - check any row with a calculator.";
   }
 
-  // ---- ACT 2 (7-13): the sampler's knobs ----
-  else if (i <= 13) {
+  // ---- ACT 2 (7-14): the sampler's knobs, and the story of the dice ----
+  else if (i <= 14) {
     renderCtx(PROMPT, {});
     renderStack(false, "32 layers, each: attention + FFN", "the pass is done - now we are just re-sampling its output");
-    loopback.className = "loopback" + (i === 13 ? " hot" : "");
+    loopback.className = "loopback" + (i === 14 ? " hot" : "");
     let rows = rows0();
     let pick = GEN[0].pick;
     if (state.topp) rows = topP(rows, 0.9);
     renderTable(rows, pick, { zt:true, e:true, p:true, p2:state.topp });
     renderBars(rows, pick, {});
     disthd.textContent = "T = " + fmt(state.T,2) + (state.topp ? ", top-p 0.90" : "") + " - recomputed live";
-    if (i === 11 || i === 12) renderCdf(rows, [{ r: GEN[0].r, lab: "r = " + GEN[0].r }],
-      "each token owns a slice of [0,1) as wide as its p; the draw r lands in somebody's slice - that token is 'chosen'.");
+    if (i === 11) renderCdf(rows, [],
+      "the slices are laid out - each token owns a stretch of [0,1) as wide as its p. The dice have not been rolled yet.");
+    if (i === 12 || i === 13) renderCdf(rows, [{ r: GEN[0].r, lab: "r = " + GEN[0].r }],
+      "the sampler rolled r = 0.42; walking the strip, it lands in ' Paris''s slice - that token is 'chosen'.");
     const caps2 = [
       "The knobs unlock. TEMPERATURE divides every logit before softmax: p_i = e^(z_i/T)/sum. Drag T and watch the table and bars recompute - this is the real formula running.",
       "T -> 0.1: dividing by a tiny T stretches the gaps, so the softmax collapses onto the top logit. ' Paris' takes ~everything. T=0 is argmax: greedy decoding, same output every time.",
       "T = 2: the gaps shrink, the tail fattens. ' located' and ' a' now get real mass - more variety, more nonsense. Temperature trades determinism for diversity; it never adds knowledge.",
       "TOP-P (nucleus): sort by probability, keep the smallest set that covers 90%, renormalize, and the long tail is simply cut. Struck-through rows now have p = 0 - junk can't get lucky.",
-      "The DRAW: pick a random r in [0,1) and walk the cumulative strip below. r = 0.42 lands inside ' Paris'. That single arithmetic step is 'the model chose'.",
-      "Greedy (T=0) replays the same walk every time; any T > 0 makes the draw a genuine lottery. (r = the random number from the last step, the one that walks the strip.) Course 1's run-again widget - two answers from one prompt - was never a mystery: just two different random draws, two different r's.",
+      "Now the missing character. The network's work is DONE - it handed back a ranking, and nothing in those 32 layers can pick from it. Someone else must choose. Meet the strip: every token owns a slice of [0,1) exactly as wide as its probability.",
+      "The chooser is not a neuron. It is a RANDOM-NUMBER GENERATOR in the sampler - ordinary code in the serving loop, Bit's side of the machine, not Cortex's brain. It rolls r = 0.42; r walks the strip and lands in ' Paris'. That roll is the ONLY non-deterministic step in the entire pipeline - everything else tonight was frozen arithmetic.",
+      "Which explains everything about reproducibility: greedy (T=0) skips the roll entirely - argmax, same output every time. Any T > 0 lets the dice matter. Course 1's run-again widget - two answers from one prompt - was never a mystery: same network, same strip, two rolls of r. (And when an API offers a 'seed' parameter, it is seeding exactly this generator.)",
       "Cost of it all: ONE full forward pass per token. A 40-token answer = 40 passes, each reading the whole context... unless we cache what doesn't change. That's Module 3.",
     ];
     caption.textContent = caps2[i - 7];
-    cortexChr.dataset.e = i === 9 ? "confused" : i >= 12 ? "reach" : "think";
+    cortexChr.dataset.e = i === 9 ? "confused" : i === 11 ? "think" : i >= 12 ? "reach" : "think";
     insight.className = "insight";
-    insight.innerHTML = "Act 2: sampling = <b>logits / T -&gt; softmax -&gt; top-p cut -&gt; one draw</b>. Every number on screen recomputes when you touch a knob.";
+    insight.innerHTML = i === 12
+      ? "The story of r: <b>the network ranks; it cannot choose. A plain RNG outside the network rolls r; r picks.</b> One roll per token, forever."
+      : "Act 2: sampling = <b>logits / T -&gt; softmax -&gt; top-p cut -&gt; one roll of the dice</b>. Every number on screen recomputes when you touch a knob.";
   }
 
-  // ---- ACT 3 (14-19): consequences + break it ----
+  // ---- ACT 3 (15-20): consequences + break it ----
   else {
-    const k = i - 14;
+    const k = i - 15;
     if (k <= 1) {  // divergence
       renderCtx(PROMPT.concat(k === 0 ? [] : [" Paris / the ?"]), { newFrom: k === 0 ? null : PROMPT.length });
       renderStack(k === 1, "32 layers", k === 1 ? "run A and run B both pass through here - identically" : "");
@@ -472,7 +476,7 @@ function build(mode) {
   state.mode = mode;
   const isInt = mode === "int";
   tl = new Anim.Timeline({
-    length: isInt ? 8 : 20,
+    length: isInt ? 8 : 21,
     autoMs: isInt ? 2000 : 2600,
     onStep: (i, d) => (isInt ? renderInt(i, d) : renderMech(i, d)),
   });

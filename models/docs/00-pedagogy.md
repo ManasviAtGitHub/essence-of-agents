@@ -62,6 +62,14 @@ explanation, not just the aha. Concretely, every scene must have:
 6. **The worked example.** One fixed prompt runs through the whole track (see
    next section), so every mechanism operates on the same tokens the learner
    has already memorized.
+7. **The story of everything (user rule, 2026-07-05).** No object may appear
+   on screen without its ORIGIN STORY: who computes it, where it lives (inside
+   the network? in the sampler code? on whose machine?), and why it must
+   exist. A legend DEFINES a symbol; the story EXPLAINS it - both are
+   required. Litmus test: for every symbol in a caption, a reader arriving at
+   that step cold can answer "where did this come from?" without scrubbing
+   back. (Found via r in M0: the draw was defined but its story - the network
+   only ranks, so a plain RNG outside the network must choose - was missing.)
 
 ## The worked example (one thread through every module)
 
