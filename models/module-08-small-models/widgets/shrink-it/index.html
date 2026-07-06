@@ -40,6 +40,17 @@
   .sb .bt { width:70px; height:8px; border-radius:2px; background:#141b22; overflow:hidden; }
   .sb .bf { display:block; height:100%; background:var(--blue); }
   .arrowr { color:var(--gold); font:16px var(--mono); }
+  /* distillation distribution comparison (mechanism act 2) */
+  .drow { display:flex; gap:16px; justify-content:center; width:100%; }
+  .dcol { flex:1; max-width:200px; }
+  .dt { font:9.5px var(--mono); text-transform:uppercase; letter-spacing:.05em; color:var(--faint); margin-bottom:5px; text-align:left; }
+  .dbar { display:flex; align-items:center; gap:5px; margin:3px 0; }
+  .dl { font:10px var(--mono); color:#cdd3da; width:44px; text-align:right; }
+  .dtk { flex:1; height:11px; border-radius:2px; background:#141b22; overflow:hidden; }
+  .df { display:block; height:100%; border-radius:2px; transition:width .5s ease; }
+  .df.soft { background:var(--blue); } .df.hard { background:var(--gold); } .df.stu { background:var(--green); }
+  .dcap { font:9.5px var(--mono); color:var(--faint); margin-top:5px; text-align:left; }
+  .reduce .df { transition:none; }
   /* quant slider */
   .quant { width:100%; }
   .qslide { width:100%; accent-color:var(--blue); }
@@ -240,6 +251,21 @@ function teacherSVG(label, mode) {
     '<span class="arrowr">&rarr;</span><div><span class="chr" data-c="bit" data-e="think"></span><div class="who">student (small)</div></div></div>' +
     '<div class="who" style="margin-top:6px">' + label + '</div>';
 }
+/* mechanism act 2: the distributions themselves carry the claim (rule 8).
+   teacher soft target fixed; student converges toward it as k advances. */
+function distillViz(k) {
+  const cands = [" Paris", " Lyon", " France", " other"];
+  const teacher = [90, 6, 3, 1], hard = [100, 0, 0, 0];
+  const student = k <= 1 ? [42, 27, 19, 12] : k === 2 ? [76, 12, 8, 4] : [88, 7, 3, 2];
+  const col = (title, vals, cls, cap) => '<div class="dcol"><div class="dt">' + title + '</div>' +
+    cands.map((c, i) => '<div class="dbar"><span class="dl">' + c + '</span><span class="dtk"><span class="df ' + cls + '" style="width:' + vals[i] + '%"></span></span></div>').join("") +
+    (cap ? '<div class="dcap">' + cap + '</div>' : '') + '</div>';
+  if (k === 1) return '<div class="drow">' + col("HARD label (one-hot)", hard, "hard", "just the answer - 1 bit") + col("SOFT target (the teacher)", teacher, "soft", "+ the near-misses = dark knowledge") + '</div>';
+  if (k <= 0) return '<div class="drow">' + col("teacher predicts", teacher, "soft", "the student trains on THIS, not raw text") + col("student (untrained)", student, "stu", "flat - knows nothing yet") + '</div>';
+  return '<div class="drow">' + col("teacher (the target)", teacher, "soft", "fixed") +
+    col(k === 2 ? "student (converging)" : k >= 5 ? "student (matched - ceiling)" : "student (matched)", student, "stu",
+        k === 2 ? "KL pulls its shape toward the teacher" : k >= 5 ? "can reach the teacher, not exceed it" : "now mirrors the teacher's shape") + '</div>';
+}
 function quantSVG(nStops) {
   return '<div class="quant"><div style="font:11px var(--mono);color:#cdd3da;margin-bottom:6px">one weight: 0.4213...</div>' +
     QSTOPS.slice(0, nStops + 1).map(q => '<div class="sb" style="margin:3px 0"><span style="width:66px;color:' + (q[3] === "r" ? "var(--red)" : "#cdd3da") + '">' + q[0] + '</span><span style="color:var(--faint)">' + q[1] + ' bits/weight</span></div>').join("") + '</div>';
@@ -287,12 +313,12 @@ function renderMech(i) {
 
   else if (i <= 10) {  // ---- ACT 2: distillation ----
     const k = i - 5;
-    stageHd.textContent = "distillation: teacher -> student"; stageViz.innerHTML = teacherSVG(k >= 1 ? "soft targets" : "the setup", k >= 1 ? 1 : 0); metHd.textContent = "params";
+    stageHd.textContent = "distillation: the student learns the teacher's SHAPE"; stageViz.innerHTML = distillViz(k); metHd.textContent = "params";
     setBars([{name:"teacher", val:671, label:"671B", cls:""}, {name:"student", val:7, label:"7B", cls:"g"}], 700, "");
     mach.innerHTML = [
-      '<span class="formula">student learns to match the teacher\'s output distribution</span><div class="calc"><span class="calc src">not raw text - the student trains on what the TEACHER predicts. The teacher runs once over data; its per-token distributions become the lessons.</span></div>',
-      '<span class="formula">hard label: p = [0,0,1,0] &nbsp; vs &nbsp; soft target: [.02,.05,<b>.90</b>,.03]</span><div class="calc"><div class="row"><span class="lhs">hard label</span><span class="rhs">one bit of info: the answer</span></div><div class="row"><span class="lhs">soft target</span><span class="rhs">the teacher\'s whole ranking - "dark knowledge"</span></div><span class="calc src">the near-misses (Lyon, France) encode how the teacher generalizes - far more signal per token than a one-hot label.</span></div>',
-      '<span class="formula">loss = KL( student_dist || teacher_dist )</span><div class="calc"><span class="calc src">the student is trained to minimize the divergence between its distribution and the teacher\'s - literally "become the teacher\'s shape" (often plus a little normal cross-entropy).</span></div>',
+      '<span class="formula">the student trains on what the TEACHER predicts, not raw text</span><div class="calc"><span class="calc src">the teacher runs once over data; its per-token output distributions (left) become the lessons the student learns from.</span></div>',
+      '<span class="formula">loss uses the SOFT target, not the one-hot answer</span><div class="calc"><span class="calc src">compare the two bar charts: the hard label is a single spike; the soft target keeps the near-misses (Lyon, France). That extra shape - "dark knowledge" - is the signal a one-hot label throws away.</span></div>',
+      '<span class="formula">loss = KL( student_dist || teacher_dist )</span><div class="calc"><span class="calc src">watch the green student bars pull toward the blue teacher bars - the loss literally minimizes the gap between the two distributions on screen (often plus a little ordinary cross-entropy).</span></div>',
       '<div class="calc"><div class="row hero"><span class="lhs">DeepSeek: R1 traces -> Qwen-1.5B/7B/32B (verified)</span><span class="rhs">students out-reason their size</span></div><span class="calc src">R1 generated chain-of-thought traces; small Qwen/Llama models trained on them. The distilled students beat same-size models trained with RL directly.</span></div>',
       '<div class="calc"><div class="row"><span class="lhs">distillation vs from-scratch</span><span class="rhs">the teacher already did the hard search</span></div><span class="calc src">a small model trained from scratch must discover structure itself; a distilled one is handed the teacher\'s solved structure. Cheaper, and often better.</span></div>',
       '<div class="calc"><div class="row"><span class="lhs">limit</span><span class="rhs">the student can\'t exceed the teacher (much)</span></div><span class="calc src">distillation COPIES a mind - it does not create a better one. The ceiling is the teacher. Great for shrinking; not for frontier progress.</span></div>',
