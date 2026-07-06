@@ -103,7 +103,7 @@ screen) and ends where every later module starts: the token's <b>vector</b>.</p>
 <div class="modes">
   <button class="modebtn on" data-mode="int">intuition (the story)</button>
   <button class="modebtn" data-mode="mech">mechanism (build the tokenizer)</button>
-  <span class="modehint">act 1 really trains a BPE vocab; act 2's sandbox encodes anything you type</span>
+  <span class="modehint">act 1 really trains a byte-pair-encoding (BPE) vocab; act 2's sandbox encodes anything you type</span>
 </div>
 
 <div class="stage" role="group" aria-label="Tokenization stage">
@@ -433,9 +433,9 @@ function renderMech(i) {
     const caps3 = [
       "The last step of input processing, and the birth of everything else: the EMBEDDING MATRIX. One row per menu entry, each row a vector of d numbers. Token #4881 (' France') simply SELECTS row 4881. A lookup - nothing fancier.",
       "That row is the token's meaning, as coordinates: d = 7,168 numbers in DeepSeek-V3, 8,192 in Llama-3-70B. The values are LEARNED during training like any other weight - the model itself decides what each direction means.",
-      "Size check (computed): 128,000 rows x 7,168 dims = " + (EMB_PARAMS/1e9).toFixed(2) + "B parameters just for the lookup table. Remember Module 4's 'always-on ~14.5B rest'? A chunk of it is exactly this matrix.",
+      "Size check (computed): 128,000 rows x 7,168 dims = " + (EMB_PARAMS/1e9).toFixed(2) + "B parameters just for the lookup table - about a billion weights spent before any 'thinking' happens. (And it is only a slice of the full model; later modules count the rest.)",
       "Why vectors? Because geometry can carry meaning. Trained embeddings put 'cat' near 'kitten', 'car' near 'truck', 'banana' off on its own - similarity becomes DISTANCE, and the model can compute with it. (The scatter is a 2D shadow of thousands of dimensions - illustrative.)",
-      "This vector is h - the hidden state - at layer 0. Every module ahead operates on it: attention MOVES meaning between positions' h's (Module 2), the FFN transforms each h alone, and the MoE router reads h to pick experts (Module 4: scores = W_r x h - THIS h).",
+      "This vector is h - the hidden state - at layer 0. Every module ahead operates on it: attention MOVES meaning between positions' h's (Module 2), a per-position transform reshapes each h alone (the feed-forward network, later), and a router reads h to route it to experts (Module 4). Whatever those modules do, THIS h is their input.",
       "The full pipeline, end to end: text -> tokens -> IDs -> vectors. The model's real input was never words - it was a short list of learned coordinates. Next: how those vectors talk to each other (Module 2).",
     ];
     caption.textContent = caps3[k];

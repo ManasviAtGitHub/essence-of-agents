@@ -304,7 +304,7 @@ function calcPanel(upTo) {           // the arithmetic, revealed line by line - 
     ["one expert = 3 matrices (gate, up, down), each d x m = 7168 x 2048", "3 x 7168 x 2048 = " + M(perExpert)],
     ["one MoE layer = 256 routed + 1 shared experts", "257 x " + M(perExpert) + " = " + B(layerCap)],
     ["MoE layers = 61 - 3 dense = 58", "58 x " + B(layerCap) + " = " + B(moeTotal)],
-    ["always-on rest (MLA attention, embeddings, 3 dense FFNs, MTP)", "671B - " + B(moeTotal) + " = " + B(alwaysOn)],
+    ["always-on rest (attention, embeddings, 3 dense FFNs, a prediction head)", "671B - " + B(moeTotal) + " = " + B(alwaysOn)],
     ["ACTIVE per token: (8 routed + 1 shared) experts x 58 layers", "9 x " + M(perExpert) + " x 58 = " + B(layerTch * MOE_LAYERS)],
     ["+ the same always-on rest", B(layerTch * MOE_LAYERS) + " + " + B(alwaysOn) + " = " + B(activeTot) + "  (report: 37B)"],
     ["a DENSE model at this per-token cost would hold, in total", B(activeTot) + " - the MoE stores " + RATIO_M.toFixed(1) + "x more"],
@@ -399,7 +399,7 @@ function renderMech(i) {
       mach.innerHTML = '<span class="formula">expert(h) = W_down &middot; ( silu(W_gate h) * (W_up h) )</span>' +
         '<div class="calc"><div class="row"><span class="lhs">W_gate, W_up: d -&gt; m (7168 -&gt; 2048); W_down: m -&gt; d (2048 -&gt; 7168)</span>' +
         '<span class="rhs">3 x 7168 x 2048 = ' + M(perExpert) + ' params</span></div>' +
-        '<span class="src">an "expert" is nothing exotic: a small SwiGLU FFN, the standard transformer block, just narrower. The dense FFN on the left is the same formula with a much wider m.</span></div>';
+        '<span class="src">an "expert" is nothing exotic: a small feed-forward block in the standard gated (SwiGLU) form shown above, just narrower. The dense FFN on the left is the same formula with a much wider m.</span></div>';
     } else if (i === 1) {
       mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">the dense layer</span><span class="rhs">ONE such FFN, very wide - no decision to make</span></div>' +
         '<div class="row"><span class="lhs">the MoE layer</span><span class="rhs">257 narrow FFNs standing ready - so SOMETHING must decide</span></div>' +
@@ -408,7 +408,7 @@ function renderMech(i) {
       mach.innerHTML = routerTable(ROUTES[tok], 2);
     }
     const caps1 = [
-      "First, demystify the star of the show. An EXPERT is just a small FFN - the same three-matrix SwiGLU block every transformer uses, with a narrow middle (m = 2048). The page computes its size: 44.0M parameters. That's it. No agents, no personalities - a slice of network.",
+      "First, demystify the star of the show. An EXPERT is just a small FFN - the same three-matrix gated block (called SwiGLU) every transformer uses, with a narrow middle (m = 2048). The page computes its size: 44.0M parameters. That's it. No agents, no personalities - a slice of network.",
       "So the two designs differ by ONE thing. Dense: one very wide FFN, no decisions. MoE: 257 narrow FFNs in a row - which means something has to CHOOSE. Every remaining step is about that choice.",
       "The chooser is almost embarrassingly small: one linear map. scores = W_r x h - where h is the token's vector, born in Module 1's embedding and enriched by Module 2's attention just one beat earlier. One raw score per expert, for THIS token, at THIS layer. The 671B-vs-37B decision is made by a matrix the size of a rounding error.",
       "Softmax turns the scores into affinities - the exact formula from Module 0's sampler, computed live in the table below.",
@@ -425,7 +425,7 @@ function renderMech(i) {
       : i === 1 ? "257 tiny FFNs and one question: who gets this token?"
       : i === 2 ? "My h walks in and a matrix the size of a business card decides its fate."
       : i === 3 ? "Softmax again. Third time in this track. It is softmax all the way down."
-      : i === 4 ? "The struck-through experts never even got woken up. Their weights stayed on disk... well, on HBM."
+      : i === 4 ? "The struck-through experts never even got woken up. Their weights just sat parked in GPU memory, unused."
       : i === 5 ? "0.711 of expert 2's opinion, 0.289 of expert 5's. I am a committee."
       : i === 6 ? "Three FFNs ran. The dense fellow next door ran eleven billion parameters. For ' France'."
       : "New token, new committee. My org chart reshuffles every single token.");
@@ -447,7 +447,7 @@ function renderMech(i) {
       "Before the receipts, the design question: why 256 SMALL experts instead of 8 big ones (Mixtral-style)? Combinations. The page computes both: 8-choose-2 gives 28 possible teams; 256-choose-8 gives about 400 trillion. Fine-grained experts make specialization combinatorial - more distinct mixtures per token at the same cost.",
       "Line one of the ledger: one expert = 3 matrices of 7168 x 2048 = 44.0M parameters. Everything else is multiplication.",
       "One MoE layer holds 257 of them: 11.3B parameters - in ONE layer. This is where mixture-of-experts models get enormous: capacity is cheap to ADD because adding it does not touch per-token cost.",
-      "58 of the 61 layers are MoE: 656.5B of experts alone. Subtract from the reported 671B and the always-on rest falls out: ~14.5B for MLA attention, embeddings, the 3 dense layers and the MTP head. We didn't look that up - we derived it.",
+      "58 of the 61 layers are MoE: 656.5B of experts alone. Subtract from the reported 671B and the always-on rest falls out: ~14.5B for attention, embeddings, the 3 dense layers and an extra prediction head (Module 5 details those). We didn't look that up - we derived it.",
       "Now the other side: per token, only 9 experts per layer execute. 9 x 44.0M x 58 = 23.0B of expert weights actually run...",
       "...plus the same ~14.5B always-on machinery = 37.5B. The report says 37B. Both headline numbers now derived from shapes, on screen. Nothing quoted.",
       "And the final line is the whole module in one row: a dense model at this per-token cost would BE a 37.5B model, total. The MoE pays the same rent and lives in a warehouse 17.9x larger. That's what the router buys.",

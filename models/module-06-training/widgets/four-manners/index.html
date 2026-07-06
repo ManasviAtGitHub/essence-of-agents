@@ -234,9 +234,9 @@ function renderInt(i) {
     "Crucial: it already KNEW Paris. Pretraining loaded the knowledge. What it lacks is manners - the sense that a question deserves an answer and then silence.",
     "STAGE 2, SFT (supervised fine-tuning): show it thousands of curated question->answer dialogues and have it imitate them. Same prompt now: 'Paris.' and it STOPS. Look at the bars - the <end> token, near zero before, now dominates.",
     "And look what did NOT change: 'Paris' was the top content token in BOTH distributions. SFT did not teach France's capital - it already knew. SFT moved the probability of STOPPING. That is the whole trick, made of one number.",
-    "STAGE 3, preference tuning (RLHF / DPO). Some prompts have no single right token - 'center a div' has many valid answers. So humans RANK whole outputs, and training pushes probability toward the preferred one. (Switched prompts here - a fact prompt can't show this.)",
+    "STAGE 3, preference tuning - RLHF (reinforcement learning from human feedback) or its shortcut DPO (direct preference optimization). Some prompts have no single right token - 'center a div' has many valid answers. So humans RANK whole outputs, and training pushes probability toward the preferred one. (Switched prompts here - a fact prompt can't show this.)",
     "This is where helpfulness, formatting, tone, and safety are shaped. Still no new facts enter - the model is being taught which of its already-possible answers people prefer.",
-    "STAGE 4, reasoning RL. Give an SFT model course 1's bat-and-ball trap and it blurts '$0.10' - fast, confident, wrong. The manner it learned (answer immediately) betrays it on hard problems.",
+    "STAGE 4, reasoning RL (reinforcement learning). Give an SFT model course 1's bat-and-ball trap and it blurts '$0.10' - fast, confident, wrong. The manner it learned (answer immediately) betrays it on hard problems.",
     "Reasoning RL rewards attempts that pass a VERIFIER (Module 7's story). Chains of thought that reach the checkable-correct answer get reinforced - so the model learns to deliberate first: x = 0.05. Same weights family, a new habit: think, then answer.",
     "The aha: not one of these stages taught a new fact. The base model already contained Paris, flexbox, and the algebra. Each stage only bent WHICH of its completions it prefers - stop here, phrase it kindly, think first. Training shapes the distribution, not the knowledge.",
   ];
@@ -311,7 +311,7 @@ function renderMech(i) {
       "Stage 2, SFT. Now the example is a curated user->assistant dialogue. The machinery is IDENTICAL to pretraining - next-token loss - with one change.",
       "The change: mask the prompt. Loss is computed ONLY on the assistant's tokens (gold), including the <end>. The model learns to imitate the shape of a good reply - which is exactly 'answer, then stop'. That is manners, made of masking.",
       "Stage 3, preference. Here there is no single correct token to imitate. The example is a PAIR: a chosen response and a rejected one, for the same prompt.",
-      "The loss pushes probability toward 'chosen' and away from 'rejected' (this is DPO; RLHF reaches the same end through a reward model). The supervision is a human RANKING, not an answer - which is how taste, tone, and safety get in.",
+      "The loss pushes probability toward 'chosen' and away from 'rejected' (this is DPO - direct preference optimization; RLHF reaches the same end through a separate reward model). The supervision is a human RANKING, not an answer - which is how taste, tone, and safety get in.",
       "Stage 4, reasoning RL. The example is a problem with a checkable answer. Sample K attempts, run each past a VERIFIER, and reinforce the ones that pass.",
       "Nobody writes the reasoning. Good chains of thought EMERGE because they score correct - reinforcement selects for them. And this only works where a cheap verifier exists (math, code) - the deep reason reasoning models are strongest there. Module 7 is this in full.",
     ];
@@ -360,7 +360,7 @@ function renderMech(i) {
     } else if (k === 5) {   // QLoRA
       mach.innerHTML = '<div class="lora"><div class="mbox frozen"><div class="sq" style="width:64px;height:64px">W<br>4-bit</div>frozen, NF4</div>' +
         '<span class="lop">+</span><div class="mbox train"><div class="sq" style="width:44px;height:44px">B&middot;A</div>16-bit, trained</div></div>' +
-        '<span class="calc src">QLoRA (Dettmers et al. 2023): also QUANTIZE the frozen base to 4-bit NF4 (Module 8\'s trick) - it never trains, so low precision is fine - while the tiny LoRA adapters stay full 16-bit. Verified result: fine-tune a 65B model on a SINGLE 48GB GPU.</span>';
+        '<span class="calc src">QLoRA (Dettmers et al. 2023): also QUANTIZE the frozen base to 4-bit NormalFloat, NF4 (a Module 8 trick) - it never trains, so low precision is fine - while the tiny LoRA adapters stay full 16-bit. Verified result: fine-tune a 65B model on a SINGLE 48GB GPU.</span>';
     } else if (k === 6) {   // swappable adapters
       mach.innerHTML = '<div class="lora"><div class="mbox frozen"><div class="sq" style="width:64px;height:64px">W</div>one shared base</div>' +
         '<span class="lop">+</span><div class="mbox train"><div class="sq" style="width:34px;height:34px">A1</div>legal</div>' +

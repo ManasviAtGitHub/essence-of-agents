@@ -293,7 +293,7 @@ function renderMech(i) {
       "Mechanism, exactly. Start where Module 3 ended: standard MHA caches 2 x n_heads x head_dim elements per token per layer. For V3's 128 heads at 128 dim, that is 32,768 elements - the number we are going to demolish.",
       "GQA is the modest fix: share KV heads. 8 instead of 128 gives 2,048 elements - a real cut, but it is the same KIND of thing, storing keys and values per (shared) head.",
       "MLA is different in kind. Project the token's hidden vector DOWN through a learned matrix into a single compressed latent c_KV of dimension 512. That latent is all you cache - not keys, not values, just the compression.",
-      "One wrinkle keeps it honest: position. RoPE encodes position by rotating keys, and that rotation cannot be folded into the compression. So MLA keeps a small extra position-key of dimension 64 alongside the latent. Cache = 512 + 64 = 576.",
+      "One wrinkle keeps it honest: position. RoPE (rotary position embedding) encodes position by rotating keys, and that rotation cannot be folded into the compression. So MLA keeps a small extra position-key of dimension 64 alongside the latent. Cache = 512 + 64 = 576.",
       "The receipts: 32,768 elements (MHA) versus 576 (MLA), computed live. That is 56.9x smaller - a 98.2% cut. The paper's headline number is 93.3% (measured on DeepSeek-V2 against their 67B dense model); the exact ratio depends on the config, but the idea is this.",
       "How reading still works: when a head needs its key and value, they are RECONSTRUCTED from the latent by learned up-projection matrices. The elegant part - those up-projections can be mathematically absorbed into the query and output matrices, so at inference the decompression is nearly free.",
       "Scaled to the whole model - 576 elements x 2 bytes x 61 layers = " + KB(MLA_b) + " per token - the 128k cache falls from " + GB(MHA_b * CTX) + " to " + GB(MLA_b * CTX) + ". Module 3's wall, gone.",
@@ -361,19 +361,19 @@ function renderMech(i) {
         '<div class="row' + (m[0].indexOf("M5") > 0 ? " hero" : "") + '"><span class="lhs">' + m[0] + ' &rarr; attacks ' + m[1] + '</span><span class="rhs">' + m[2] + '</span></div>').join("") +
         '<span class="calc src">every architecture headline is a factor in some cost formula getting smaller. The skill is naming the resource.</span></div>';
     } else if (k === 4) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">honest note</span><span class="rhs">MLA is not free</span></div><span class="calc src">MLA adds decompression compute and real implementation complexity; it is a memory-for-compute trade that HAPPENS to also match or beat MHA quality. MTP adds a head and speculative-decode plumbing. Trades, not magic - which is why not every model adopts them.</span></div>';
-    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">tokens (M1) -> attention (M2) -> KV cache (M3) -> experts (M4)</span><span class="rhs">the machine</span></div><div class="row"><span class="lhs">training (M6) bent the logits; MLA/MTP (M5) made it affordable at scale</span><span class="rhs"></span></div><span class="calc src">next: Module 7 spends MORE decode passes on purpose (reasoning), and Module 8 attacks total params (small models).</span></div>';
+    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">tokens (M1) -> attention (M2) -> KV cache (M3) -> experts (M4)</span><span class="rhs">the machine</span></div><div class="row"><span class="lhs">MLA + MTP (M5, here) make it affordable to run at scale</span><span class="rhs"></span></div><span class="calc src">next: Module 6 trains this machine (base -> chat -> reasoning). Later, Module 7 spends MORE decode passes on purpose (reasoning), and Module 8 attacks total params (small models).</span></div>';
     const caps3 = [
       "Step back for the real lesson. Line up the tricks you have met and name what each ATTACKS. GQA (Module 2): KV-cache memory, by sharing heads.",
       "MLA (this module): the same KV-cache memory, harder - by compressing K,V to a latent. Two different tools, one target.",
       "MoE (Module 4): a totally different resource - compute per token - by waking only a few experts. Same-size model, less arithmetic.",
       "MTP (this module): a third resource - decode speed - by drafting and verifying extra tokens. Four famous tricks, three distinct bottlenecks.",
       "The honest note: none of this is magic. MLA buys memory with extra compute and real engineering complexity (it just happens to also match MHA's quality). MTP adds machinery too. These are TRADES - which is exactly why different labs pick different ones.",
-      "Where Module 5 sits: the forward pass (M1-M4) computes; training (M6) shaped it; and MLA + MTP are what make running it at 671B and 128k actually affordable. Next, Module 7 spends decode passes deliberately - reasoning - and Module 8 shrinks the whole model.",
+      "Where Module 5 sits: the forward pass (M1-M4) computes, and MLA + MTP are what make running it at 671B and 128k actually affordable. Next, Module 6 trains this machine into a base, chat, and reasoning model; later, Module 7 spends decode passes deliberately - reasoning - and Module 8 shrinks the whole model.",
     ];
     caption.textContent = caps3[k];
     insight.className = "insight";
     insight.innerHTML = k >= 5
-      ? "<b>The track:</b> M1-M4 build the machine, M6 trains it, M5 makes it affordable. Next: M7 spends compute to think, M8 shrinks it all."
+      ? "<b>The track:</b> M1-M4 build the machine; M5 (here) makes it affordable to run. Next: M6 trains it; then M7 spends compute to think, and M8 shrinks it all."
       : "Act 3: <b>every architecture headline attacks ONE resource</b> - memory, compute, or speed. Name it, and the trick stops being a mystery.";
     react("bit", k === 4 ? "think" : k >= 5 ? "happy" : "neutral",
       k === 0 ? "GQA: fewer KV heads. Memory move."
@@ -381,7 +381,7 @@ function renderMech(i) {
       : k === 2 ? "MoE: fewer experts awake. That's a COMPUTE move, different shelf."
       : k === 3 ? "MTP: two tokens a pass. That's SPEED. Three bottlenecks, four tricks - I can place any of them now."
       : k === 4 ? "None of it's free. Every headline is a trade I chose to make."
-      : "Machine built, trained, and made affordable. Module 7, let's go spend some compute on purpose.");
+      : "Machine built, and now affordable to run. Next up, Module 6 teaches it some manners.");
   }
   setNums([["MLA cache", MLA_e + " elem/tok/layer (512+64)"], ["vs MHA", MHA_e.toLocaleString() + " (" + ratio.toFixed(0) + "x)"],
            ["MTP", "depth 1, ~85-90% accept"], ["principle", "each trick = one resource"]]);

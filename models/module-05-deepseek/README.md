@@ -56,5 +56,7 @@ You can compute MLA's cache per token (d_c + d_h^R, times layers, times bytes)
 and say what resource each of GQA/MLA/MoE/MTP attacks. `CHALLENGE.md`.
 
 ## Next
-Module 7: reasoning models spend MORE decode passes on purpose - the opposite
-of MTP's thrift, deliberately.
+Module 6: same machine, different manners - how a base, a chat, and a reasoning
+model all come from bending the same weights with different training. (Then
+Module 7 makes reasoning its whole story - spending MORE decode passes on
+purpose, the opposite of MTP's thrift.)

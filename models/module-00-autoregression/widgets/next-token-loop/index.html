@@ -417,7 +417,7 @@ function renderMech(i, dir) {
     const caps1 = [
       "Down a level. Each token is really an ID in a 128,000-entry vocabulary - the IDs under the chips. (Module 1 is about how text becomes these.)",
       "Each ID looks up an embedding: a vector of d = 4,096 numbers. (The digits under the chips are stand-ins - the real values are learned. Module 1's act 3 tells that story.) From here on, the model only does arithmetic on vectors.",
-      "The vectors flow through 32 layers - each one attention (positions exchange information; Module 2) then an FFN (each position thinks alone; Module 4 splits THIS into experts). One pass touches every layer.",
+      "The vectors flow through 32 layers - each one attention (positions exchange information; Module 2) then a feed-forward network, FFN (each position thinks alone; Module 4 splits THIS into experts). One pass touches every layer.",
       "The LAST position's final vector is multiplied against every token's output vector -> one score per vocab entry: the LOGITS. 128,000 raw numbers. Here are the top 6.",
       "Look at them: 8.1, 4.9, 3.6... They are not probabilities - they don't sum to 1 and can be negative. Something has to turn scores into a distribution.",
       "That something is softmax: exponentiate each score (making everything positive and gaps multiplicative), then divide by the sum. The table now shows e^z per token.",
@@ -503,7 +503,7 @@ function renderMech(i, dir) {
       cortexChr.dataset.e = k === 3 ? "panic" : k === 4 ? "happy" : "confused";
       insight.className = k === 3 ? "insight bad" : "insight";
       insight.innerHTML = k >= 4
-        ? "<b>The roadmap:</b> tokens (M1) enter the stack; attention (M2) moves info; the KV cache (M3) makes the loop affordable; experts (M4) decide what wakes up; training (M6) bends these bars; reasoning (M7) is this loop given room to think. One picture, nine modules."
+        ? "<b>The roadmap:</b> tokens (M1) enter the stack; attention (M2) moves info; the key/value (KV) cache (M3) makes the loop affordable; experts (M4) decide what wakes up; training (M6) bends these bars; reasoning (M7) is this loop given room to think. One picture, nine modules."
         : "<b>FAIL.</b> Determinism + a self-pointing argmax = an infinite loop. The fix is the same randomness that made runs diverge in act 3, step 1.";
     }
     renderNums([["context", "grows every pass"], ["passes", "one per token"],

@@ -54,4 +54,4 @@ exact act-1 computation, running inside a transformer that trains.
 
 ## Next
 Module 3 prices what this module deferred: keeping every k and v around -
-the KV cache. (Module 4, already built, slices the FFN this module located.)
+the KV cache. (Module 4 later slices that FFN into experts.)
