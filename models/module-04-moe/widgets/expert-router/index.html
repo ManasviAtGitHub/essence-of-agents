@@ -42,6 +42,7 @@
   .tok { font:12px var(--mono); border:1px solid var(--line); border-radius:6px; background:var(--panel);
          color:#cdd3da; padding:3px 7px; }
   .tok.cur { border-color:var(--gold); color:var(--gold); box-shadow:0 0 8px rgba(255,211,92,.3); }
+  .tok.clik { cursor:pointer; } .tok.clik:hover { border-color:var(--blue); color:var(--ink); }
 
   .cmp { flex:1; display:flex; flex-direction:column; align-items:center; text-align:center;
          transition:border-color .2s, opacity .2s; }
@@ -143,7 +144,7 @@ mechanism mode it <b>derives both headline numbers live</b> instead of quoting t
 
 <div class="flow" role="group" aria-label="Dense layer versus mixture-of-experts layer, same tokens">
   <div class="panel tokp">
-    <div class="hd">the token stream</div>
+    <div class="hd">the token stream - click any to route it</div>
     <div class="chipwrap" id="toks"></div>
   </div>
   <div class="panel cmp" id="denseP">
@@ -205,8 +206,11 @@ function choose(n, k) { let r = 1; for (let i = 0; i < k; i++) r = r * (n - i) /
 /* ---------- routing demos: 8 drawn experts stand in for 256; logits illustrative ---------- */
 const TOKENS = ["The", " capital", " of", " France", " is"];
 const ROUTES = {
-  " France":  [1.2, 6.8, 0.4, 2.1, 5.9, 1.8, 0.9, 3.2],   // -> E2, E5
-  " is":      [2.0, 1.1, 5.2, 0.7, 1.4, 2.8, 6.1, 1.0],   // -> E7, E3
+  "The":       [5.9, 1.0, 2.1, 1.4, 0.8, 3.2, 1.1, 2.0],  // -> E1, E6
+  " capital":  [5.5, 2.2, 1.0, 6.3, 0.8, 1.5, 2.4, 0.9],  // -> E4, E1
+  " of":       [1.0, 3.5, 5.5, 1.2, 2.0, 0.8, 1.4, 4.0],  // -> E3, E8
+  " France":   [1.2, 6.8, 0.4, 2.1, 5.9, 1.8, 0.9, 3.2],  // -> E2, E5
+  " is":       [2.0, 1.1, 5.2, 0.7, 1.4, 2.8, 6.1, 1.0],  // -> E7, E3
 };
 function routerRows(logits, k) {
   const exps = logits.map(z => Math.exp(z));
@@ -240,8 +244,15 @@ $("elabels").innerHTML = Array.from({length:8}, (_, i) => "<span>E" + (i+1) + "<
 
 function renderToks(curTok) {
   toks.innerHTML = TOKENS.map(t =>
-    '<span class="tok' + (t === curTok ? " cur" : "") + '">' + esc(t) + '</span>').join("");
+    '<span class="tok clik' + (t === curTok ? " cur" : "") + '" data-tok="' + esc(t) + '">' + esc(t) + '</span>').join("");
 }
+// interactive: click any token to route it yourself and watch its experts fire
+function routeToken(tok) {
+  renderToks(tok); moeFire(tok);
+  const active = topOf(ROUTES[tok], 2).map(e => "E" + (e + 1)).join(" + ");
+  mnote.textContent = "routed \"" + tok.trim() + "\" -> " + active + " (+ shared). Every token picks its own few - click another.";
+}
+$("toks").addEventListener("click", e => { const c = e.target.closest(".tok"); if (c && ROUTES[c.dataset.tok]) routeToken(c.dataset.tok); });
 function denseFire(mode) {           // "all" | "wave" | null
   nnD.clear(); if (mode === "all") nnD.setAll("fire"); else if (mode === "wave") nnD.wave(true);
 }

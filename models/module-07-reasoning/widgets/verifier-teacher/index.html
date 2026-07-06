@@ -50,6 +50,10 @@
   .mfill { display:block; height:100%; border-radius:4px; transition:width .5s ease; }
   .mfill.c { background:var(--blue); } .mfill.a { background:var(--green); }
   .mnote { font:10px var(--mono); color:var(--faint); margin-top:8px; }
+  .budgetctl { display:flex; align-items:center; gap:8px; margin-top:10px; font:11px var(--mono); color:var(--dim);
+               border-top:1px dashed var(--line); padding-top:8px; }
+  .budgetctl[hidden] { display:none; }
+  .budgetctl input[type=range] { flex:1; accent-color:var(--blue); }
   .reduce .mfill { transition:none; }
 
   .mach { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; margin-top:12px; }
@@ -101,6 +105,10 @@ the reasoning - it is selected for.</p>
     <div class="meter"><div class="ml"><span>accuracy on hard problems (illustrative)</span><b id="av"></b></div>
       <div class="mtrack"><span class="mfill a" id="af"></span></div></div>
     <div class="mnote" id="mnote"></div>
+    <label class="budgetctl" id="budgetCtl" hidden>
+      <span>drag the thinking budget:</span>
+      <input type="range" id="budgetSlide" min="4" max="240" step="4" value="140" aria-label="thinking token budget" />
+    </label>
   </div>
 </div>
 
@@ -126,8 +134,19 @@ const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
 const probText=$("probText"), genHd=$("genHd"), chain=$("chain"), groupBox=$("groupBox"),
       cv=$("cv"), cf=$("cf"), av=$("av"), af=$("af"), mnote=$("mnote"), mach=$("mach"),
-      nums=$("nums"), caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+      nums=$("nums"), caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine"),
+      budgetCtl=$("budgetCtl"), budgetSlide=$("budgetSlide");
 if (Anim.reduced()) document.body.classList.add("reduce");
+// test-time scaling curve: accuracy saturates as thinking budget grows (illustrative)
+const accOf = b => 0.30 + 0.58 * (1 - Math.exp(-b / 55));
+function applyBudget() {
+  const b = +budgetSlide.value, acc = accOf(b);
+  const chainTxt = b < 20 ? '<span class="bad">x = 15</span> <span class="dim">(too rushed to divide - wrong)</span>'
+    : b < 70 ? '<span class="think">3x = 15... x = 15?</span> <span class="dim">(some work, still slips)</span>'
+    : '<span class="think">3x + 7 = 22 -> 3x = 15 -> x = 15 / 3 = 5</span><br><span class="ans">x = 5</span> <span class="dim">(correct)</span>';
+  chain.innerHTML = chainTxt;
+  meter(b, acc, "more thinking tokens = more forward passes (Module 0) = more accuracy - on deliberation-bound problems");
+}
 function react(who, emote, line) { chrR.dataset.c = who; chrR.dataset.e = emote; reactLine.textContent = line; Cast.render($("react")); }
 function meter(tokens, acc, note) {
   cv.textContent = tokens == null ? "--" : tokens + " tokens";
@@ -152,12 +171,12 @@ function setNums(list) { nums.innerHTML = list.map(x => '<span class="stat">' + 
 
 /* ---------- INTUITION: 9 steps ---------- */
 function renderInt(i) {
-  mach.hidden = true;
+  mach.hidden = true; budgetCtl.hidden = true;
   const F = [
     () => { drawGroup(false); genHd.textContent = "the question behind reasoning models"; chain.innerHTML = '<span class="dim">what, physically, is "thinking harder"?</span>'; meter(null, null); },
-    () => { drawGroup(false); genHd.textContent = "a SHORT chain: blurt the answer"; chain.innerHTML = '<span class="bad">x = 15</span> <span class="dim">(22 - 7, forgot to divide - wrong)</span>'; meter(6, 0.40, "few tokens, few passes, low accuracy on hard problems"); },
-    () => { drawGroup(false); genHd.textContent = "a LONG chain: work through it"; chain.innerHTML = '<span class="think">3x + 7 = 22 -> 3x = 22 - 7 = 15 -> x = 15 / 3 = 5</span><br><span class="ans">x = 5</span> <span class="dim">(correct)</span>'; meter(140, 0.85, "more tokens = more forward passes = more accuracy (Module 0)"); },
-    () => { drawGroup(false); genHd.textContent = "the chain IS compute, not decoration"; chain.innerHTML = '<span class="think">each reasoning token is another pass through the stack</span>'; meter(140, 0.85, "reasoning = spending inference compute before committing"); },
+    () => { drawGroup(false); genHd.textContent = "a SHORT budget: blurt the answer"; budgetCtl.hidden = false; budgetSlide.value = 6; applyBudget(); },
+    () => { drawGroup(false); genHd.textContent = "a LONG budget: work through it"; budgetCtl.hidden = false; budgetSlide.value = 140; applyBudget(); },
+    () => { drawGroup(false); genHd.textContent = "the chain IS compute - now drag the budget yourself"; budgetCtl.hidden = false; applyBudget(); },
     () => { drawGroup(true, "bars"); genHd.textContent = "but who WROTE that long chain? nobody. RL did."; meter(null, null, "sample many attempts at the problem"); },
     () => { drawGroup(true, "bars"); genHd.textContent = "a VERIFIER scores each attempt (course 1, Module 6)"; meter(null, null, "reward = did it reach the checkable-correct answer?"); },
     () => { drawGroup(true, "mean"); genHd.textContent = "reinforce the winners, discourage the losers"; meter(null, null, "the gold line = the group's average reward (the baseline)"); },
@@ -201,7 +220,7 @@ function renderInt(i) {
 /* ---------- MECHANISM: 18 steps, 3 acts ---------- */
 const MECH_ACTS = [["inference-time compute", 5], ["GRPO: the training loop", 8], ["emergence + limits", 5]];
 function renderMech(i) {
-  mach.hidden = false;
+  mach.hidden = false; budgetCtl.hidden = true;
   if (i <= 4) {  // ---- ACT 1: inference-time compute ----
     drawGroup(false);
     const budgets = [[6, 0.40], [40, 0.62], [140, 0.85], [140, 0.85], [140, 0.85]][i];
@@ -326,6 +345,7 @@ document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
   document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
   build(b.dataset.mode);
 });
+budgetSlide.oninput = applyBudget;
 build("int");
 </script>
 </body>

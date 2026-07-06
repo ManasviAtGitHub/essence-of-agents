@@ -29,6 +29,9 @@
   .arcp { flex:1.6; min-width:0; }
   svg.arcs { width:100%; height:190px; }
   .arcs .tokbox { fill:#171b21; stroke:#2a2f38; rx:6; }
+  .arcs .tokbox.clik { cursor:pointer; } .arcs .tokbox.clik:hover { stroke:#58c4dd; }
+  .arcs .tokbox.future { opacity:.4; }
+  .arcs text.tt.clik, .arcs [data-q] { cursor:pointer; }
   .arcs .tokbox.q { stroke:#ffd35c; filter:drop-shadow(0 0 6px rgba(255,211,92,.35)); }
   .arcs .tokbox.enr { stroke:#83c167; filter:drop-shadow(0 0 6px rgba(131,193,103,.35)); }
   .arcs text.tt { font:12px ui-monospace,Consolas,monospace; fill:#cdd3da; text-anchor:middle; }
@@ -134,9 +137,21 @@ const SCORES = K.map(k => dot(Q_IS, k));                     // computed
 const SCALED = SCORES.map(s => s / Math.sqrt(DH));           // computed
 const EXPS = SCALED.map(s => Math.exp(s));
 const WSUM = EXPS.reduce((a, b) => a + b, 0);
-const W = EXPS.map(e => e / WSUM);                           // computed weights
+const W = EXPS.map(e => e / WSUM);                           // computed weights (query = ' is')
 const OUT = [0,1,2,3].map(d => V.reduce((s, v, i) => s + W[i] * v[d], 0)); // computed blend
 const f = (x, d) => x.toFixed(d == null ? 2 : d);
+
+/* per-token query vectors (illustrative), so ANY token can be the one that attends.
+   each aligns with an earlier token's key; the math below is computed. */
+const QALL = [ [0,0,0,0.5], [0,0,0,2], [2,0,1.6,0], [2,0,1.6,0], Q_IS ];
+function computeAttn(qi) {                                   // causal: attend to 0..qi, computed
+  const w = new Array(5).fill(0);
+  const sc = [], win = [];
+  for (let ti = 0; ti <= qi; ti++) { sc.push(dot(QALL[qi], K[ti]) / Math.sqrt(DH)); win.push(ti); }
+  const ex = sc.map(Math.exp), sum = ex.reduce((a, b) => a + b, 0);
+  win.forEach((ti, j) => w[ti] = ex[j] / sum);
+  return w;
+}
 
 /* ---------- verified real shapes: Llama-3-70B ---------- */
 const L3 = { d:8192, heads:64, hd:128, kv:8, layers:80 };
@@ -163,6 +178,7 @@ function drawStage(opts) {
   // opts: {q: index|null, weights: bool, all: bool, enrich: bool, wall: bool}
   opts = opts || {};
   let h = "";
+  const WQ = opts.q != null ? computeAttn(opts.q) : [];   // weights for THIS query, computed
   // arcs first (under boxes)
   if (opts.all) {                       // everyone looks back, faded
     for (let qi = 1; qi < 5; qi++)
@@ -172,16 +188,17 @@ function drawStage(opts) {
   if (opts.q != null) {
     for (let ti = 0; ti < 5; ti++) {
       if (ti === opts.q) continue;
-      if (ti < opts.q) h += arcPath(opts.q, ti, opts.weights ? 1 + W[ti] * 14 : 2.2, false);
+      if (ti < opts.q) h += arcPath(opts.q, ti, opts.weights ? 1 + WQ[ti] * 14 : 2.2, false);
     }
   }
-  // boxes
+  // boxes (clickable: any token can become the query)
   TOKS.forEach((t, i) => {
-    const cls = "tokbox" + (i === opts.q ? " q" : "") + (opts.enrich && i === 4 ? " enr" : "");
-    h += '<rect class="' + cls + '" x="' + (XS[i] - 52) + '" y="128" width="104" height="34"/>' +
-         '<text class="tt' + (i === opts.q ? " q" : "") + '" x="' + XS[i] + '" y="150">' + esc(t) + "</text>";
+    const future = opts.q != null && i > opts.q;
+    const cls = "tokbox clik" + (i === opts.q ? " q" : "") + (opts.enrich && i === 4 ? " enr" : "") + (future ? " future" : "");
+    h += '<rect class="' + cls + '" data-q="' + i + '" x="' + (XS[i] - 52) + '" y="128" width="104" height="34"/>' +
+         '<text class="tt' + (i === opts.q ? " q" : "") + '" data-q="' + i + '" x="' + XS[i] + '" y="150">' + esc(t) + "</text>";
     if (opts.weights && opts.q != null && i < opts.q)
-      h += '<text class="wt" x="' + XS[i] + '" y="120">w=' + f(W[i], 3) + "</text>";
+      h += '<text class="wt" x="' + XS[i] + '" y="120">w=' + f(WQ[i], 3) + "</text>";
   });
   if (opts.wall) {
     h += '<line class="wall" x1="' + (XS[4] + 60) + '" y1="122" x2="' + (XS[4] + 60) + '" y2="170"/>' +
@@ -189,6 +206,12 @@ function drawStage(opts) {
   }
   arcs.innerHTML = h;
 }
+// interactive: click any token to make IT the one that attends (causal, computed)
+function showQuery(qi) {
+  drawStage({ q: qi, weights: true });
+  arcHd.textContent = "attention from '" + TOKS[qi].trim() + "' - computed (click any token)";
+}
+arcs.addEventListener("click", e => { const el = e.target.closest("[data-q]"); if (el) showQuery(+el.dataset.q); });
 function arcPath(qi, ti, w, faded) {
   const x1 = XS[qi], x2 = XS[ti];
   const lift = 30 + Math.abs(qi - ti) * 22;
@@ -243,7 +266,7 @@ function renderInt(i) {
   ];
   const s = S[i];
   drawStage(s.st);
-  arcHd.textContent = i === 0 ? "the sentence, as vector islands" : i >= 2 && i <= 2 ? "everyone attends, backwards only" : "attention from ' is' (weights computed)";
+  arcHd.textContent = i === 0 ? "the sentence, as vector islands" : i >= 2 && i <= 2 ? "everyone attends, backwards only" : "attention from ' is' - click any token to switch the query";
   beats(s.b[0], s.b[1], s.b[2], s.b[3], s.b[4]);
   setNums([["weights shown", "computed from toy q,k"], ["biggest", "' France' w=" + f(W[3],3)], ["mask", "no peeking forward"]]);
   caption.textContent = s.cap;
