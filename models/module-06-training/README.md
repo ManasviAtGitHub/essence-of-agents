@@ -60,6 +60,12 @@ Given a described behavior change (it started refusing X; it stopped rambling;
 it began showing its work), you can name which training stage most likely
 caused it, and say what that stage's loss and data look like. `CHALLENGE.md`.
 
+## Run it in code
+`python models/nanomodel/train.py` IS stage 1: the next-token loss and the SGD
+loop, running for real. `cross_entropy` + `backward()` in `autograd.py` are the
+gradient machine every later stage reuses - SFT just masks the loss to the
+assistant's tokens, DPO swaps in a preference loss, RL swaps in a verifier.
+
 ## Next
 Module 7 zooms all the way into stage 4: reasoning models and
 inference-time compute, where the verifier becomes the teacher.

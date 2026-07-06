@@ -23,6 +23,8 @@ jobs:
         run: python tests/test_modules.py
       - name: structure invariants (single-source lib, simulation-first)
         run: python tests/test_structure.py
+      - name: nanomodel (from-scratch transformer runs + learns)
+        run: python tests/test_nanomodel.py
       - name: no stale UI links (every href/src/nav/iframe resolves)
         run: python tools/check_links.py
       - name: widget runtime gate (no console errors, scenes build)

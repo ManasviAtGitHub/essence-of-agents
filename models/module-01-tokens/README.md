@@ -45,6 +45,10 @@ input was never words - it was a short list of learned coordinates.
 You can run three BPE merge rounds by hand on a toy corpus and predict how a
 new word will encode. `CHALLENGE.md` is that exercise.
 
+## Run it in code
+The BPE trainer is real Python: `python models/nanomodel/bpe.py` runs the exact
+algorithm this widget animates (train -> merges -> encode). Same output.
+
 ## Next
 Module 2: the vectors are born, but they are islands - attention is how
 meaning moves between them.

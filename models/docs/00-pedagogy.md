@@ -312,6 +312,19 @@ M5 DeepSeek -> M7 reasoning RL (GRPO here) -> M8 small models (distill+quant)
 mechanism pass may only lean on ideas an EXISTING module has built - check
 before writing. Cast rule: Cortex/Bit must appear in every widget.
 
+## Closing the asymmetry: nanomodel (2026-07-06)
+
+The agents track graduates from simulation to real code (`claude_harness`); the
+models track had none. `models/nanomodel/` closes that: a from-scratch, pure-Python,
+keyless tiny transformer (scalar autograd + one attention head + MLP + BPE) that
+runs and learns in ~a minute. It is the widgets' math, running - not a new lesson.
+Each spine module whose mechanism it implements (M0 loop, M1 BPE, M2 attention,
+M4 dense FFN, M6 next-token loss + SGD) ends with a "Run it in code" pointer to
+the exact file/function. Guarded by `tests/test_nanomodel.py` (autograd gradient,
+BPE matches the M1 widget, forward+backward wiring, training reduces loss). Same
+honesty contract: labeled a TOY (char-level, ~1k weights, memorizes not
+generalizes); real models are the identical math at scale.
+
 ## Coverage decision (user, 2026-07-05): deep spine + atlas
 
 The track is a DEEP SPINE (one mechanism per module, computable by hand), NOT

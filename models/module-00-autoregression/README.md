@@ -43,6 +43,11 @@ point.
 Given five logits and a temperature, you can compute the sampling distribution
 by hand. `CHALLENGE.md` is exactly that exercise.
 
+## Run it in code
+This loop is real Python too: `models/nanomodel/model.py` -> `NanoModel.generate`
+is exactly this - forward, softmax, temperature, the dice, append, repeat.
+`python models/nanomodel/train.py` trains a tiny transformer and then runs it.
+
 ## Next
 Module 1 asks what those "tokens" actually are - and why the model cannot see
 the letters inside them.

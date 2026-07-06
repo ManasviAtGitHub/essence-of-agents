@@ -47,6 +47,11 @@ matrices agreeing on a code, plus one softmax.
 Given toy q and k vectors, you can compute one attention weight by hand
 (dot, scale, softmax) and say what the causal mask zeroes. `CHALLENGE.md`.
 
+## Run it in code
+One causal head is real Python: `Attention` in `models/nanomodel/model.py` -
+q.k, the `1/sqrt(d)` scale, the future mask, softmax, the value blend - the
+exact act-1 computation, running inside a transformer that trains.
+
 ## Next
 Module 3 prices what this module deferred: keeping every k and v around -
 the KV cache. (Module 4, already built, slices the FFN this module located.)

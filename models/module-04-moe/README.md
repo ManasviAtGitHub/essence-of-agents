@@ -53,6 +53,12 @@ which slice wakes up.
 Given an MoE's shape (experts, top-k, shared, dims, layers), you can compute
 its total and active parameter counts by hand. `CHALLENGE.md` is that exercise.
 
+## Run it in code
+`models/nanomodel/model.py` runs the DENSE side of this comparison - one plain
+`MLP` per layer, capacity and cost locked together. Reading it is how you feel
+what MoE unlocks: swap that one FFN for a router plus experts and nothing else
+in the forward pass changes.
+
 ## Next
 Module 5: all 671B must sit in GPU memory even asleep - and the KV cache makes
 long context another memory bill. DeepSeek's MLA is how V3 pays it.

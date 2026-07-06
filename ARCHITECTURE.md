@@ -29,11 +29,14 @@ production/                THE PRODUCTION TRACK (harden that loop; the sequel)
   vectorstore.py sandbox.py observability.py persistence.py router.py eval_gate.py run_agent.py
   README.md, test_*.py
 
-models/                    THE MODELS TRACK (inside the model; in design - see models/docs/00-pedagogy.md)
+models/                    THE MODELS TRACK (inside the model; 10 modules + atlas - see models/docs/00-pedagogy.md)
+  module-XX-*/             README.md, CHALLENGE.md, keyless widget(s) per mechanism
+  nanomodel/               the track, RUNNING: from-scratch autograd + tiny transformer + BPE
+    autograd.py model.py train.py bpe.py README.md   (models-track counterpart of claude_harness)
 
 claude_harness/            reusable agent library (agent loop + tools + tracing + FakeClient)
 tools/                     dev harness (see below)
-tests/                     test_modules.py, test_offline_loop.py, test_structure.py
+tests/                     test_modules.py, test_offline_loop.py, test_structure.py, test_nanomodel.py
 ```
 
 ## Principles (enforced by tests/test_structure.py)
@@ -45,6 +48,8 @@ tests/                     test_modules.py, test_offline_loop.py, test_structure
 3. **Real underneath, opt-in.** `claude_harness` / `agent_pro` / `providers` are real. To run
    the agent against a real model: `python production/server.py` then open
    `http://127.0.0.1:8088/?live` (uses your own key from a gitignored `.env`). Nothing else needs it.
+   The models track has its own real-code counterpart: `models/nanomodel/` is a from-scratch,
+   keyless tiny transformer (`python models/nanomodel/train.py`) - the widgets' math, running.
 4. **ASCII only** for course + assets + launcher (enforced). Use `-`, `&mdash;`, `&rarr;`.
 
 ## Add an animated widget
