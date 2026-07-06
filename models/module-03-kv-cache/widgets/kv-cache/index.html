@@ -211,13 +211,13 @@ function renderInt(i) {
     "DECODE: now it is one token at a time. Each step computes just ONE new k,v and attends against the filled cache - almost no new math, mostly reading memory. That is why streaming feels fast. Prefill is compute-bound; decode is memory-bound.",
     "But look at the cache: it never shrinks. Every token you generate adds another " + K(BPT_GQA) + " (computed next) of keys and values, and all of it sits in precious GPU memory alongside the weights.",
     "Scale to a real conversation - 128k tokens - and that cache balloons to ~" + GB(BPT_GQA * 131072) + ", stacked on top of the model's " + GB(WEIGHTS) + " of weights. The 'context window' was never a text limit. It is a memory limit.",
-    "The aha: context costs MEMORY, continuously, for the whole conversation. This is why long context is expensive, why prompt caching (production track) saves money, and exactly what DeepSeek's MLA attacks in Module 5.",
+    "The aha: context costs MEMORY, continuously, for the whole conversation. That is the real reason long context is expensive - and every advance you will meet later (DeepSeek's MLA especially) is just a way to shrink this one number.",
   ];
   caption.textContent = caps[i];
   setNums([["look-back needs", "every past K,V"], ["prefill", "compute-bound"], ["decode", "memory-bound"], ["cache", "grows every token"]]);
   insight.className = "insight";
   insight.innerHTML = i >= 8
-    ? "<b>The aha:</b> a context window is a MEMORY budget. Switch to <b>mechanism</b> to compute the exact bytes - and why GQA already cut them 8x."
+    ? "<b>The aha:</b> a context window is a MEMORY budget. Switch to <b>mechanism</b> to compute the exact bytes - and see how sharing keys across heads already cut them 8x."
     : "One idea: <b>to look back, you must remember - and remembering costs GPU memory that grows with every token.</b>";
   const R = [
     ["cortex", "think", "First token, deep breath. After that I'm basically coasting. You noticed, didn't you."],
@@ -284,10 +284,10 @@ function renderMech(i) {
         '<span class="calc src">click a context length - the arithmetic recomputes. An 80GB card holds the weights fine; the cache is what fills the rest.</span></div>';
       meters(BPT_GQA * ctxSel, { scaleGB:200, showCap:true, note:"red line = one 80GB GPU" });
     }
-    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">GQA: 8 KV heads (what Llama-3 actually uses)</span><span class="rhs">' + K(BPT_GQA) + '/token &rarr; ' + GB(BPT_GQA * 131072) + ' at 128k</span></div>' +
-      '<div class="row" style="color:var(--red)"><span class="lhs">DENSE: if it used all 64 heads (no GQA)</span><span class="rhs">' + MB(BPT_DENSE) + '/token &rarr; ' + GB(BPT_DENSE * 131072) + ' at 128k</span></div>' +
-      '<div class="row hero"><span class="lhs">GQA\'s saving = 64 / 8</span><span class="rhs">8x smaller cache</span></div>' +
-      '<span class="calc src">this is WHY Module 2\'s GQA exists: sharing KV heads shrinks the cache 8x. ' + GB(BPT_DENSE * 131072) + ' would never fit; ' + GB(BPT_GQA * 131072) + ' does.</span>';
+    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">shared: 8 KV heads feed all 64 query heads (this sharing is called grouped-query attention, GQA - Llama-3 uses it)</span><span class="rhs">' + K(BPT_GQA) + '/token &rarr; ' + GB(BPT_GQA * 131072) + ' at 128k</span></div>' +
+      '<div class="row" style="color:var(--red)"><span class="lhs">unshared: one K,V per query head, all 64 of them</span><span class="rhs">' + MB(BPT_DENSE) + '/token &rarr; ' + GB(BPT_DENSE * 131072) + ' at 128k</span></div>' +
+      '<div class="row hero"><span class="lhs">sharing 8 heads not 64 = 64 / 8</span><span class="rhs">8x smaller cache</span></div>' +
+      '<span class="calc src">sharing keys and values across heads shrinks THIS cache 8x. ' + GB(BPT_DENSE * 131072) + ' would never fit a card; ' + GB(BPT_GQA * 131072) + ' can. That memory saving is the whole point of the sharing.</span>';
     if (k !== 2 && k !== 3 && k !== 4) meters(BPT_GQA * 131072, { note:"" });
     const caps2 = [
       "Now weigh it exactly. The cache size formula has one variable that grows - tokens - and four fixed by the architecture: the factor 2 (a K and a V), the layer count, the number of KV heads, and the head dimension, times the bytes per number.",
@@ -295,52 +295,52 @@ function renderMech(i) {
       "Multiply by context length. Click 8k, 32k, 128k and watch the arithmetic - and the memory bar - recompute. At 128k it is ~" + GB(BPT_GQA * 131072) + " of cache.",
       "Stack that on the weights (140 GB) and one long conversation wants ~" + GB(BPT_GQA * 131072 + WEIGHTS) + " of GPU memory. The weights are a fixed cost you pay once; the cache is a running cost that scales with how much the model must remember.",
       "And every concurrent USER needs their own cache. Ten users at 128k is ten times that " + GB(BPT_GQA * 131072) + ". This is why memory, not compute, is usually what caps how many people a server can serve at once.",
-      "Now the payoff of a Module 2 detail. GQA shares KV heads: Llama-3 uses 8 instead of 64. Watch what dense would cost - " + MB(BPT_DENSE) + " per token, " + GB(BPT_DENSE * 131072) + " at 128k.",
-      "GQA cuts the cache exactly 64/8 = 8x. That is the whole reason it exists - not to save compute, but to shrink this cache so long context can fit at all. Module 5's MLA is the next, bigger attack on the same number.",
+      "Here is where one design choice pays off. Llama-3 does not give each of its 64 query heads its own key and value - it SHARES: 8 key/value heads feed all 64 query heads. That sharing has a name, grouped-query attention (GQA). Watch what NOT sharing would cost: " + MB(BPT_DENSE) + " per token, " + GB(BPT_DENSE * 131072) + " at 128k.",
+      "Sharing 8 heads instead of 64 makes the cache exactly 64/8 = 8x smaller. Fewer keys and values to compute, yes - but the reason it matters HERE is fewer to REMEMBER. Long context only fits at all because of this. (A later module goes after the same number harder.)",
     ];
     caption.textContent = caps2[k];
     insight.className = "insight";
-    insight.innerHTML = "Act 2: <b>cache = 2 x layers x kv_heads x head_dim x bytes x tokens.</b> Fixed shape, growing tokens - and GQA already divided kv_heads.";
+    insight.innerHTML = "Act 2: <b>cache = 2 x layers x kv_heads x head_dim x bytes x tokens.</b> Fixed shape, growing tokens - and Llama-3 already shares kv_heads across query heads to divide this down.";
     react(k <= 1 ? "cortex" : k === 5 || k === 6 ? "bit" : "cortex", k === 6 ? "happy" : k >= 3 ? "confused" : "read",
       k === 0 ? "Two per token - a key and a value - times layers, times heads, times width. Simple recipe, scary product."
       : k === 1 ? "320 kilobytes per word out of my mouth. I did the multiplication - it's exact."
       : k === 2 ? "8k feels fine. 128k and the bar lunges. Same rent, a lot more tokens."
       : k === 3 ? "183 gigabytes for one chat. I am officially high-maintenance."
       : k === 4 ? "And that's PER user. Ten of you and the server taps out on memory, not brains."
-      : k === 5 ? "Without GQA I'd need 344 gigs of cache. That number simply doesn't fit anywhere."
-      : "GQA already cut my memory 8x. That's why it's in me. Module 5 cuts deeper.");
+      : k === 5 ? "If every head kept its own keys, I'd need 344 gigs of cache. That number fits nowhere."
+      : "Sharing keys across heads already cut my memory 8x. A later module cuts deeper still.");
   }
 
   else {  // ---- ACT 3: consequences + the wall ----
     const k = i - 13;
     drawSeq(6, -1); phaseEl.style.display = "none";
-    if (k === 0) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">same prompt prefix &rarr; same K,V</span><span class="rhs">so CACHE it across requests</span></div><div class="row hero"><span class="lhs">prompt caching (production track)</span><span class="rhs">skip prefill, reuse the stored cache</span></div><span class="calc src">this is the two-track click: production\'s "prompt caching saves money" IS this KV cache, reused. Change one early token and the whole downstream cache is invalid - which is why context ORDER decides what can be cached.</span></div>';
+    if (k === 0) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">same opening prefix &rarr; same K,V</span><span class="rhs">store it once, reuse across requests</span></div><div class="row hero"><span class="lhs">reuse a stored prefix cache</span><span class="rhs">skip prefill entirely</span></div><span class="calc src">if two requests share an opening, they share its keys and values - store them once and skip re-running prefill. Change one early token, though, and every cached value after it is invalid: that is why context ORDER decides what can be reused. (If you did the other track, this is exactly what "prompt caching" was.)</span></div>';
     else if (k === 1) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">1 user @ 128k</span><span class="rhs">' + GB(BPT_GQA * 131072) + '</span></div><div class="row"><span class="lhs">10 users @ 128k</span><span class="rhs">' + GB(BPT_GQA * 131072 * 10) + '</span></div><div class="row hero"><span class="lhs">the serving bottleneck</span><span class="rhs">memory, not compute</span></div><span class="calc src">every concurrent conversation needs its own growing cache - so max users is set by how many caches fit in memory.</span></div>';
-    else if (k === 2) { meters(BPT_GQA * 131072 * 6, { scaleGB:400, showCap:true, dense:true, note:"cache + weights past the red line = out of memory" }); mach.innerHTML = '<div class="calc"><div class="row" style="color:var(--red)"><span class="lhs">weights + cache eventually exceed the GPU</span><span class="rhs">OOM, or evict old tokens</span></div><span class="calc src">BREAK IT: push context far enough and cache + weights blow past the card. The real context limit is not the math - it is when the cache stops fitting.</span></div>'; }
+    else if (k === 2) { meters(BPT_GQA * 131072 * 6, { scaleGB:400, showCap:true, dense:true, note:"cache + weights past the red line = out of memory" }); mach.innerHTML = '<div class="calc"><div class="row" style="color:var(--red)"><span class="lhs">weights + cache eventually exceed the GPU</span><span class="rhs">out of memory, or evict old tokens</span></div><span class="calc src">BREAK IT: push context far enough and cache + weights blow past the card. The GPU runs out of memory (OOM); the real context limit is not the math - it is when the cache stops fitting.</span></div>'; }
     else if (k === 3) mach.innerHTML = '<span class="formula">cache = 2 x layers x <b>kv_heads x head_dim</b> x bytes x tokens</span>' +
-      '<div class="calc"><div class="row"><span class="lhs">GQA attacked</span><span class="rhs">kv_heads (64 &rarr; 8)</span></div><div class="row hero"><span class="lhs">Module 5\'s MLA attacks</span><span class="rhs">kv_heads x head_dim &rarr; one small latent</span></div><span class="calc src">every long-context trick is a factor in this formula getting smaller. Next module: DeepSeek stores ONE compressed vector per token instead of full per-head K,V.</span></div>';
-    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">tokens -> vectors (M1) -> attention (M2) -> experts (M4)</span><span class="rhs">the forward pass</span></div><div class="row"><span class="lhs">THIS module</span><span class="rhs">what the pass must REMEMBER to run long</span></div><span class="calc src">the KV cache is the memory cost of Module 2\'s look-back. Module 5 shows the state of the art shrinking it.</span></div>';
+      '<div class="calc"><div class="row"><span class="lhs">sharing heads (GQA) shrank</span><span class="rhs">kv_heads: 64 &rarr; 8</span></div><div class="row hero"><span class="lhs">LATER-MODULE preview - DeepSeek goes further</span><span class="rhs">kv_heads x head_dim &rarr; one small latent</span></div><span class="calc src">every long-context advance is just a factor in THIS formula getting smaller. A later module (multi-head latent attention, MLA) stores one compressed vector per token instead of full per-head K,V - do not worry about how yet, only that it attacks the same number.</span></div>';
+    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">tokens &rarr; vectors (M1) &rarr; look back at earlier tokens (M2)</span><span class="rhs">the forward pass, so far</span></div><div class="row"><span class="lhs">THIS module</span><span class="rhs">the memory that looking back costs</span></div><span class="calc src">the KV cache is the price of the look-back you built in Module 2. Later modules show how the state of the art shrinks that price.</span></div>';
     const caps3 = [
-      "Two consequences worth their own beat. First, the two-track click: if two requests share a prefix, they share its K,V - so you store the cache and REUSE it. That is exactly 'prompt caching' from the production track. And it is why order matters: change an early token and every cached value after it is invalid.",
+      "Two consequences worth their own beat. First, reuse: if two requests share an opening prefix, they share its K,V - so you can store that cache once and skip re-running prefill. And it is why order matters: change an early token and every cached value after it is invalid. (Anyone who did the other track has met this idea as 'prompt caching'.)",
       "Second, serving. Each concurrent user needs their own cache, growing independently. Ten users at 128k is ~" + GB(BPT_GQA * 131072 * 10) + " of cache alone. The number of people you can serve at once is a MEMORY question, not a compute one.",
-      "BREAK IT: keep growing the context. Weights are fixed at 140 GB, but the cache climbs until weights + cache exceed the card - then you either OOM or start EVICTING old tokens (forgetting the start of the conversation). The real context ceiling is where the cache stops fitting.",
-      "So every long-context advance is an assault on one formula. GQA (Module 2) already shrank kv_heads 8x. DeepSeek's MLA (Module 5) goes after kv_heads x head_dim together - storing a single compressed latent per token instead of full keys and values.",
-      "Where this sits: the forward pass turns tokens into vectors (M1), lets them look back (M2), routes them to experts (M4). This module is the price of that look-back - the memory it must hold to run over long context. Next, Module 5: how the state of the art makes that price affordable.",
+      "BREAK IT: keep growing the context. Weights are fixed at 140 GB, but the cache climbs until weights + cache exceed the card - then the GPU runs out of memory (OOM) and you must start EVICTING old tokens, forgetting the start of the conversation. The real context ceiling is where the cache stops fitting.",
+      "So every long-context advance is really an assault on this one formula. Sharing heads (GQA) already shrank kv_heads 8x. A later module shows the harder attack - multi-head latent attention (MLA) stores a single compressed vector per token instead of full per-head keys and values. You do not need the how yet; just see that it targets the same number.",
+      "Where this sits: the forward pass turns tokens into vectors (M1) and lets each one look back at the tokens before it (M2). THIS module is the price of that look-back - the memory the model must hold to run over long context. Later in the track: how the state of the art makes that price affordable.",
     ];
     caption.textContent = caps3[k];
     insight.className = k === 2 ? "insight bad" : "insight";
     insight.innerHTML = k === 2
-      ? "<b>FAIL.</b> The true context limit is physical: when cache + weights no longer fit, you OOM or forget the oldest tokens."
+      ? "<b>FAIL.</b> The true context limit is physical: when cache + weights no longer fit, the GPU runs out of memory or must forget the oldest tokens."
       : "Act 3: the cache is <b>the memory cost of look-back</b> - prompt caching reuses it, serving is bottlenecked by it, and M5 shrinks it.";
     react(k === 2 ? "cortex" : "bit", k === 2 ? "panic" : k >= 3 ? "think" : "happy",
       k === 0 ? "Same opening every time? I file the cache once and skip the whole prefill. Free lunch, if the prefix holds."
       : k === 1 ? "Ten of you, ten shelves, and my memory taps out long before my brain does."
       : k === 2 ? "Past the red line I start FORGETTING the beginning of our chat. That's not a choice, it's physics."
-      : k === 3 ? "GQA shrank my heads. Module 5 compresses the whole key-value into one little latent. Sneak peek."
-      : "This whole module was the bill for looking back. Module 5 negotiates it down.");
+      : k === 3 ? "Sharing heads shrank my memory. A later module compresses the whole key-and-value into one little latent - a sneak peek."
+      : "This whole module was the bill for looking back. A later module negotiates it down.");
   }
-  setNums([["Llama-3-70B", "80 layers, 8 KV heads, dh 128"], ["per token", K(BPT_GQA) + " (computed)"],
-           ["128k cache", GB(BPT_GQA * 131072)], ["GQA saving", "8x vs dense"]]);
+  setNums([["Llama-3-70B", "80 layers, 8 KV heads, head_dim 128"], ["per token", K(BPT_GQA) + " (computed)"],
+           ["128k cache", GB(BPT_GQA * 131072)], ["shared heads", "8x smaller cache"]]);
 }
 
 /* delegated click for the context-length picker in act 2 */
