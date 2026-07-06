@@ -59,6 +59,9 @@ def test_course_text_is_ascii():
         data = open(f, "rb").read()
         bad = [b for b in data if b > 127]
         assert not bad, f"non-ASCII bytes in {os.path.relpath(f, ROOT)}"
+        # also reject control bytes (except tab/newline/CR) - a stray NUL makes a file "binary"
+        ctrl = [b for b in data if b < 9 or (13 < b < 32)]
+        assert not ctrl, f"control bytes {sorted(set(ctrl))} in {os.path.relpath(f, ROOT)}"
 
 
 if __name__ == "__main__":

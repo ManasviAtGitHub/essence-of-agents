@@ -190,14 +190,10 @@ function renderInt(i) {
       setBars([{name:"671B", val:671, label:"a frontier model", cls:""}], 700, "big is powerful - but you pay for it on EVERY token, forever"); },
     () => { stageHd.textContent = "Chinchilla (2022): balance size and data"; stageViz.innerHTML = scatterSVG(false);
       setBars([{name:"compute-opt", val:20, label:"~20 tokens / param", cls:"g"}], 2000, "for a fixed TRAINING budget, ~20 tokens per parameter is optimal"); },
-    () => { stageHd.textContent = "but training is a one-time cost - inference is forever"; stageViz.innerHTML = scatterSVG(true);
-      setBars([{name:"Chinchilla", val:20, label:"20 tok/param", cls:""}, {name:"Llama-3-8B", val:L3_8B_RATIO, label:f0(L3_8B_RATIO) + " tok/param", cls:"g"}], 2000, "so we OVERTRAIN small models far past Chinchilla - cheaper to run"); },
-    () => { stageHd.textContent = "way #1: overtrain a small model"; stageViz.innerHTML = scatterSVG(true);
-      setBars([{name:"8B model", val:8, label:"15T tokens of training", cls:"g"}], 700, "a small model trained LONG can beat a bigger, under-trained one - and costs a fraction to serve"); },
-    () => { stageHd.textContent = "way #2: distillation - copy a big model's mind"; stageViz.innerHTML = teacherSVG("student learns the TEACHER's distribution", 0); metHd.textContent = "size on disk";
-      setBars([{name:"teacher", val:671, label:"671B", cls:""}, {name:"student", val:7, label:"7B", cls:"g"}], 700, "train the small student to imitate the big teacher's OUTPUT DISTRIBUTION"); },
-    () => { stageHd.textContent = "soft targets carry more than the right answer"; stageViz.innerHTML = teacherSVG("not just 'Paris' - the whole shape", 1);
-      setBars([{name:"hard label", val:1, label:"just 'Paris'", cls:""}, {name:"soft target", val:6, label:"full distribution", cls:"g"}], 7, "the teacher's 2nd, 3rd guesses teach the student HOW it thinks, not just the answer"); },
+    () => { stageHd.textContent = "way #1: overtrain - because inference is forever"; stageViz.innerHTML = scatterSVG(true);
+      setBars([{name:"Chinchilla", val:20, label:"20 tok/param", cls:""}, {name:"Llama-3-8B", val:L3_8B_RATIO, label:f0(L3_8B_RATIO) + " tok/param", cls:"g"}], 2000, "overtrain a SMALL model far past 20 - cheap to serve for its whole life"); },
+    () => { stageHd.textContent = "way #2: distillation - copy the DISTRIBUTION, not the answer"; stageViz.innerHTML = teacherSVG("soft targets: the whole shape", 1); metHd.textContent = "size on disk";
+      setBars([{name:"hard label", val:1, label:"just 'Paris'", cls:""}, {name:"soft target", val:6, label:"full distribution", cls:"g"}], 7, "the teacher's 2nd, 3rd guesses teach HOW it thinks, not just the answer"); },
     () => { stageHd.textContent = "R1's reasoning distilled into Qwen (verified)"; stageViz.innerHTML = teacherSVG("R1's chains -> small Qwen/Llama", 2);
       setBars([{name:"R1 (big)", val:671, label:"teacher", cls:""}, {name:"Qwen-7B", val:7, label:"student", cls:"g"}], 700, "distilling R1's reasoning traces beat RL-ing the small model directly (Module 7)"); },
     () => { stageHd.textContent = "way #3: quantization - fewer bits per weight"; stageViz.innerHTML = quantSVG(3);
@@ -211,30 +207,26 @@ function renderInt(i) {
   const caps = [
     "The whole track has chased frontier models. But a 671B model is expensive to RUN - and inference cost is paid on every token, by every user, forever. Often you want the smallest model that is good enough. Three ways to get there.",
     "First, the classic guide: the Chinchilla scaling law (2022). For a fixed TRAINING compute budget, the sweet spot is about 20 training tokens per parameter - balance model size against data, do not just make it bigger.",
-    "But Chinchilla optimizes TRAINING cost, a one-time bill. Inference is forever. So modern practice deliberately OVERTRAINS small models far past 20 tokens/param - Llama-3-8B saw ~1,875 - because a smaller model that is cheap to serve wins over its whole life, even if 'training-suboptimal'.",
-    "Way #1, then: overtrain. Llama-3-8B trained on 15 trillion tokens is small enough to run cheaply yet strong enough to beat older, bigger, under-trained models. Bulk data poured into a small vessel.",
-    "Way #2: distillation - literally copy a big model's mind into a small one. Instead of training the student on raw text, train it to imitate the TEACHER's output distribution on each token.",
-    "The key is 'soft targets'. A raw label says only 'the answer is Paris'. The teacher's full distribution says 'mostly Paris, a little Lyon, a trace of France' - and that shape teaches the student HOW the teacher thinks, not just its final answer. Far richer signal per token.",
+    "Way #1: overtrain. Chinchilla optimizes TRAINING cost - a one-time bill - but inference is paid on every token, forever. So you deliberately overtrain a SMALL model far past 20 tok/param (Llama-3-8B saw ~1,875) to get something strong AND cheap to serve. A well-fed 8B beats a starved 70B.",
+    "Way #2: distillation - copy a big model's MIND into a small one, by training the student to imitate the teacher's output DISTRIBUTION, not raw text. The key is 'soft targets': the teacher's 2nd and 3rd guesses (a little Lyon, a trace of France) teach the student HOW it thinks, not just the final answer - far richer signal per token.",
     "This is exactly how DeepSeek shipped small reasoning models: R1's chain-of-thought traces became training data for small Qwen and Llama students (verified). Distilling the big reasoner beat running RL on the small model directly (Module 7).",
-    "Way #3: quantization - store each weight in fewer bits. The numbers do not change, just their precision: fp16 (16 bits) down to int8, int4, even lower. A 7B model at int4 is a quarter the size of fp16 - same weights, less space.",
+    "Way #3: quantization - store each weight in fewer bits. The numbers do not change, just their precision: fp16 (16 bits) down to int8, int4, even lower. Drag the slider - a 7B model at int4 is a quarter the size of fp16, same weights, less space.",
     "And quality holds up remarkably well: int8 and int4 barely move it (int4 NF4 is what QLoRA froze in Module 6). Push too far - int2 - and it falls off a cliff. There is a precision floor, and the art is stopping just above it. (Thresholds illustrative.)",
     "The aha of the whole module: most of a giant model's BEHAVIOR fits in a small one - if you copy the distribution, not the parameter count. Overtrain for data, distill for a teacher's mind, quantize for bytes. Match the model to the task; a leaderboard is not a routing table.",
   ];
   caption.textContent = caps[i];
   setNums([["Chinchilla", "~20 tok/param"], ["Llama-3-8B", f0(L3_8B_RATIO) + " tok/param"], ["distill", "teacher soft targets"], ["quantize", "bits/8 = bytes"]]);
   insight.className = "insight";
-  insight.innerHTML = i >= 9
+  insight.innerHTML = i >= 7
     ? "<b>The aha:</b> copy the distribution, not the size. Switch to <b>mechanism</b> for the scaling, KL, and byte arithmetic."
-    : i >= 7 ? "Quantization: <b>fewer bits per weight</b> - 4x smaller at int4, quality holds until a floor."
-    : i >= 4 ? "Distillation: <b>train the student on the teacher's soft output distribution</b> - copy the mind, not the size."
+    : i >= 5 ? "Quantization: <b>fewer bits per weight</b> - 4x smaller at int4, quality holds until a floor."
+    : i >= 3 ? "Distillation: <b>train the student on the teacher's soft output distribution</b> - copy the mind, not the size."
     : "Scaling: <b>Chinchilla ~20 tok/param is training-optimal; overtraining small models is inference-optimal.</b>";
   const R = [
     ["cortex", "neutral", "671 billion of me, running on every token you ever send. My electricity bill is a war crime."],
     ["bit", "think", "Chinchilla says ~20 tokens per parameter. Balance, don't just inflate."],
-    ["bit", "reach", "But I pay training ONCE and inference FOREVER - so I overtrain the little ones way past 20."],
-    ["cortex", "happy", "A well-fed 8B beats a starved 70B. Turns out data matters more than girth."],
-    ["cortex", "read", "The little one doesn't read the web - it watches ME answer, and copies my distribution."],
-    ["cortex", "happy", "I don't just tell it 'Paris'. I show it my second and third guesses. That's where my style lives."],
+    ["cortex", "happy", "Training's a one-off; running me is forever. A well-fed 8B beats a starved 70B - overtrain the little one."],
+    ["cortex", "happy", "The little one watches ME answer and copies my distribution - my 2nd and 3rd guesses, where my style lives. Not just 'Paris'."],
     ["bit", "happy", "R1's reasoning traces, poured into a 7B Qwen. The student out-reasons its own size."],
     ["cortex", "think", "Same weights, fewer bits each. int4 and I'm a quarter my size, barely dumber."],
     ["cortex", "confused", "int8, fine. int4, fine. int2 and I start slurring my words. There's a floor."],
@@ -386,10 +378,10 @@ function renderMech(i) {
 let tl = null;
 function build(mode) {
   const isInt = mode === "int";
-  tl = new Anim.Timeline({ length: isInt ? 10 : 17, autoMs: isInt ? 2600 : 3000,
+  tl = new Anim.Timeline({ length: isInt ? 8 : 17, autoMs: isInt ? 2600 : 3000,
     onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
   Anim.scrubber($("scrub"), tl, {
-    label: isInt ? (i => "step " + (i + 1) + " / 10") : Anim.actLabel(MECH_ACTS),
+    label: isInt ? (i => "step " + (i + 1) + " / 8") : Anim.actLabel(MECH_ACTS),
     acts: isInt ? null : MECH_ACTS,
   });
   tl.render(0);

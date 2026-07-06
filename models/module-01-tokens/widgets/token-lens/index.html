@@ -142,10 +142,10 @@ function pairCounts(words) {
   const c = {};
   for (const { syms, n } of words)
     for (let i = 0; i < syms.length - 1; i++) {
-      const k = syms[i] + " " + syms[i + 1];
+      const k = syms[i] + "|" + syms[i + 1];
       c[k] = (c[k] || 0) + n;
     }
-  return Object.entries(c).map(([k, n]) => ({ a:k.split(" ")[0], b:k.split(" ")[1], n }))
+  return Object.entries(c).map(([k, n]) => ({ a:k.split("|")[0], b:k.split("|")[1], n }))
     .sort((x, y) => y.n - x.n || (x.a + x.b).localeCompare(y.a + y.b));
 }
 function applyMerge(words, a, b) {
@@ -263,18 +263,14 @@ function renderInt(i) {
     () => { chips.innerHTML = chip("strawberry", "atom", "#101830") +
             '<span class="wsep">vs</span>' + chip("straw", "", "#77749") + chip("berries", "", "#20853");
             stageHd.textContent = "back to the case: one atom vs subword pieces (real splits, illustrative)"; },
-    () => { chips.innerHTML = [chip("the"), chip(" quick"), chip(" brown"), chip(" fox")].join("") +
-            '<span class="wsep">&nbsp;&nbsp;covers English...</span>' + chip("&#20320;"), stageHd.textContent = "one fixed menu (~128k entries) must spell EVERYTHING"; },
     () => { chips.innerHTML = chip("hello") + chip(" world") + '<span class="wsep">= 2 tokens&nbsp;&nbsp;vs&nbsp;&nbsp;</span>' +
             chip("3", "bad") + chip(".", "bad") + chip("14", "bad") + chip("159", "bad") + '<span class="wsep">= 4 tokens</span>';
             stageHd.textContent = "the tax is uneven - count the chips (typical big-vocab splits, illustrative)"; },
     () => { chips.innerHTML = chip("strawberry", "atom") + chip("9.11 vs 9.9", "bad") + chip("rhyme with 'orange'", "bad");
             stageHd.textContent = "so some famous 'dumb' failures are TOKENIZER failures"; },
-    () => { chips.innerHTML = SENT.map(([t, id]) => chip(t, "hot", "#" + id)).join("");
-            stageHd.textContent = "each token = a number: its position in the menu"; },
-    () => { chips.innerHTML = SENT.map(([t, id]) => chip(t, "atom", "#" + id)).join("") +
+    () => { chips.innerHTML = SENT.map(([t, id]) => chip(t, "hot", "#" + id)).join("") +
             '<span class="wsep">&rarr; each # becomes a VECTOR next</span>';
-            stageHd.textContent = "the bridge to everything else"; },
+            stageHd.textContent = "each token is a number -> which becomes a vector"; },
   ];
   steps[i]();
   const caps = [
@@ -282,16 +278,14 @@ function renderInt(i) {
     "Background for the case. Park the strawberry and take this track's running sentence - the one every module uses. When you type it, you produce characters... and characters are a terrible unit for a model: sequences get very long, and 'France' would smear its meaning across six steps.",
     "So a TOKENIZER chops text into pieces from a fixed menu - the vocabulary, roughly 100k-128k entries in modern models - and hands the model only the menu positions. This is the model's entire sensory world. Now we know enough to reopen the case.",
     "The case cracks: 'strawberry' is common enough to have EARNED its own menu entry - ONE atom, letters not included in the deal. Asking how many r's it has is asking about the inside of an atom. Rarer relatives split into pieces instead ('straw'+'berries') - nothing is ever out-of-vocabulary.",
-    "Why this design? The menu is fixed BEFORE training and must spell everything - all languages, code, emoji, DNA strings. Characters would work but waste the context window; whole words would need millions of entries. Subwords are the compromise that won.",
     "The compromise has a price, and it is uneven: English prose costs ~4 characters per token, but numbers, code indentation and non-Latin scripts often pay double or worse. Same meaning, more tokens, more cost, more chances to slip.",
     "Case closed - and it generalizes to a whole family of 'dumb' failures: counting letters (invisible), comparing 9.11 vs 9.9 (weird digit chunks), rhyming (sounds live inside atoms). The model is brilliant in a language whose letters it cannot see.",
-    "Back to our running sentence for the pipeline's last step: each token is just its menu position - an integer. 'The' is #464, ' France' is #4881. That integer is all that survives of your text.",
-    "And an integer has no meaning to do math on - so the very next step (mechanism act 3) turns each ID into a VECTOR of thousands of numbers. That vector, h, is what every module after this one operates on.",
+    "The bridge to everything else: each token is just its menu position - an integer ('The' is #464, ' France' is #4881), all that survives of your text. And an integer means nothing to compute on, so the next step turns each ID into a VECTOR of thousands of numbers - h, what every module after this one operates on.",
   ];
   caption.textContent = caps[i];
   setNums([["menu size |V|", "~128,000"], ["English prose", "~4 chars/token"], ["this page's trainer", "real BPE, toy corpus"]]);
   insight.className = "insight";
-  insight.innerHTML = i >= 8
+  insight.innerHTML = i >= 6
     ? "<b>The aha:</b> the model reads token-IDs, not letters. Switch to <b>mechanism</b> to build the menu yourself - the trainer runs for real."
     : "Tokenization happens BEFORE the model exists and never changes after. Its seams become the model's quirks.";
   const R = [
@@ -299,11 +293,9 @@ function renderInt(i) {
     ["cortex", "neutral", "Characters? Never met them."],
     ["cortex", "read", "Ah. So THIS is what you have been feeding me. Numbers."],
     ["cortex", "think", "One atom for strawberry, two pieces for strawberries. My whole world has seams."],
-    ["bit", "think", "One menu for every language ever. No pressure."],
     ["bit", "confused", "Same sentence, double the bill if you write it in digits."],
     ["cortex", "panic", "Please stop asking me about letters. I have never seen one."],
-    ["cortex", "neutral", "'The' is #464 to me. Always has been."],
-    ["cortex", "happy", "So every word I ever read was coordinates. That explains SO much."],
+    ["cortex", "happy", "'The' is #464, and every word I read was coordinates. That explains SO much."],
   ];
   react(...R[i]);
 }
@@ -479,10 +471,10 @@ function encodeUpTo(word, nMerges) {
 let tl = null;
 function build(mode) {
   const isInt = mode === "int";
-  tl = new Anim.Timeline({ length: isInt ? 9 : 19, autoMs: isInt ? 2600 : 3000,
+  tl = new Anim.Timeline({ length: isInt ? 7 : 19, autoMs: isInt ? 2600 : 3000,
     onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
   Anim.scrubber($("scrub"), tl, {
-    label: isInt ? (i => "step " + (i + 1) + " / 9") : Anim.actLabel(MECH_ACTS),
+    label: isInt ? (i => "step " + (i + 1) + " / 7") : Anim.actLabel(MECH_ACTS),
     acts: isInt ? null : MECH_ACTS,
   });
   tl.render(0);
