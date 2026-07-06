@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The efficiency budget</title>
+<!-- Essence of Models, Module 9 (third companion). Toggle the efficiency tricks and
+     watch the resource each one attacks drop. KV-memory numbers reuse the verified
+     DeepSeek-V3-scale figures from M3/M5 (MHA/GQA/MLA); model-size uses params x bits/8;
+     compute and decode are relative/illustrative (labeled). Keyless, deterministic. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:900px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+
+  .guide { display:flex; gap:12px; align-items:center; border:1px solid var(--line); border-left:3px solid var(--gold);
+           border-radius:10px; background:var(--panel); padding:8px 12px; margin-bottom:14px; min-height:44px; }
+  .guide .chr svg { width:44px; height:44px; flex:none; }
+  .guide .line { font-size:14px; color:#d8dde3; }
+
+  .tricks { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:16px; }
+  .trick { border:1px solid var(--line); background:var(--panel); border-radius:9px; padding:7px 12px; cursor:pointer;
+           text-align:left; transition:all .15s; }
+  .trick:hover { border-color:var(--blue); }
+  .trick.on { border-color:var(--green); background:#0e140b; box-shadow:0 0 8px rgba(131,193,103,.2); }
+  .trick .tn { font:12.5px var(--mono); color:var(--ink); font-weight:600; }
+  .trick .tt { font:9.5px var(--mono); color:var(--faint); margin-top:2px; }
+  .trick.on .tt { color:var(--green); }
+  .trick .tm { font:8.5px var(--mono); color:var(--blue); }
+
+  .meters { display:flex; flex-direction:column; gap:12px; }
+  .meter .top { display:flex; justify-content:space-between; font:11px var(--mono); color:var(--dim); margin-bottom:4px; }
+  .meter .top .rk { color:var(--ink); }
+  .meter .top .rv { color:var(--gold); font-weight:600; }
+  .mtrack { height:20px; border-radius:5px; background:#141b22; overflow:hidden; position:relative; }
+  .mbase { position:absolute; top:0; bottom:0; left:0; border-right:2px dashed var(--faint); opacity:.5; }
+  .mfill { display:block; height:100%; border-radius:5px; transition:width .55s cubic-bezier(.4,0,.2,1); }
+  .mfill.mem { background:var(--gold); } .mfill.flops { background:var(--blue); }
+  .mfill.bytes { background:#e08a4a; } .mfill.speed { background:var(--green); }
+  .mnote { font:10px var(--mono); color:var(--faint); margin-top:3px; min-height:12px; }
+  .reduce .mfill { transition:none; }
+
+  .receipt { border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:10px 12px; margin-top:16px; }
+  .receipt .rh { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:6px; }
+  .rline { font:11.5px var(--mono); color:#cdd3da; padding:2px 0; display:flex; justify-content:space-between; gap:12px; }
+  .rline .rt { color:var(--green); }
+  .rtotal { border-top:1px dashed var(--line); margin-top:6px; padding-top:6px; font:12px var(--mono); color:var(--gold); }
+
+  @media (max-width:640px){ body { padding:0 12px 48px; } }
+</style>
+</head>
+<body>
+<h1>The efficiency budget</h1>
+<p class="sub">The whole track in one payoff. Start with a naive dense model at 128k context - every resource
+maxed. Then <b>toggle the tricks you learned</b> and watch each one knock down the ONE resource it attacks.
+This is why a 671B model with 128k context runs on real hardware at all.</p>
+
+<div class="guide"><span class="chr" id="gChr" data-c="bit" data-e="think"></span><span class="line" id="gLine"></span></div>
+
+<div class="tricks" id="tricks"></div>
+
+<div class="meters" id="meters"></div>
+
+<div class="receipt" id="receipt"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script>
+/* ---------- the four resources, with a naive-dense baseline (128k context, frontier scale) ---------- */
+// KV memory reuses the verified DeepSeek-V3-scale figures from M3/M5.
+const BASE = { mem:500, flops:100, bytes:140, speed:1 };   // GB, %, GB, tokens/pass
+const RES = {
+  mem:   { key:"KV cache memory (128k)", cls:"mem",   unit:"GB", max:500, fmt:v=>v.toFixed(0)+" GB" },
+  flops: { key:"compute per token",      cls:"flops", unit:"%",  max:100, fmt:v=>v.toFixed(0)+"%" },
+  bytes: { key:"model size on disk",     cls:"bytes", unit:"GB", max:140, fmt:v=>v.toFixed(1)+" GB" },
+  speed: { key:"decode (tokens / pass)", cls:"speed", unit:"x",  max:2.2, fmt:v=>v.toFixed(1)+" tok" },
+};
+/* each trick: which resource, its effect on the state, and the receipt line */
+const TRICKS = [
+  { id:"gqa",  name:"GQA",          mod:"M2", res:"mem",   tt:"share KV heads",         buys:"KV memory 500 -> 32 GB (8x)" },
+  { id:"mla",  name:"MLA",          mod:"M5", res:"mem",   tt:"compress K,V to a latent", buys:"KV memory -> 9 GB (~57x vs MHA)" },
+  { id:"moe",  name:"MoE",          mod:"M4", res:"flops", tt:"wake a few experts",     buys:"compute/token 100% -> ~15% active" },
+  { id:"mtp",  name:"MTP",          mod:"M5", res:"speed", tt:"draft + verify a 2nd token", buys:"decode ~1 -> ~1.9 tokens/pass" },
+  { id:"quant",name:"Quantize int4",mod:"M8", res:"bytes", tt:"4 bits per weight",       buys:"model bytes / 4" },
+  { id:"distil",name:"Distill 7B",  mod:"M8", res:"bytes", tt:"copy the mind, smaller",  buys:"70B -> 7B student (10x fewer params)" },
+];
+const on = {};   // toggled state
+
+/* compute the four resource values from the active toggles (best/combined effects) */
+function compute() {
+  const s = { ...BASE };
+  // memory: MLA supersedes GQA (both target it); take the strongest applied
+  s.mem = on.mla ? 9 : on.gqa ? 32 : 500;
+  // compute: MoE makes it sparse
+  s.flops = on.moe ? 15 : 100;
+  // bytes: distill shrinks params (140 -> 14), quant divides bits (x4)
+  s.bytes = (on.distil ? 14 : 140) / (on.quant ? 4 : 1);
+  // speed: MTP roughly doubles tokens/pass
+  s.speed = on.mtp ? 1.9 : 1;
+  return s;
+}
+const $ = id => document.getElementById(id);
+function render(moved) {
+  const s = compute();
+  // tricks
+  $("tricks").innerHTML = TRICKS.map(t =>
+    '<button class="trick chip' + (on[t.id] ? " on" : "") + '" data-id="' + t.id + '"><div class="tn">' + t.name +
+    ' <span class="tm">' + t.mod + '</span></div><div class="tt">' + t.tt + '</div></button>').join("");
+  // meters
+  $("meters").innerHTML = Object.keys(RES).map(k => {
+    const r = RES[k], v = s[k], baseV = BASE[k];
+    const isSpeed = k === "speed";
+    const pct = Math.min(100, v / r.max * 100), basePct = Math.min(100, baseV / r.max * 100);
+    return '<div class="meter"><div class="top"><span class="rk">' + r.key + '</span>' +
+      '<span class="rv">' + r.fmt(v) + (v < baseV ? '  (was ' + r.fmt(baseV) + ')' : isSpeed && v > baseV ? '  (was ' + r.fmt(baseV) + ')' : '') + '</span></div>' +
+      '<div class="mtrack"><span class="mbase" style="left:' + basePct + '%"></span>' +
+      '<span class="mfill ' + r.cls + '" style="width:' + pct + '%"></span></div>' +
+      '<div class="mnote">' + (moved === k ? "&larr; just moved" : "") + '</div></div>';
+  }).join("");
+  // receipt
+  const applied = TRICKS.filter(t => on[t.id]);
+  $("receipt").innerHTML = '<div class="rh">receipt: tricks applied</div>' +
+    (applied.length ? applied.map(t => '<div class="rline"><span>' + t.name + ' <span style="color:var(--blue)">' + t.mod + '</span></span><span class="rt">' + t.buys + '</span></div>').join("") : '<div class="rline"><span style="color:var(--faint)">none yet - toggle a trick above</span></div>') +
+    '<div class="rtotal">KV cache ' + RES.mem.fmt(s.mem) + ' . model ' + RES.bytes.fmt(s.bytes) + ' . compute ' + RES.flops.fmt(s.flops) + ' . decode ' + RES.speed.fmt(s.speed) + '</div>';
+}
+function say(line) { $("gLine").textContent = line; Cast.render(document.querySelector(".guide")); }
+
+$("tricks").addEventListener("click", e => {
+  const b = e.target.closest(".trick"); if (!b) return;
+  const t = TRICKS.find(x => x.id === b.dataset.id);
+  on[t.id] = !on[t.id];
+  render(on[t.id] ? t.res : null);
+  $("gChr").dataset.e = "happy";
+  say(on[t.id] ? t.name + " on: " + t.buys + ". One trick, one resource." : t.name + " off. That resource climbs back.");
+});
+
+say("Foreman Bit again. The model starts maxed out on every resource. Toggle the tricks and watch each attack ONE bar.");
+render();
+</script>
+</body>
+</html>
