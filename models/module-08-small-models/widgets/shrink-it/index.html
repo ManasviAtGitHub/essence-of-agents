@@ -105,6 +105,15 @@ different cost.</p>
   </div>
 </div>
 
+<div class="quant" id="quantCtl" hidden>
+  <label style="display:flex;align-items:center;gap:10px;font:12px var(--mono);color:var(--dim)">
+    <span>drag the precision:</span>
+    <input type="range" class="qslide" id="qSlide" min="0" max="3" step="1" value="2" aria-label="quantization bit width" />
+    <span id="qReadout" style="color:var(--gold);min-width:150px"></span>
+  </label>
+  <div class="qstops"><span>fp16</span><span>int8</span><span>int4</span><span>int2</span></div>
+</div>
+
 <div class="mach" id="mach" hidden></div>
 <div class="nums" id="nums"></div>
 <div class="caption" id="caption" aria-live="polite"></div>
@@ -125,11 +134,23 @@ const GB = x => (x / 1e9).toFixed(1) + " GB";
 const f0 = x => Math.round(x).toLocaleString();
 
 /* quantization stops */
-const QSTOPS = [["fp16", 16, 1.00, "g"], ["int8", 8, 0.99, "g"], ["int4 (NF4)", 4, 0.97, "g"], ["int2", 2, 0.55, "r"]];
+const QSTOPS = [["fp16", 16, "full quality", "g"], ["int8", 8, "~no loss", "g"], ["int4 (NF4)", 4, "strong", "g"], ["int2", 2, "collapses", "r"]];
 
 const $ = id => document.getElementById(id);
 const stageHd=$("stageHd"), stageViz=$("stageViz"), metHd=$("metHd"), bars=$("bars"), mnote=$("mnote"),
-      mach=$("mach"), nums=$("nums"), caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+      mach=$("mach"), nums=$("nums"), caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine"),
+      quantCtl=$("quantCtl"), qSlide=$("qSlide"), qReadout=$("qReadout");
+/* interactive quant: slider index 0..3 -> fp16/int8/int4/int2. Drives the size bar + readout live. */
+function applyQuant() {
+  const q = QSTOPS[+qSlide.value];
+  const bytes = bitsBytes(PARAMS_7B, q[1]);
+  qReadout.textContent = q[0] + ": " + GB(bytes) + " . " + q[2];
+  setBars([
+    { name:"fp16", val:bitsBytes(PARAMS_7B,16), label:GB(bitsBytes(PARAMS_7B,16)), cls:"" },
+    { name:q[0], val:bytes, label:GB(bytes) + " (" + q[1] + "-bit)", cls:q[3] },
+  ], bitsBytes(PARAMS_7B,16), "7B x " + q[1] + " bits / 8 = " + GB(bytes) + " - " + (q[3]==="r" ? "quality collapses here" : "quality holds") + " (7B illustrative; bytes computed)");
+}
+qSlide.oninput = applyQuant;
 if (Anim.reduced()) document.body.classList.add("reduce");
 function react(who, emote, line) { chrR.dataset.c = who; chrR.dataset.e = emote; reactLine.textContent = line; Cast.render($("react")); }
 function setBars(rows, scale, note) {
@@ -152,7 +173,7 @@ function scatterSVG(showOver) {
 
 /* ---------- INTUITION: 10 steps ---------- */
 function renderInt(i) {
-  mach.hidden = true;
+  mach.hidden = true; quantCtl.hidden = true;
   const F = [
     () => { stageHd.textContent = "scaling laws: how big, and on how much data?"; stageViz.innerHTML = scatterSVG(false);
       setBars([{name:"671B", val:671, label:"a frontier model", cls:""}], 700, "big is powerful - but you pay for it on EVERY token, forever"); },
@@ -168,10 +189,10 @@ function renderInt(i) {
       setBars([{name:"hard label", val:1, label:"just 'Paris'", cls:""}, {name:"soft target", val:6, label:"full distribution", cls:"g"}], 7, "the teacher's 2nd, 3rd guesses teach the student HOW it thinks, not just the answer"); },
     () => { stageHd.textContent = "R1's reasoning distilled into Qwen (verified)"; stageViz.innerHTML = teacherSVG("R1's chains -> small Qwen/Llama", 2);
       setBars([{name:"R1 (big)", val:671, label:"teacher", cls:""}, {name:"Qwen-7B", val:7, label:"student", cls:"g"}], 700, "distilling R1's reasoning traces beat RL-ing the small model directly (Module 7)"); },
-    () => { stageHd.textContent = "way #3: quantization - fewer bits per weight"; stageViz.innerHTML = quantSVG(2);
-      const p = PARAMS_7B; setBars([{name:"fp16", val:bitsBytes(p,16), label:GB(bitsBytes(p,16)), cls:""}, {name:"int4", val:bitsBytes(p,4), label:GB(bitsBytes(p,4)), cls:"g"}], bitsBytes(p,16), "same 7B weights, stored in 4 bits instead of 16 - 4x smaller"); },
-    () => { stageHd.textContent = "quality holds... until it doesn't"; stageViz.innerHTML = quantSVG(3);
-      setBars(QSTOPS.map(q => ({name:q[0], val:bitsBytes(PARAMS_7B, q[1]), label:GB(bitsBytes(PARAMS_7B, q[1])) + " / " + Math.round(q[2]*100) + "%", cls:q[3]})), bitsBytes(PARAMS_7B,16), "int8, int4 barely hurt; push to int2 and quality falls off a cliff (thresholds illustrative)"); },
+    () => { stageHd.textContent = "way #3: quantization - fewer bits per weight"; stageViz.innerHTML = quantSVG(3);
+      quantCtl.hidden = false; qSlide.value = 2; applyQuant(); },
+    () => { stageHd.textContent = "quality holds... until it doesn't - DRAG it to int2"; stageViz.innerHTML = quantSVG(3);
+      quantCtl.hidden = false; qSlide.value = 3; applyQuant(); },
     () => { stageHd.textContent = "the aha: match the model to the task"; stageViz.innerHTML = ""; metHd.textContent = "three costs, three tools";
       setBars([{name:"train once", val:30, label:"overtrain", cls:""}, {name:"copy a mind", val:60, label:"distill", cls:""}, {name:"bytes/weight", val:90, label:"quantize", cls:"g"}], 100, "most of a giant's behavior fits in a small model - if you copy the distribution, not the size"); },
   ];
@@ -228,12 +249,12 @@ function quantSVG(nStops) {
 const MECH_ACTS = [["scaling: train-opt vs infer-opt", 5], ["distillation: soft targets", 6], ["quantization: the bytes", 6]];
 let qbits = 4;
 function renderMech(i) {
-  mach.hidden = false;
+  mach.hidden = false; quantCtl.hidden = true;
   if (i <= 4) {  // ---- ACT 1: scaling ----
     stageHd.textContent = "scaling arithmetic"; stageViz.innerHTML = scatterSVG(i >= 2); metHd.textContent = "training tokens";
     const rows = [
       [{name:"Chinchilla", val:CHINCHILLA, label:"20 tok/param", cls:""}],
-      [{name:"70B model", val:70*CHINCHILLA, label:GB(70e9*CHINCHILLA) .replace(" GB","") + "B tok", cls:""}],
+      [{name:"70B model", val:70*CHINCHILLA, label:"1.4T tokens", cls:""}],
       [{name:"Chinchilla", val:20, label:"20", cls:""}, {name:"Llama-3-8B", val:L3_8B_RATIO, label:f0(L3_8B_RATIO), cls:"g"}],
       [{name:"train cost", val:30, label:"one-time", cls:""}, {name:"infer cost", val:95, label:"every token, forever", cls:"g"}],
       [{name:"small+long", val:8, label:"cheap to serve", cls:"g"}, {name:"big+short", val:70, label:"expensive forever", cls:"r"}],
@@ -298,9 +319,10 @@ function renderMech(i) {
 
   else {  // ---- ACT 3: quantization ----
     const k = i - 11;
-    stageHd.textContent = "quantization: bits per weight"; stageViz.innerHTML = quantSVG(Math.min(k + 1, 3)); metHd.textContent = "size at " + QSTOPS.find(q=>true) ? "size on disk" : "";
+    stageHd.textContent = "quantization: bits per weight"; stageViz.innerHTML = quantSVG(Math.min(k + 1, 3)); metHd.textContent = "size on disk";
     const rows = QSTOPS.map(q => ({ name:q[0], val:bitsBytes(PARAMS_7B, q[1]), label:GB(bitsBytes(PARAMS_7B, q[1])), cls:q[3] }));
-    setBars(k === 0 ? [rows[0]] : k === 1 ? rows.slice(0,3) : rows, bitsBytes(PARAMS_7B,16), "");
+    if (k <= 2) { quantCtl.hidden = false; qSlide.value = [0, 2, 3][k]; applyQuant(); }
+    else setBars(rows, bitsBytes(PARAMS_7B,16), "");
     mach.innerHTML = [
       '<span class="formula">size = params x <b>bits</b> / 8 &nbsp; bytes</span><div class="calc"><div class="row hero"><span class="lhs">7B at fp16 (16 bits)</span><span class="rhs">7e9 x 16 / 8 = ' + GB(bitsBytes(PARAMS_7B,16)) + '</span></div><span class="calc src">computed. Quantization does not remove weights - it stores each in fewer bits. Same 7 billion numbers, less space each.</span></div>',
       '<div class="calc"><div class="row"><span class="lhs">int8 (8 bits)</span><span class="rhs">' + GB(bitsBytes(PARAMS_7B,8)) + ' - half</span></div><div class="row hero"><span class="lhs">int4 (4 bits)</span><span class="rhs">' + GB(bitsBytes(PARAMS_7B,4)) + ' - a quarter</span></div><span class="calc src">int4 NF4 is exactly what QLoRA froze in Module 6. A 7B model fits in ~3.5 GB - a laptop.</span></div>',

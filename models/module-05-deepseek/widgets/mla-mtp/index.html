@@ -21,6 +21,9 @@
              color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
   .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
   .modehint { color:var(--faint); font-size:12.5px; }
+  .attnbtn { font:12px var(--mono); border:1px solid var(--line); background:var(--panel); color:var(--dim);
+             border-radius:999px; padding:4px 13px; cursor:pointer; }
+  .attnbtn.on { color:var(--ink); border-color:var(--gold); background:#12140c; box-shadow:0 0 8px rgba(255,211,92,.2); }
 
   .flow { display:flex; gap:12px; align-items:stretch; }
   .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:10px 12px; }
@@ -97,6 +100,12 @@ ONE resource - the skill is spotting which.</p>
   <button class="modebtn" data-mode="mech">mechanism (the compression, computed)</button>
   <span class="modehint">cache figures computed live from DeepSeek-V3's verified config</span>
 </div>
+<div class="modes" id="attnSel" style="margin-top:-4px">
+  <span class="modehint">or compare attention types yourself:</span>
+  <button class="chip attnbtn" data-a="mha">MHA</button>
+  <button class="chip attnbtn" data-a="gqa">GQA-8</button>
+  <button class="chip attnbtn" data-a="mla">MLA</button>
+</div>
 
 <div class="flow" role="group" aria-label="MLA compressing the KV cache, and MTP predicting extra tokens">
   <div class="panel diap" id="diap">
@@ -166,6 +175,20 @@ function drawBars(rows, scaleBytes) {
 function setNums(list) { nums.innerHTML = list.map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join(""); }
 
 const MHA_ROW = { name:"MHA", bytes:MHA_b, cls:"" }, GQA_ROW = { name:"GQA-8", bytes:GQA_b, cls:"gqa" }, MLA_ROW = { name:"MLA", bytes:MLA_b, cls:"mla" };
+
+/* interactive: pick an attention type and see its cache + diagram, at any scrub position */
+function showAttn(type) {
+  $("diap").style.display = "flex"; mtpBox.style.display = "none";
+  if (type === "mha") { drawHeads(16, false); arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope"; diaHd.textContent = "MHA: full K,V for every one of 128 heads"; }
+  else if (type === "gqa") { drawHeads(8, false); arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope"; diaHd.textContent = "GQA-8: 8 shared KV heads instead of 128"; }
+  else { drawHeads(16, true); arrowdn.style.visibility = "visible"; latent.className = "latent on"; rope.className = "rope on"; diaHd.textContent = "MLA: one compressed latent (512) + a position key (64)"; }
+  const rows = [MHA_ROW, GQA_ROW, MLA_ROW].map(r => ({ ...r, sel: r.name.toLowerCase().startsWith(type) }));
+  drawBars(rows, MHA_b);
+  const b = type === "mha" ? MHA_b : type === "gqa" ? GQA_b : MLA_b;
+  const vsMHA = type === "mha" ? "the baseline" : type === "gqa" ? "16x smaller than MHA" : ratio.toFixed(0) + "x smaller than MHA";
+  mnote.textContent = type.toUpperCase() + ": " + nBy(b) + "/token . " + GB(b * CTX) + " at 128k . " + vsMHA;
+  document.querySelectorAll(".attnbtn").forEach(x => x.classList.toggle("on", x.dataset.a === type));
+}
 
 /* ---------- INTUITION: 10 steps ---------- */
 function renderInt(i) {
@@ -371,7 +394,7 @@ let tl = null;
 function build(mode) {
   const isInt = mode === "int";
   tl = new Anim.Timeline({ length: isInt ? 10 : 18, autoMs: isInt ? 2600 : 3000,
-    onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
+    onStep: (i) => { document.querySelectorAll(".attnbtn").forEach(x => x.classList.remove("on")); return isInt ? renderInt(i) : renderMech(i); } });
   Anim.scrubber($("scrub"), tl, {
     label: isInt ? (i => "step " + (i + 1) + " / 10") : Anim.actLabel(MECH_ACTS),
     acts: isInt ? null : MECH_ACTS,
@@ -382,6 +405,7 @@ document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
   document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
   build(b.dataset.mode);
 });
+$("attnSel").addEventListener("click", e => { const b = e.target.closest(".attnbtn"); if (b) showAttn(b.dataset.a); });
 build("int");
 </script>
 </body>

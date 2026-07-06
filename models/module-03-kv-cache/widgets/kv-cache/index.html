@@ -143,7 +143,9 @@ const MB = x => (x / 1e6).toFixed(2) + " MB", GB = x => (x / 1e9).toFixed(1) + "
 const K = x => Math.round(x / 1e3) + " KB";
 
 /* ---------- illustrative sentence ---------- */
-const TOKS = ["The", " Eiffel", " Tower", " is", " in", " Paris"];
+// full fixed sequence: 6 prompt tokens + tokens generated during decode.
+// drawSeq slices this per step, so scrubbing backward can never corrupt the row.
+const SEQ = ["The", " Eiffel", " Tower", " is", " in", " Paris", " -", " Paris", " ,", " the"];
 
 /* ---------- dom ---------- */
 const $ = id => document.getElementById(id);
@@ -158,7 +160,8 @@ function react(who, emote, line) { chrR.dataset.c = who; chrR.dataset.e = emote;
 // draw the token sequence with per-token K/V cache cells
 function drawSeq(nCached, curIdx, opts) {   // cells present for tokens < nCached; curIdx = highlighted
   opts = opts || {};
-  seq.innerHTML = TOKS.map((t, i) => {
+  const nShow = Math.max(6, nCached, curIdx + 1);   // always the 6-token prompt, plus any generated so far
+  seq.innerHTML = SEQ.slice(0, nShow).map((t, i) => {
     const has = i < nCached;
     const fresh = opts.freshIdx === i;
     const cls = "tk" + (i === curIdx ? " cur" : "") + (opts.recompute && i < curIdx ? " recompute" : "");
@@ -193,7 +196,7 @@ function renderInt(i) {
     () => { drawSeq(6, 5, { recompute:true }); phaseEl.style.display = "none"; meters(0, { note:"naive: recompute every K,V, every step" }); genHd.textContent = "the naive way: recompute ALL keys & values each step"; },
     () => { drawSeq(6, -1, { freshIdx:5 }); phaseEl.style.display = "none"; meters(BPT_GQA * 6); genHd.textContent = "the fix: CACHE each token's K,V once, reuse forever"; },
     () => { drawSeq(6, -1); phaseEl.style.display = "block"; phaseEl.className = "phase prefill"; phaseEl.textContent = "PREFILL: all 6 prompt tokens' K,V computed in ONE batched pass (this is the first-token pause)"; meters(BPT_GQA * 6); genHd.textContent = "phase 1: prefill"; },
-    () => { drawSeq(7, 6, { freshIdx:6 }); phaseEl.style.display = "block"; phaseEl.className = "phase decode"; phaseEl.textContent = "DECODE: one new token, compute only ITS k,v, reuse the 6 cached (this is the fast streaming)"; meters(BPT_GQA * 7); genHd.textContent = "phase 2: decode, one token at a time"; if (TOKS.length < 7) TOKS.push(" -"); },
+    () => { drawSeq(7, 6, { freshIdx:6 }); phaseEl.style.display = "block"; phaseEl.className = "phase decode"; phaseEl.textContent = "DECODE: one new token, compute only ITS k,v, reuse the 6 cached (this is the fast streaming)"; meters(BPT_GQA * 7); genHd.textContent = "phase 2: decode, one token at a time"; },
     () => { drawSeq(7, -1); phaseEl.style.display = "none"; meters(BPT_GQA * 7, { note:"every token adds " + K(BPT_GQA) + " to the cache, in GPU memory" }); genHd.textContent = "the catch: the cache GROWS, and it lives in GPU memory"; },
     () => { drawSeq(7, -1); phaseEl.style.display = "none"; meters(BPT_GQA * 131072, { showCap:false, note:"at 128k tokens: ~" + GB(BPT_GQA * 131072) + " of cache, on top of " + GB(WEIGHTS) + " of weights" }); genHd.textContent = "scale it to a long conversation (128k tokens)"; },
     () => { drawSeq(7, -1); phaseEl.style.display = "none"; meters(BPT_GQA * 131072, { note:"context window = memory budget" }); genHd.textContent = "the aha"; },
@@ -239,7 +242,7 @@ function renderMech(i) {
     if (i <= 2) { drawSeq(i === 0 ? 0 : 6, i === 0 ? 5 : -1, { freshIdx: i === 1 ? null : null }); phaseEl.style.display = i >= 1 ? "block" : "none";
       if (i >= 1) { phaseEl.className = "phase prefill"; phaseEl.textContent = "PREFILL: 6 tokens, ONE pass, all K,V computed in parallel"; } }
     else { drawSeq(6 + (i - 2), 5 + (i - 2), { freshIdx: 5 + (i - 2) }); phaseEl.style.display = "block"; phaseEl.className = "phase decode"; phaseEl.textContent = "DECODE step " + (i - 2) + ": +1 token, +1 k,v, reuse the rest";
-      if (TOKS.length < 6 + (i - 2) + 1) TOKS.push([" -", " Paris", " ,", " the"][(i - 3) % 4]); }
+      }
     meters(BPT_GQA * (i === 0 ? 0 : i <= 2 ? 6 : 6 + (i - 2)));
     mach.innerHTML = i <= 2
       ? '<div class="calc"><div class="row"><span class="lhs">prefill: n prompt tokens, processed together</span><span class="rhs">compute-bound - the GPU is BUSY</span></div><div class="row"><span class="lhs">work</span><span class="rhs">~n tokens of K,V + attention, in one shot</span></div><span class="calc src">this is why the first token is the slow one: all the prompt\'s keys and values are built here, at once.</span></div>'
@@ -350,7 +353,6 @@ $("mach").addEventListener("click", e => {
 let tl = null;
 function build(mode) {
   const isInt = mode === "int";
-  TOKS.length = 6;                                   // reset any appended tokens
   tl = new Anim.Timeline({ length: isInt ? 9 : 18, autoMs: isInt ? 2600 : 3000,
     onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
   Anim.scrubber($("scrub"), tl, {
