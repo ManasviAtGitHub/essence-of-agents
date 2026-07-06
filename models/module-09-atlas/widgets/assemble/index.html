@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Assemble the machine</title>
+<!-- Essence of Models, Module 9 (companion to the atlas). A synthesis capstone:
+     build the forward pass from the parts you learned, in order. No scrubber -
+     you click parts into the stack; the machine tells you why each belongs where.
+     Every part links back to the module that taught it. Keyless, deterministic. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:900px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+
+  .foreman { display:flex; gap:12px; align-items:center; border:1px solid var(--line); border-left:3px solid var(--gold);
+             border-radius:10px; background:var(--panel); padding:8px 12px; margin-bottom:14px; min-height:44px; }
+  .foreman .chr svg { width:44px; height:44px; flex:none; }
+  .foreman .line { font-size:14px; color:#d8dde3; }
+  .foreman.err { border-left-color:var(--red); } .foreman.err .line { color:#ffbdb7; }
+  .foreman.win { border-left-color:var(--green); } .foreman.win .line { color:#c8e6b8; }
+
+  .cols { display:flex; gap:16px; align-items:flex-start; }
+  .col { flex:1; min-width:0; }
+  .col > .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:8px; }
+
+  /* the tray of unplaced parts */
+  .tray { display:flex; flex-direction:column; gap:7px; }
+  .part { border:1px solid var(--line); border-radius:9px; background:#0b0e12; padding:8px 11px; cursor:pointer;
+          transition:border-color .15s, transform .1s, background .15s; }
+  .part:hover { border-color:var(--blue); transform:translateY(-1px); }
+  .part.buzz { animation:buzz .4s; border-color:var(--red); }
+  @keyframes buzz { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 60%{transform:translateX(5px)} }
+  .part .pn { font:13px var(--mono); color:var(--ink); font-weight:600; }
+  .part .ps { font:11px var(--mono); color:var(--dim); margin-top:2px; }
+  .part .pm { font:9px var(--mono); color:var(--blue); border:1px solid var(--blue); border-radius:999px; padding:0 6px; margin-top:5px; display:inline-block; }
+  .tray .done { text-align:center; color:var(--faint); font:12px var(--mono); padding:20px 0; }
+
+  /* the stack being built */
+  .stack { border:1px dashed var(--line); border-radius:10px; background:#0b0e12; padding:10px; min-height:200px; }
+  .flowin { text-align:center; font:10px var(--mono); color:var(--faint); margin-bottom:4px; }
+  .slot { border:1px solid var(--green); border-radius:8px; background:rgba(131,193,103,.05); padding:7px 10px; margin:5px 0;
+          animation:drop .3s ease; position:relative; }
+  @keyframes drop { from { opacity:0; transform:translateY(-8px); } }
+  .slot .sn { font:12.5px var(--mono); color:#c8e6b8; font-weight:600; }
+  .slot .sy { font:10.5px var(--mono); color:var(--dim); margin-top:2px; }
+  .slot .sm { font:9px var(--mono); color:var(--blue); position:absolute; top:7px; right:9px; }
+  .slot.pulse .df { background:var(--gold); }
+  .slot.pulse { border-color:var(--gold); box-shadow:0 0 10px rgba(255,211,92,.3); }
+  .layerloop { text-align:center; font:10px var(--mono); color:var(--gold); border:1px dashed var(--gold);
+               border-radius:6px; padding:3px; margin:5px 0; }
+  .empty { color:var(--faint); font:12px var(--mono); text-align:center; padding:24px 0; }
+  .arrowdown { text-align:center; color:var(--faint); font:11px var(--mono); }
+
+  .bar { display:flex; gap:8px; align-items:center; margin-top:14px; flex-wrap:wrap; }
+  .runbtn { font:inherit; font-size:14px; border:1px solid var(--gold); background:var(--panel); color:var(--gold);
+            border-radius:8px; padding:8px 18px; cursor:pointer; }
+  .runbtn:disabled { opacity:.35; cursor:default; border-color:var(--line); color:var(--dim); }
+  .runbtn:not(:disabled):hover { background:#12140c; }
+  .resetbtn { font:inherit; font-size:13px; border:1px solid var(--line); background:none; color:var(--dim);
+              border-radius:8px; padding:7px 14px; cursor:pointer; }
+  .resetbtn:hover { border-color:var(--blue); color:var(--ink); }
+  .progress { font:12px var(--mono); color:var(--faint); margin-left:auto; }
+
+  @media (max-width:640px){ body { padding:0 12px 48px; } .cols { flex-direction:column; } }
+</style>
+</head>
+<body>
+<h1>Assemble the machine</h1>
+<p class="sub">The atlas is the map; this is the build. Put the forward pass together from the parts you learned -
+click them into the stack <b>in the order a token flows through them</b>. Get one wrong and the machine tells
+you why it can't go there yet. Each part links back to its module.</p>
+
+<div class="foreman"><span class="chr" id="foreChr" data-c="bit" data-e="happy"></span><span class="line" id="foreLine"></span></div>
+
+<div class="cols">
+  <div class="col">
+    <div class="hd">parts (click the next one)</div>
+    <div class="tray" id="tray"></div>
+  </div>
+  <div class="col">
+    <div class="hd">the forward pass (text in, token out)</div>
+    <div class="stack" id="stack"></div>
+  </div>
+</div>
+
+<div class="bar">
+  <button class="runbtn" id="run" disabled>&#9654; run a token through it</button>
+  <button class="resetbtn" id="reset">reset</button>
+  <span class="progress" id="progress"></span>
+</div>
+
+<script src="../../../../assets/cast.js"></script>
+<script>
+/* the forward-pass spine, in the correct order a token flows through it */
+const PARTS = [
+  { id:"tok",   name:"Tokenizer",        mod:"M1", slot:"text -> token IDs",
+    why:"Text enters here. It is chopped into subword tokens from a fixed menu.",
+    notyet:"This is the very FIRST step - nothing comes before it." },
+  { id:"emb",   name:"Embedding",        mod:"M1", slot:"IDs -> vectors (h)",
+    why:"Each token ID selects a learned vector h - the thing every later part computes on.",
+    notyet:"Embedding needs token IDs first. Place the Tokenizer." },
+  { id:"attn",  name:"Attention",        mod:"M2", slot:"positions exchange information",
+    why:"The one place tokens talk to each other: soft retrieval over the past. Its keys/values fill the KV cache (M3).",
+    notyet:"Attention operates on VECTORS - you must embed the tokens first (M1)." },
+  { id:"ffn",   name:"FFN / experts",    mod:"M4", slot:"each position thinks alone",
+    why:"After attention mixes information in, each position is transformed - a router wakes a few experts (M4).",
+    notyet:"The FFN digests what attention gathered - attention has to run first (M2)." },
+  { id:"logit", name:"Unembed -> logits",mod:"M0", slot:"final vector -> a score per vocab token",
+    why:"The last layer's vector is scored against every token in the vocabulary: the logits.",
+    notyet:"Logits come from the PROCESSED vector - run the layers (attention + FFN) first." },
+  { id:"samp",  name:"Sample",           mod:"M0", slot:"softmax + temperature + the dice",
+    why:"Logits -> a distribution -> one token, drawn by the sampler's RNG. The only random step in the whole machine.",
+    notyet:"Sampling needs a distribution - produce the logits first (M0)." },
+  { id:"loop",  name:"Append & loop",    mod:"M0", slot:"the token becomes input; run again",
+    why:"The drawn token is appended to the context and the whole thing runs again. That loop is autoregression.",
+    notyet:"You can only loop once you have a token to append - sample first (M0)." },
+];
+/* a deterministic scramble for the tray (not sorted) */
+const TRAY_ORDER = ["attn", "tok", "samp", "emb", "loop", "ffn", "logit"];
+
+const $ = id => document.getElementById(id);
+const tray=$("tray"), stack=$("stack"), runBtn=$("run"), progress=$("progress"),
+      foreLine=$("foreLine"), foreChr=$("foreChr"), foreman=document.querySelector(".foreman");
+let placed = [];   // ids in placement order
+
+function say(line, mood) {
+  foreLine.textContent = line;
+  foreman.className = "foreman" + (mood === "err" ? " err" : mood === "win" ? " win" : "");
+  foreChr.dataset.e = mood === "err" ? "confused" : mood === "win" ? "happy" : "think";
+  Cast.render(foreman);
+}
+function part(id) { return PARTS.find(p => p.id === id); }
+
+function render() {
+  // tray: unplaced parts, in the scrambled order
+  const remaining = TRAY_ORDER.filter(id => !placed.includes(id));
+  tray.innerHTML = remaining.length
+    ? remaining.map(id => { const p = part(id);
+        return '<div class="part chip" data-id="' + id + '"><div class="pn">' + p.name + '</div>' +
+          '<div class="ps">' + p.slot + '</div><span class="pm">' + p.mod + '</span></div>'; }).join("")
+    : '<div class="done">all parts placed &#10003;<br>run a token through it &rarr;</div>';
+
+  // stack: placed parts, in order, with the "x many layers" loop annotation
+  if (!placed.length) stack.innerHTML = '<div class="empty">empty - click the part a token hits FIRST</div>';
+  else {
+    let h = '<div class="flowin">text in &darr;</div>';
+    placed.forEach((id, i) => {
+      const p = part(id);
+      h += '<div class="slot" data-id="' + id + '"><span class="sm">' + p.mod + '</span>' +
+        '<div class="sn">' + p.name + '</div><div class="sy">' + p.slot + '</div></div>';
+      if (id === "ffn" && placed.includes("logit")) h += '<div class="layerloop">&#8635; repeat attention + FFN x many layers</div>';
+      if (i < placed.length - 1) h += '<div class="arrowdown">&darr;</div>';
+    });
+    if (placed.length === PARTS.length) h += '<div class="flowin" style="color:var(--green)">&darr; token out</div>';
+    stack.innerHTML = h;
+  }
+
+  runBtn.disabled = placed.length !== PARTS.length;
+  progress.textContent = placed.length + " / " + PARTS.length + " parts";
+}
+
+tray.addEventListener("click", e => {
+  const el = e.target.closest(".part"); if (!el) return;
+  const id = el.dataset.id, p = part(id), expected = PARTS[placed.length];
+  if (id === expected.id) {          // correct next part
+    placed.push(id); render();
+    if (placed.length === PARTS.length) say("The machine is whole. Now run a token through it.", "win");
+    else say("Yes - " + p.name + ". " + p.why, "");
+  } else {                           // wrong: explain why it cannot go yet
+    el.classList.add("buzz"); setTimeout(() => el.classList.remove("buzz"), 400);
+    say(p.name + "? Not yet. " + p.notyet, "err");
+  }
+});
+
+runBtn.onclick = () => {
+  const slots = [...stack.querySelectorAll(".slot")];
+  say("Watch it flow: a token running the whole forward pass you built.", "win");
+  slots.forEach((s, i) => setTimeout(() => {
+    slots.forEach(x => x.classList.remove("pulse"));
+    s.classList.add("pulse");
+    if (i === slots.length - 1) setTimeout(() => {
+      slots.forEach(x => x.classList.remove("pulse"));
+      say("That is the whole machine: text -> tokens -> vectors -> attention -> experts -> logits -> a sampled token -> loop. You built it.", "win");
+    }, 500);
+  }, i * 420));
+};
+
+$("reset").onclick = () => { placed = []; render(); say("Fresh start. What does a token hit first?", ""); };
+
+say("Foreman Bit here. Click the part a token hits FIRST, and we will build the whole forward pass.", "");
+render();
+</script>
+</body>
+</html>
