@@ -49,7 +49,7 @@ def test_widgets_wellformed():
 def test_course_text_is_ascii():
     files = []
     for base in (COURSE, os.path.join(ROOT, "claude_harness"), os.path.join(ROOT, "assets"),
-                 os.path.join(ROOT, "models")):
+                 os.path.join(ROOT, "models"), os.path.join(ROOT, "frontier")):
         for ext in ("md", "html", "py", "css", "js"):
             files += glob.glob(os.path.join(base, "**", f"*.{ext}"), recursive=True)
     files.append(os.path.join(ROOT, "index.html"))  # the root launcher
