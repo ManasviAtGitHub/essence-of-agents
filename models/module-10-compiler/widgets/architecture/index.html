@@ -115,12 +115,14 @@ function cx(n){ return n.x+n.w/2; }
 function readerGeom(){ return open ? PANEL : N.reader; }
 
 new p5(function(p){
+  // crisp text: supersample at >=2x, and poll the pixel ratio every frame - browser zoom
+  // inside an iframe fires no resize event, so event hooks miss it. Polling never does.
+  const density=()=>Math.max(2, window.devicePixelRatio||1);
   p.setup=function(){ const c=p.createCanvas(W,H); c.parent("canvas"); p.textFont("ui-monospace, Menlo, Consolas, monospace");
-    p.pixelDensity(Math.max(1, window.devicePixelRatio||1)); };
-  // browser zoom changes devicePixelRatio and fires resize: re-render at the new density so text stays crisp
-  p.windowResized=function(){ p.pixelDensity(Math.max(1, window.devicePixelRatio||1)); };
+    p.pixelDensity(density()); };
 
   p.draw=function(){
+    if(p.pixelDensity()!==density()) p.pixelDensity(density());
     p.background(11,14,18);
     E.forEach(drawEdge);
     for(const id in N){ if(id==="reader"&&open) continue; drawNode(id,N[id]); }

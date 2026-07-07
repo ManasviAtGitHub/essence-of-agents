@@ -203,12 +203,14 @@ new p5(function(p){
     document.getElementById("why").innerHTML = "The compiled plan is now an <b>executable program</b>: the nodes run top to bottom (a conditional node fires only if its check passes). Simulated here - no real weather API or cart is wired; a real model plus real tools make it live.";
     react("bit","happy","Running it - each node fires in order. Your sentence became a program that executes."); };
 
+  // crisp text: supersample at >=2x, and poll the pixel ratio every frame - browser zoom
+  // inside an iframe fires no resize event, so event hooks miss it. Polling never does.
+  const density=()=>Math.max(2, window.devicePixelRatio||1);
   p.setup=function(){ const c=p.createCanvas(W,H); c.parent("canvas"); p.textFont("ui-monospace, Menlo, Consolas, monospace");
-    p.pixelDensity(Math.max(1, window.devicePixelRatio||1)); load(0); };
-  // browser zoom changes devicePixelRatio and fires resize: re-render at the new density so text stays crisp
-  p.windowResized=function(){ p.pixelDensity(Math.max(1, window.devicePixelRatio||1)); };
+    p.pixelDensity(density()); load(0); };
 
   p.draw=function(){
+    if(p.pixelDensity()!==density()) p.pixelDensity(density());
     p.background(11,14,18);
     drawZones(); drawSentence(); drawGate();
     if(phase==="intro"){ drawIntro(); return; }
