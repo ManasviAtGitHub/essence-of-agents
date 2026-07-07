@@ -13,6 +13,10 @@
   .sub b { color:var(--ink); }
   #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
   #canvas canvas { max-width:100%; height:auto; display:block; }
+  .ctl { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .btn { font:12.5px var(--mono); border:1px solid var(--line); background:var(--panel); color:#cdd3da;
+         border-radius:8px; padding:6px 13px; cursor:pointer; }
+  .btn.on { border-color:var(--blue); color:var(--ink); background:#12171e; }
   .trace { margin-top:10px; border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:10px 12px; min-height:56px; }
   .trace .th { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); }
   .why { font:12.5px var(--mono); color:#d8dde3; margin-top:5px; line-height:1.5; }
@@ -25,19 +29,24 @@
 </head>
 <body>
 <h1>The compiler, wired up</h1>
-<p class="sub"><b>The same pieces you watched compile - now as a wiring diagram.</b> This is the architecture:
-what connects to what. Click any piece to light up its connections and see what it is. Two things to notice - one
-<b>tool catalog</b> defines BOTH the rules and the checker, and the checker wires back to the reader to repair.</p>
+<p class="sub"><b>The same pieces you watched compile - now as a wiring diagram.</b> Every wire is labeled with the
+data that travels on it, and every piece carries the module that built it. Click any piece to trace its
+connections - and <b>open the reader</b> to see the entire models track wired inside that one box, down to the
+exact spot where the rules plug in.</p>
 
 <div id="canvas" aria-label="Architecture diagram of the natural-language compiler and its connections"></div>
 
+<div class="ctl">
+  <button class="btn" id="openReader">open the reader - see the whole track inside</button>
+</div>
+
 <div class="trace">
   <div class="th">click a piece to trace its wiring</div>
-  <div class="why" id="why">A <b>compiler</b> made of five pieces plus one shared catalog. Data flows left to right; the tool catalog (bottom) is the single source of truth that both the rules and the checker are built from; on a failed check, the plan is sent back to be re-read. <b>Click any box.</b></div>
+  <div class="why" id="why"></div>
 </div>
 
 <div class="legend">
-  <span><i class="swatch" style="border-top-color:#58c4dd"></i><b>flows into</b> (data moves)</span>
+  <span><i class="swatch" style="border-top-color:#58c4dd"></i><b>flows into</b> (labeled with the data that moves)</span>
   <span><i class="swatch" style="border-top-color:#ffd35c;border-top-style:dashed"></i><b>built from</b> (the catalog defines it)</span>
   <span><i class="swatch" style="border-top-color:#fc6255"></i><b>repair</b> (on a failed check)</span>
 </div>
@@ -51,92 +60,150 @@ const chrR=document.getElementById("chrR"), reactLine=document.getElementById("r
 function react(who,emote,line){ chrR.dataset.c=who; chrR.dataset.e=emote; reactLine.textContent=line; Cast.render(document.getElementById("react")); }
 
 if (window.p5) p5.disableFriendlyErrors = true;
-const W=900, H=440;
-// nodes: id -> box + text + explanation
+const W=900, H=470;
+
+/* ---------- outer nodes: box + text + module tag + explanation ---------- */
 const N = {
-  req:     { x:26,  y:120, w:120, h:52, t:"YOUR REQUEST", s:"plain English", col:[152,162,176],
-             why:"What you type - the compiler's <b>source</b>. A fuzzy English sentence, e.g. \"get the weather in Paris and if raining add an umbrella\"." },
-  reader:  { x:185, y:120, w:126, h:52, t:"THE READER", s:"the model (M0)", col:[88,196,221],
-             why:"The AI <b>model</b>. It reads the request and proposes the next word as a ranked list - Module 0's next-token machine. It is the only stochastic piece; everything else is exact." },
-  rules:   { x:350, y:120, w:120, h:52, t:"THE RULES", s:"grammar", col:[255,211,92],
-             why:"The <b>rules</b> (a grammar). At every step they BLOCK any word that would break the plan, so the reader can only pick a legal one. Built <b>from the tool catalog</b>, and they act right at the model's sampler." },
-  plan:    { x:512, y:120, w:120, h:52, t:"THE PLAN", s:"tool-call DAG", col:[131,193,103],
-             why:"The structured output being built - a <b>graph of tool calls</b>. This IS course 1's agent loop: the compiled program the request becomes." },
-  checker: { x:674, y:120, w:126, h:52, t:"THE CHECKER", s:"verifier", col:[255,211,92],
-             why:"The <b>checker</b> (a verifier). It type-checks the finished plan against the <b>same tool catalog</b>: tools exist, args fit, refs resolve. It fails LOUDLY instead of guessing." },
-  run:     { x:678, y:250, w:120, h:46, t:"RUN", s:"execute", col:[131,193,103],
-             why:"Once the checker passes, the plan <b>runs</b> - each node fires in order. The endpoint: your sentence became a program that executes." },
-  catalog: { x:300, y:330, w:300, h:56, t:"THE TOOL CATALOG", s:"get_weather . add_to_cart . search . send_email", col:[200,169,74],
-             why:"The <b>one source of truth</b>: the tools and their shapes (args, return fields). BOTH the rules and the checker are built from it - front and back, same schema, two uses. Change the catalog and both update." },
+  req:     { x:20,  y:120, w:110, h:52, t:"YOUR REQUEST", s:"plain English", tag:"you", col:[152,162,176],
+             why:"What you type - the compiler's <b>source</b>. A fuzzy English sentence, e.g. \"get the weather in Paris and if raining add an umbrella\". Fuzzy is the whole problem: nothing downstream runs on fuzzy." },
+  reader:  { x:185, y:120, w:120, h:52, t:"THE READER", s:"the model", tag:"M0-M8", col:[88,196,221],
+             why:"The AI <b>model</b> - and this one box is the ENTIRE models track, compressed. <b>Open it</b>: your words become tokens (M1), flow through layers of attention (M2) and feed-forward experts (M4) at a KV-cache memory cost (M3), come out as logits, and a sampler (M0) picks the next word. It runs locally because it is small and quantized (M8). It is the only stochastic piece in the machine - everything else is exact." },
+  rules:   { x:386, y:120, w:110, h:52, t:"THE RULES", s:"grammar", tag:"hooks M0", col:[255,211,92],
+             why:"The <b>rules</b> (a grammar). At every step they BLOCK any word that would break the plan, so the reader can only pick a legal one. Built <b>from the tool catalog</b> - and they do not wrap around the model, they plug into a precise point INSIDE it: the sampler. Open the reader to see exactly where." },
+  plan:    { x:556, y:120, w:104, h:52, t:"THE PLAN", s:"tool-call graph", tag:"course 1", col:[131,193,103],
+             why:"The structured output being built - a <b>graph of tool calls</b>, one legal word at a time. This IS course 1's agent loop: the compiled program your sentence becomes. Deterministic, inspectable, re-runnable." },
+  checker: { x:716, y:120, w:124, h:52, t:"THE CHECKER", s:"verifier", tag:"M7", col:[255,211,92],
+             why:"The <b>checker</b> (a verifier). It type-checks the finished plan against the <b>same tool catalog</b>: tools exist, args fit, refs resolve, no cycles. It fails LOUDLY with the exact fault instead of letting a wrong plan run - Module 7's lesson (a system is only as good as its verifier), now wired in as the back end." },
+  run:     { x:718, y:252, w:120, h:46, t:"RUN", s:"execute", tag:"agent loop", col:[131,193,103],
+             why:"Once the checker passes, the plan <b>runs</b> - each node fires in order, a conditional node only if its check passes. The endpoint: your sentence became a program that executes." },
+  catalog: { x:330, y:368, w:300, h:56, t:"THE TOOL CATALOG", s:"get_weather . add_to_cart . search . send_email", tag:"course 1 tools", col:[200,169,74],
+             why:"The <b>one source of truth</b>: the tools and their shapes (args in, fields out). BOTH the rules and the checker are built from it - front and back, same schema, two uses. Add a tool here and the grammar allows it, the checker accepts it, the plan can call it. Change nothing else." },
 };
-// edges: from, to, kind ('flow'|'def'|'repair'), sideFrom/sideTo anchor hints, label
+
+/* ---------- inside the reader (visible when open) ---------- */
+const PANEL = { x:163, y:84, w:176, h:300 };
+const INNER = {
+  tok:     { x:173, y:116, w:156, h:32, t:"tokens", tag:"M1",
+             why:"<b>Tokens</b> (Module 1). Your words are chopped into menu pieces with IDs - the reader never sees letters. This is the first thing that happens to your request.",
+             line:"First I chop your sentence into tokens - I never see letters, remember?" },
+  stack:   { x:173, y:160, w:156, h:46, t:"32x attention + FFN", tag:"M2 M4 (M3 cost)",
+             why:"<b>The stack</b>. 32 layers, each one attention (Module 2: positions exchange meaning) then a feed-forward block (Module 4: each position thinks alone - the part MoE slices into experts). Looking back at your earlier words is paid for by the KV cache (Module 3).",
+             line:"Thirty-two floors of attention and experts - every word visits each one." },
+  logits:  { x:173, y:218, w:156, h:32, t:"logits", tag:"a score per word",
+             why:"<b>Logits</b>. Out of the stack comes one raw score for EVERY word in the vocabulary - the full ranked list, before any choice is made (Module 0).",
+             line:"Out comes a score for every word I know. All of them, every step." },
+  sampler: { x:173, y:262, w:156, h:42, t:"THE SAMPLER", tag:"M0 - rules plug in HERE", gold:true,
+             why:"<b>The sampler</b> (Module 0). Softmax and temperature turn the scores into odds, and one word is drawn. THIS is the compiler's hook point: the rules mask the odds BEFORE the draw, so an illegal word has zero chance - and temperature 0 here is exactly what makes the same sentence compile to the same plan every time.",
+             line:"And right here Bit grabs my wrist - masking the odds before the dice roll." },
+};
+
+/* ---------- edges: labeled with the data that travels ---------- */
 const E = [
-  { a:"req",     b:"reader",  k:"flow" },
-  { a:"reader",  b:"rules",   k:"flow" },
-  { a:"rules",   b:"plan",    k:"flow" },
-  { a:"plan",    b:"checker", k:"flow" },
-  { a:"checker", b:"run",     k:"flow", label:"pass" },
-  { a:"catalog", b:"rules",   k:"def",  label:"defines" },
-  { a:"catalog", b:"checker", k:"def",  label:"defines" },
-  { a:"checker", b:"reader",  k:"repair", label:"on FAIL: repair" },
+  { id:"e_req",  a:"req",     b:"reader",  k:"flow",   label:"your words" },
+  { id:"e_read", a:"reader",  b:"rules",   k:"flow",   label:"ranked words" },
+  { id:"e_rule", a:"rules",   b:"plan",    k:"flow",   label:"legal word" },
+  { id:"e_plan", a:"plan",    b:"checker", k:"flow",   label:"the plan" },
+  { id:"e_pass", a:"checker", b:"run",     k:"flow",   label:"verified" },
+  { id:"e_def1", a:"catalog", b:"rules",   k:"def",    label:"defines" },
+  { id:"e_def2", a:"catalog", b:"checker", k:"def",    label:"defines" },
+  { id:"e_rep",  a:"checker", b:"reader",  k:"repair", label:"on FAIL: error + where" },
 ];
 const COL = { flow:[88,196,221], def:[255,211,92], repair:[252,98,85] };
-let sel = null;
+let sel=null, open=false;
 
-function cx(n){ return n.x+n.w/2; } function cy(n){ return n.y+n.h/2; }
+function cx(n){ return n.x+n.w/2; }
+function readerGeom(){ return open ? PANEL : N.reader; }
 
 new p5(function(p){
   p.setup=function(){ const c=p.createCanvas(W,H); c.parent("canvas"); p.textFont("ui-monospace, Menlo, Consolas, monospace"); };
 
   p.draw=function(){
     p.background(11,14,18);
-    E.forEach(e=>drawEdge(e));
-    for(const id in N) drawNode(id, N[id]);
-    p.noLoop && null; // keep looping for the flow dashes
+    E.forEach(drawEdge);
+    for(const id in N){ if(id==="reader"&&open) continue; drawNode(id,N[id]); }
+    if(open) drawPanel();
   };
 
-  function activeFor(id){ // is this node/edge highlighted given selection?
-    if(!sel) return true;
-    if(id===sel) return true;
-    return E.some(e=> (e.a===sel&&e.b===id) || (e.b===sel&&e.a===id));
-  }
-  function edgeActive(e){ return !sel || e.a===sel || e.b===sel; }
+  function effSel(){ return (sel && INNER[sel]) ? "reader" : sel; }
+  function nodeActive(id){ const s=effSel(); if(!s) return true; if(id===s) return true;
+    return E.some(e=> (e.a===s&&e.b===id) || (e.b===s&&e.a===id)); }
+  function edgeActive(e){ const s=effSel(); return !s || e.a===s || e.b===s; }
 
   function drawEdge(e){
-    const A=N[e.a], B=N[e.b], col=COL[e.k];
-    const on = edgeActive(e);
+    const col=COL[e.k], on=edgeActive(e);
+    const R=readerGeom();
     p.push();
-    p.stroke(col[0],col[1],col[2], on? 220 : 45); p.strokeWeight(on?2:1.3); p.noFill();
-    if(e.k==="def"){ p.drawingContext.lineDashOffset=-(p.frameCount*0.5)%8; p.drawingContext.setLineDash([5,4]); }
-    else if(e.k==="flow"){ p.drawingContext.lineDashOffset=-(p.frameCount*0.7)%10; p.drawingContext.setLineDash([7,5]); }
-    let mx,my; // label anchor
-    if(e.k==="repair"){ // arc up and over from checker to reader
-      const x1=cx(A), y1=A.y, x2=cx(B), y2=B.y;
-      p.bezier(x1,y1, x1,40, x2,40, x2,y2); mx=(x1+x2)/2; my=44;
-    } else if(e.k==="def"){
-      const x1=cx(A), y1=A.y, x2=cx(B), y2=B.y+B.h;
-      p.bezier(x1,y1, x1,(y1+y2)/2, x2,(y1+y2)/2+30, x2,y2); mx=(x1+x2)/2; my=(y1+y2)/2+18;
-    } else { // horizontal flow, or checker->run (down)
-      if(A.y===B.y){ const x1=A.x+A.w, y1=cy(A), x2=B.x, y2=cy(B); p.line(x1,y1,x2,y2); arrow(p,x2,y2,0); mx=(x1+x2)/2; my=y1-8; }
-      else { const x1=cx(A), y1=A.y+A.h, x2=cx(B), y2=B.y; p.line(x1,y1,x2,y2); arrow(p,x2,y2,90); mx=x1+22; my=(y1+y2)/2; }
+    p.stroke(col[0],col[1],col[2], on?220:40); p.strokeWeight(on?2:1.3); p.noFill();
+    if(e.k==="def"){ p.drawingContext.lineDashOffset=-(p.frameCount*0.5)%9; p.drawingContext.setLineDash([5,4]); }
+    else if(e.k==="flow"){ p.drawingContext.lineDashOffset=-(p.frameCount*0.7)%12; p.drawingContext.setLineDash([7,5]); }
+    let mx,my,align="c";
+    if(e.id==="e_req"){ const y=146, x1=N.req.x+N.req.w, x2=R.x; p.line(x1,y,x2,y); arrow(x2,y,0,col,on);
+      mx=(x1+x2)/2; my=open? y+13 : y-9; if(open) e={...e,label:"words"}; }
+    else if(e.id==="e_read"){
+      if(!open){ const y=146, x1=N.reader.x+N.reader.w, x2=N.rules.x; p.line(x1,y,x2,y); arrow(x2,y,0,col,on); mx=(x1+x2)/2; my=y-9; }
+      else { const s=INNER.sampler, x1=s.x+s.w, y1=s.y+s.h/2, x2=N.rules.x, y2=150;
+        p.bezier(x1,y1, x1+34,y1, x2-30,y2, x2,y2); arrow(x2,y2,0,col,on); mx=362; my=214; }
     }
+    else if(e.id==="e_rule"){ const y=146, x1=N.rules.x+N.rules.w, x2=N.plan.x; p.line(x1,y,x2,y); arrow(x2,y,0,col,on); mx=(x1+x2)/2; my=y-9; }
+    else if(e.id==="e_plan"){ const y=146, x1=N.plan.x+N.plan.w, x2=N.checker.x; p.line(x1,y,x2,y); arrow(x2,y,0,col,on); mx=(x1+x2)/2; my=y-9; }
+    else if(e.id==="e_pass"){ const x=cx(N.checker), y1=N.checker.y+N.checker.h, y2=N.run.y; p.line(x,y1,x,y2); arrow(x,y2,90,col,on); mx=x+14; my=(y1+y2)/2; align="l"; }
+    else if(e.k==="def"){ const A=N.catalog, B=N[e.b], x1=cx(A), y1=A.y, x2=cx(B), y2=B.y+B.h;
+      p.bezier(x1,y1, x1,(y1+y2)/2, x2,(y1+y2)/2+30, x2,y2); mx=(x1+x2)/2; my=(y1+y2)/2+18; }
+    else { /* repair */ const x1=cx(N.checker), y1=N.checker.y, x2=cx(R), y2=R.y;
+      p.bezier(x1,y1, x1,36, x2,36, x2,y2); mx=(x1+x2)/2; my=44; }
     p.drawingContext.setLineDash([]); p.drawingContext.lineDashOffset=0;
-    if(e.label && on){ p.noStroke(); p.fill(col[0],col[1],col[2]); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text(e.label, mx, my); }
+    if(e.label && on){ p.noStroke(); p.fill(col[0],col[1],col[2]); p.textSize(8.5);
+      p.textAlign(align==="l"?p.LEFT:p.CENTER, p.CENTER); p.text(e.label, mx, my); }
     p.pop();
   }
-  function arrow(p,x,y,deg){ p.push(); p.translate(x,y); p.rotate(p.radians(deg)); p.noStroke();
-    p.fill(88,196,221,220); p.triangle(-6,-4,-6,4,1,0); p.pop(); }
+  function arrow(x,y,deg,col,on){ p.push(); p.translate(x,y); p.rotate(p.radians(deg)); p.noStroke();
+    p.fill(col[0],col[1],col[2], on?220:60); p.triangle(-6,-4,-6,4,1,0); p.pop(); }
 
   function drawNode(id,n){
-    const on = activeFor(id), isSel=id===sel;
+    const on=nodeActive(id), isSel=id===effSel()&&sel===id;
     p.push();
     if(isSel){ p.drawingContext.shadowColor="rgba(255,211,92,.5)"; p.drawingContext.shadowBlur=14; }
     p.stroke(n.col[0],n.col[1],n.col[2], on?255:70); p.strokeWeight(isSel?2:1.4); p.fill(23,27,33, on?255:150);
     p.rect(n.x,n.y,n.w,n.h,9); p.drawingContext.shadowBlur=0;
-    p.noStroke(); p.fill(n.col[0],n.col[1],n.col[2], on?255:110); p.textAlign(p.CENTER,p.CENTER); p.textSize(11.5);
-    p.text(n.t, cx(n), n.y+19);
-    p.fill(152,162,176, on?230:90); p.textSize(9);
+    p.noStroke(); p.fill(n.col[0],n.col[1],n.col[2], on?255:110); p.textAlign(p.CENTER,p.CENTER); p.textSize(11);
+    p.text(n.t, cx(n), n.y+18);
+    p.fill(152,162,176, on?230:90); p.textSize(8.5);
     p.text(n.s, cx(n), n.y+n.h-13);
+    p.fill(255,211,92, on?170:70); p.textSize(7.5); p.textAlign(p.RIGHT,p.TOP);
+    p.text(n.tag, n.x+n.w-5, n.y+4);
+    p.pop();
+  }
+
+  function drawPanel(){
+    const on=nodeActive("reader");
+    p.push();
+    p.stroke(88,196,221, on?255:90); p.strokeWeight(sel==="reader"?2:1.5); p.fill(15,19,24, on?255:170);
+    p.rect(PANEL.x,PANEL.y,PANEL.w,PANEL.h,10);
+    p.noStroke(); p.fill(88,196,221, on?255:120); p.textAlign(p.CENTER,p.CENTER); p.textSize(10);
+    p.text("THE READER - inside", cx(PANEL), PANEL.y+16);
+    p.fill(255,211,92, on?170:80); p.textSize(7.5); p.textAlign(p.RIGHT,p.TOP); p.text("M0-M8", PANEL.x+PANEL.w-6, PANEL.y+5);
+    // inner flow arrows
+    const order=["tok","stack","logits","sampler"];
+    for(let i=0;i<order.length-1;i++){ const a=INNER[order[i]], b=INNER[order[i+1]];
+      p.stroke(88,196,221, on?170:60); p.strokeWeight(1.2); p.line(cx(a), a.y+a.h, cx(b), b.y);
+      arrow(cx(b), b.y, 90, COL.flow, on); }
+    // inner nodes
+    order.forEach(id=>{
+      const n=INNER[id], isSel=sel===id;
+      const c = n.gold? [255,211,92] : [110,150,170];
+      p.push();
+      if(isSel){ p.drawingContext.shadowColor="rgba(255,211,92,.5)"; p.drawingContext.shadowBlur=12; }
+      p.stroke(c[0],c[1],c[2], on?255:90); p.strokeWeight(isSel?2:1.2); p.fill(23,27,33, on?255:170);
+      p.rect(n.x,n.y,n.w,n.h,7); p.drawingContext.shadowBlur=0;
+      p.noStroke(); p.fill(c[0],c[1],c[2], on?255:120); p.textAlign(p.CENTER,p.CENTER); p.textSize(10);
+      p.text(n.t, cx(n), n.y+(n.h>36?16:n.h/2- (n.h>36?0:0)) );
+      if(n.h>36){ p.fill(152,162,176,on?220:90); p.textSize(8); p.text(n.tag, cx(n), n.y+n.h-12); }
+      else { p.fill(152,162,176,on?200:80); p.textSize(7.5); p.textAlign(p.RIGHT,p.TOP); p.text(n.tag, n.x+n.w-4, n.y+3); }
+      p.pop();
+    });
+    // footnote inside the panel
+    p.noStroke(); p.fill(152,162,176, on?170:70); p.textSize(8); p.textAlign(p.LEFT,p.TOP);
+    p.text("memory bill: KV cache (M3).\nsmall + 4-bit so it runs\nlocally (M8).", PANEL.x+12, PANEL.y+PANEL.h-46);
     p.pop();
   }
 
@@ -144,28 +211,42 @@ new p5(function(p){
   p.mousePressed=function(){
     const id=hit(p.mouseX,p.mouseY);
     if(!id){ sel=null; setWhy(null); return; }
+    if(id==="reader" && !open){ setOpen(true); }
     sel=id; setWhy(id);
   };
   function hit(mx,my){
-    // convert CSS-pixel mouse coords to internal canvas coords (the canvas is scaled by max-width)
     const r=p.canvas.getBoundingClientRect(); const sx=W/(r.width||W), sy=H/(r.height||H);
     const x=mx*sx, y=my*sy;
-    for(const id in N){ const n=N[id]; if(x>=n.x&&x<=n.x+n.w&&y>=n.y&&y<=n.y+n.h) return id; }
+    if(open){ for(const id in INNER){ const n=INNER[id]; if(x>=n.x&&x<=n.x+n.w&&y>=n.y&&y<=n.y+n.h) return id; }
+      if(x>=PANEL.x&&x<=PANEL.x+PANEL.w&&y>=PANEL.y&&y<=PANEL.y+PANEL.h) return "reader"; }
+    for(const id in N){ if(id==="reader"&&open) continue; const n=N[id]; if(x>=n.x&&x<=n.x+n.w&&y>=n.y&&y<=n.y+n.h) return id; }
     return null;
   }
-  function setWhy(id){
-    const why=document.getElementById("why");
-    if(!id){ why.innerHTML="A <b>compiler</b> made of five pieces plus one shared catalog. Data flows left to right; the tool catalog (bottom) is the single source of truth that both the rules and the checker are built from; on a failed check, the plan is sent back to be re-read. <b>Click any box.</b>";
-      react("bit","neutral","Click a piece and I'll show you what it wires to."); return; }
-    const n=N[id]; why.innerHTML="<b>"+n.t+"</b> - "+n.why;
-    const outs=E.filter(e=>e.a===id).map(e=>N[e.b].t), ins=E.filter(e=>e.b===id).map(e=>N[e.a].t);
-    react(id==="checker"||id==="rules"||id==="catalog"?"bit":"cortex","reach",
-      n.t+": "+(ins.length?("fed by "+ins.join(", ")+"; "):"")+(outs.length?("feeds "+outs.join(", ")):"the endpoint")+".");
-  }
+  window.__setOpenP5 = v => { open=v; if(!v && sel && INNER[sel]) { sel="reader"; setWhy("reader"); } };
 }, "canvas");
 
-// render the cast on load (also satisfies the runtime gate's .chr check)
-react("bit","neutral","Click a piece and I'll show you what it wires to.");
+/* ---------- shared UI wiring ---------- */
+function setOpen(v){
+  open=v; if(window.__setOpenP5) window.__setOpenP5(v);
+  const b=document.getElementById("openReader");
+  b.classList.toggle("on", v);
+  b.textContent = v ? "close the reader" : "open the reader - see the whole track inside";
+}
+let open2=false; // (button state lives in setOpen; p5 closure holds the real flag)
+document.getElementById("openReader").onclick=function(){ setOpen(!this.classList.contains("on")); if(this.classList.contains("on")) setWhy("reader"); };
+
+function setWhy(id){
+  const why=document.getElementById("why");
+  if(!id){ why.innerHTML="A <b>compiler</b> made of five pieces plus one shared catalog. Every wire is labeled with what travels on it; every piece is tagged with the module that built it. The tool catalog (bottom) defines both the rules and the checker; on a failed check, the plan goes back to be re-read. <b>Click any box - and open the reader</b> to see the entire models track inside that one blue box.";
+    react("bit","neutral","Click a piece and I'll show you what it wires to. The blue box opens."); return; }
+  if(INNER[id]){ const n=INNER[id]; why.innerHTML="<b>INSIDE THE READER - "+n.t.toUpperCase()+"</b> - "+n.why;
+    react(id==="sampler"?"bit":"cortex", id==="sampler"?"happy":"read", n.line); return; }
+  const n=N[id]; why.innerHTML="<b>"+n.t+"</b> - "+n.why;
+  const outs=E.filter(e=>e.a===id).map(e=>N[e.b].t), ins=E.filter(e=>e.b===id).map(e=>N[e.a].t);
+  react(id==="checker"||id==="rules"||id==="catalog"?"bit":"cortex","reach",
+    n.t+": "+(ins.length?("fed by "+ins.join(", ")+"; "):"")+(outs.length?("feeds "+outs.join(", ")):"the endpoint")+".");
+}
+setWhy(null);
 </script>
 </body>
 </html>
