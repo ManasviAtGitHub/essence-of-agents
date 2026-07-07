@@ -22,7 +22,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: install llama-cpp-python (prebuilt cpu wheel)
-        run: pip install --only-binary :all: llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+        run: |
+          pip install --only-binary=:all: llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
       - name: cache the model
         id: model
         uses: actions/cache@v4
