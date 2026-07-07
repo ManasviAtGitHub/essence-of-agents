@@ -33,7 +33,13 @@ verified backend**, with a repair loop closing the gap:
   legal set, so the same sentence lowers to the same plan, byte-identical.
 
 ## See it (no key)
-`widgets/talk-to-compile/index.html` - two passes:
+`widgets/compile-live/index.html` - the INTERACTIVE view (built on p5): click a
+request and watch it compile live - candidate tokens fly at the grammar gate,
+illegal ones bounce off, the legal winner snaps into a plan graph, the verifier
+checks it. Pick a request, run the plan, or break the grammar. The goal is stated
+up front: turn plain English into a runnable, verified plan.
+
+`widgets/talk-to-compile/index.html` - the mechanism, act by act, two passes:
 - **intuition (7 steps):** naive model is unreliable -> the three disciplines
   (grammar, verifier, determinism) -> the aha (front-end + verified backend).
 - **mechanism (17 steps, 3 acts):** act 1 decodes the plan token by token, the

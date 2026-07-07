@@ -54,7 +54,10 @@ def test_course_text_is_ascii():
             files += glob.glob(os.path.join(base, "**", f"*.{ext}"), recursive=True)
     files.append(os.path.join(ROOT, "index.html"))  # the root launcher
     for f in files:
-        if "node_modules" in f:
+        # skip node_modules and vendored third-party libs (e.g. assets/vendor/p5.min.js):
+        # our ASCII rule is for OUR course text, not minified upstream libraries.
+        rel_parts = os.path.relpath(f, ROOT).split(os.sep)
+        if "node_modules" in f or "vendor" in rel_parts:
             continue
         data = open(f, "rb").read()
         bad = [b for b in data if b > 127]

@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Talk to compile - live</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:28px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .goal { color:#dfe4ea; font-size:14.5px; margin:0 0 8px; border-left:3px solid var(--gold);
+          padding-left:12px; }
+  .goal b { color:var(--ink); } .goal i { color:var(--gold); font-style:normal; }
+  .sub { color:var(--dim); margin:0 0 12px; font-size:13.5px; }
+  .sub b { color:var(--ink); }
+
+  .pick { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:8px; }
+  .req { font:12.5px var(--mono); border:1px solid var(--line); background:var(--panel); color:#cdd3da;
+         border-radius:8px; padding:6px 11px; cursor:pointer; text-align:left; }
+  .req.on { border-color:var(--blue); background:#12171e; color:var(--ink); }
+  .req .k { color:var(--gold); }
+
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto; display:block; }
+
+  .trace { margin-top:10px; border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:9px 12px; }
+  .trace .th { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); }
+  .slot { font:12.5px var(--mono); color:var(--blue); margin-top:3px; }
+  .why { font:12.5px var(--mono); color:var(--dim); margin-top:4px; min-height:34px; }
+  .why b { color:var(--ink); } .why .g { color:var(--gold); } .why .r { color:var(--red); }
+
+  .ctl { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .btn { font:12.5px var(--mono); border:1px solid var(--line); background:var(--panel); color:#cdd3da;
+         border-radius:8px; padding:6px 13px; cursor:pointer; }
+  .btn.go { border-color:var(--blue); color:var(--ink); }
+  .btn.on { border-color:var(--red); color:#ffd0ca; background:rgba(252,98,85,.1); }
+  .legend { font:10.5px var(--mono); color:var(--faint); margin-left:auto; }
+  .legend b { color:var(--gold); }
+
+  .react { margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>Talk to compile - the natural-language compiler</h1>
+<p class="goal"><b>What we are building:</b> an <b>LLM compiler</b>. You type a request in plain English, and it produces a
+real, <b>runnable plan</b> - the same agent loop you built in course 1 - reliably, every time. A normal compiler
+turns code into a program by exact rules; here the "source" is a <i>sentence</i> and the reader is an AI <b>model</b>,
+which makes things up. So a <b>grammar</b> stands in front of the model and makes a wrong token impossible - and a
+<b>verifier</b> checks the result. That is the whole trick, and this is it happening.</p>
+<p class="sub"><b>How to read it:</b> click a request -&gt; its candidate tokens fly at the <b>grammar gate</b>, illegal
+ones bounce off, the legal winner snaps into the <b>plan graph</b>, then the verifier checks it. Grammar, plan and
+verifier run live here; the model's scores are illustrative until a real run is baked in.</p>
+
+<div class="pick" id="pick"></div>
+
+<div id="canvas" aria-label="Candidate tokens passing a grammar gate and assembling into a plan graph"></div>
+
+<div class="trace">
+  <div class="th">the grammar, live - what the front-end is allowed to say next</div>
+  <div class="slot" id="slot">-</div>
+  <div class="why" id="why"></div>
+</div>
+
+<div class="ctl">
+  <button class="btn go" id="run">run the plan &#9654;</button>
+  <button class="btn" id="gtoggle">break: grammar off</button>
+  <span class="legend"><b>gold</b> = legal . struck = masked . the winner flies into the graph</span>
+</div>
+
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+/* ---------------- the real backend: catalog + verifier ---------------- */
+const TOOLS = {
+  get_weather:{args:["city"],ret:["rain","temp"]}, add_to_cart:{args:["item"],ret:[]},
+  search:{args:["query"],ret:["top"]}, send_email:{args:["to"],ret:[]},
+};
+const TOOL_NAMES = Object.keys(TOOLS);
+
+const REQS = [
+  { t:'get the weather in <span class="k">Paris</span>, and <span class="k">if</span> it is raining add an <span class="k">umbrella</span> to my cart',
+    plan:[ {id:"n1",tool:"get_weather",args:{city:'"Paris"'},cond:null},
+           {id:"n2",tool:"add_to_cart",args:{item:'"umbrella"'},cond:["n1","rain"]} ] },
+  { t:'<span class="k">search</span> for umbrellas and <span class="k">email</span> me the top result',
+    plan:[ {id:"n1",tool:"search",args:{query:'"umbrellas"'},cond:null},
+           {id:"n2",tool:"send_email",args:{to:'"me"'},cond:null} ] },
+  { t:'add <span class="k">milk</span> to my cart',
+    plan:[ {id:"n1",tool:"add_to_cart",args:{item:'"milk"'},cond:null} ] },
+];
+
+function srcTool(plan,id){ const s=plan.filter(x=>x.id===id)[0]; return s?s.tool:"get_weather"; }
+function verify(ir){
+  const errs=[], defined=[];
+  for(const s of ir){
+    if(!TOOLS[s.tool]) errs.push(s.id+": unknown tool");
+    else for(const k in s.args) if(TOOLS[s.tool].args.indexOf(k)<0) errs.push(s.id+": bad arg");
+    if(s.cond){ if(defined.indexOf(s.cond[0])<0) errs.push(s.id+": undefined ref");
+      else { const src=ir.filter(x=>x.id===s.cond[0])[0]; if(src&&TOOLS[src.tool].ret.indexOf(s.cond[1])<0) errs.push(s.id+": no field"); } }
+    defined.push(s.id);
+  }
+  return errs;
+}
+function mk(all, legalList, pick){
+  return all.map(t=>({t, legal:legalList.indexOf(t)>=0, pick:(t===pick),
+    prob: (t===pick?0.5 : (legalList.indexOf(t)>=0?0.17:0.12)) }));
+}
+function decodeSteps(plan){
+  const steps=[], defined=[];
+  plan.forEach((s,si)=>{
+    if(s.cond){
+      steps.push({kind:"ref", node:si, slot:"a REF to an earlier result",
+        cands:mk(defined.concat(["n7","n9"]), defined, s.cond[0]),
+        why:"scope: only "+(defined.join(", ")||"nothing")+" exists yet - a made-up ref is masked."});
+      const rt=srcTool(plan,s.cond[0]);
+      steps.push({kind:"field", node:si, slot:"a FIELD of "+s.cond[0],
+        cands:mk(["rain","temp","city","top"], TOOLS[rt].ret, s.cond[1]),
+        why:s.cond[0]+" came from "+rt+", which RETURNS {"+TOOLS[rt].ret.join(", ")+"} - only those are legal."});
+    }
+    steps.push({kind:"tool", node:si, slot:"a TOOL name",
+      cands:mk(TOOL_NAMES.concat(['"Paris"',"the"]), TOOL_NAMES, s.tool),
+      why:"only the four catalog tools are legal - a bare word or string cannot start a call."});
+    const a=TOOLS[s.tool].args[0];
+    steps.push({kind:"arg", node:si, slot:"an ARG for "+s.tool,
+      cands:mk(["city","item","query","to"], TOOLS[s.tool].args, a),
+      why:s.tool+"'s schema takes: "+TOOLS[s.tool].args.join(", ")+"."});
+    defined.push(s.id);
+  });
+  return steps;
+}
+// how many nodes / args are visible after `done` completed steps
+function planState(plan, done){
+  const st=plan.map(s=>({...s, shown:false, argShown:false, edge:false}));
+  let idx=0;
+  plan.forEach((s,si)=>{
+    const seq = (s.cond?["ref","field"]:[]).concat(["tool","arg"]);
+    seq.forEach(kind=>{ if(idx<done){ if(kind==="tool")st[si].shown=true; if(kind==="arg")st[si].argShown=true; if(kind==="field")st[si].edge=true; } idx++; });
+  });
+  return st;
+}
+
+/* ---------------- cast ---------------- */
+const chrR=document.getElementById("chrR"), reactLine=document.getElementById("reactLine");
+function react(who,emote,line){ chrR.dataset.c=who; chrR.dataset.e=emote; reactLine.textContent=line; Cast.render(document.getElementById("react")); }
+
+/* ---------------- the p5 sketch (instance mode) ---------------- */
+if (window.p5) p5.disableFriendlyErrors = true;
+const W=920, H=430, GATE=430, NODEX=568, NODEW=286, NODEH=60;
+const nodeY = i => 84 + i*118;
+const ease = t => t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+
+new p5(function(p){
+  let plan=[], steps=[], k=0, tacc=0, grammarOff=false, running=false, runT=0, reqIdx=0, appear={};
+  const STEP_MS=1550;
+
+  function load(i){ reqIdx=i; plan=REQS[i].plan.map(s=>({...s,args:{...s.args}})); steps=decodeSteps(plan);
+    k=0; tacc=0; running=false; runT=0; appear={}; react("cortex","think","A sentence. Let me turn it into a plan, one legal token at a time."); updateCaption(); }
+  window.__loadReq = load;
+  window.__setGrammar = v => { grammarOff=v; k=0; tacc=0; running=false; updateCaption(); };
+  window.__run = () => { if(k<steps.length) return; running=true; runT=0;
+    document.getElementById("slot").textContent = "> running the plan - each node fires in order";
+    document.getElementById("why").innerHTML = "The compiled plan is now an <b>executable program</b>: the nodes run top to bottom (a conditional node fires only if its check passes). Simulated here - no real weather API or cart is wired; a real model plus real tools make it live.";
+    react("bit","happy","Running it - each node fires in order. Your sentence became a program that executes."); };
+
+  p.setup=function(){ const c=p.createCanvas(W,H); c.parent("canvas"); p.textFont("ui-monospace, Menlo, Consolas, monospace"); load(0); };
+
+  p.draw=function(){
+    p.background(11,14,18);
+    drawZones(); drawSentence(); drawGate();
+    const done = Math.min(k, steps.length);
+    drawPlan(planState(plan, done), running || k>=steps.length);
+    if(running){ drawRun(); runT += p.deltaTime; return; }
+    if(k<steps.length){
+      tacc += p.deltaTime;
+      const frac = p.constrain(tacc/STEP_MS, 0, 1);
+      drawTokens(steps[k], frac);
+      if(tacc>=STEP_MS){ k++; tacc=0; updateCaption(); if(k>=steps.length) react("bit","reach","Plan complete. My turn - type-check every node."); }
+    } else {
+      drawVerdict();
+    }
+  };
+
+  function drawZones(){
+    p.noStroke(); p.fill(255,255,255,4);
+    p.rect(16,54,150,H-96,10); p.rect(196,54,214,H-96,10); p.rect(500,44,404,H-80,10);
+    p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER);
+    p.text("REQUEST",91,44); p.text("FRONT-END  +  GRAMMAR",303,44); p.text("THE PLAN  (a runnable graph)",702,36);
+  }
+  function drawSentence(){
+    p.fill(120,128,140); p.textAlign(p.LEFT); p.textSize(11);
+    const words=["get the","weather","in Paris,","and if","raining,","add an","umbrella","to cart"];
+    words.forEach((w,i)=> p.text(w, 28, 92+i*38));
+  }
+  function drawGate(){
+    p.push();
+    const pulse=0.5+0.5*Math.sin(p.frameCount*0.06);
+    p.drawingContext.shadowColor = grammarOff? "rgba(252,98,85,.55)":"rgba(88,196,221,.55)";
+    p.drawingContext.shadowBlur = 5+7*pulse;
+    if(grammarOff){ p.stroke(252,98,85,120); p.strokeWeight(2); p.drawingContext.setLineDash([5,5]); }
+    else { p.stroke(88,196,221,150); p.strokeWeight(2); }
+    p.line(GATE,60,GATE,H-46); p.drawingContext.setLineDash([]); p.drawingContext.shadowBlur=0;
+    p.noStroke(); p.fill(grammarOff?"#fc6255":"#58c4dd"); p.textAlign(p.CENTER); p.textSize(9.5);
+    p.push(); p.translate(GATE-9,H-52); p.rotate(-p.HALF_PI); p.text(grammarOff?"GRAMMAR OFF":"grammar gate",0,0); p.pop();
+    p.pop();
+  }
+  function chip(x,y,c,state){
+    // state: 'idle' | 'legal' | 'masked' | 'pick'
+    p.textSize(11.5); const w=Math.max(46, p.textWidth(c.t)+16), h=24;
+    let col=[152,162,176], a=255, glow=false;
+    if(state==="masked"){ col=[120,80,80]; }
+    else if(state==="legal"){ col=[255,211,92]; }
+    else if(state==="pick"){ col=[255,211,92]; glow=true; }
+    p.push(); p.rectMode(p.CENTER);
+    if(glow){ p.drawingContext.shadowColor="rgba(255,211,92,.6)"; p.drawingContext.shadowBlur=14; }
+    p.noStroke(); p.fill(23,27,33); p.stroke(col[0],col[1],col[2],a); p.strokeWeight(1.2); p.rect(x,y,w,h,6);
+    p.drawingContext.shadowBlur=0;
+    p.noStroke(); p.fill(col[0],col[1],col[2],a);
+    if(state==="masked"){ p.fill(150,120,120,a*0.7); }
+    p.textAlign(p.CENTER,p.CENTER); p.text(c.t,x,y-1);
+    // prob bar under the chip
+    p.noStroke(); p.fill(255,255,255,20); p.rectMode(p.CORNER); p.rect(x-w/2, y+h/2+2, w, 3, 2);
+    p.fill(col[0],col[1],col[2],a*0.8); p.rect(x-w/2, y+h/2+2, w*c.prob*1.8, 3, 2);
+    p.pop();
+  }
+  function drawTokens(step, frac){
+    const cands=step.cands;
+    const approach=ease(p.constrain(frac/0.45,0,1));
+    cands.forEach((c,i)=>{
+      const y0=96+i*46, x0=250;
+      let x=p.lerp(x0, GATE-30, approach), y=y0, st="idle";
+      const masked = grammarOff ? false : !c.legal;
+      if(frac>0.45){
+        const past=ease(p.constrain((frac-0.45)/0.55,0,1));
+        if(masked){ x=p.lerp(GATE-30, GATE-95, past); st="masked";
+          p.push(); p.noStroke();  // shatter off the gate
+          for(let s=0;s<5;s++){ const ang=-0.7+s*0.35; p.fill(252,98,85,170*(1-past)); p.circle(GATE-20+Math.cos(ang)*past*26, y+Math.sin(ang)*past*26, 2.6*(1-past)+0.4); }
+          p.pop(); chipAlpha(x,y,c,st,1-past); return; }
+        if(c.pick){ const tx=NODEX+24, ty=nodeY(step.node)+30; x=p.lerp(GATE-30,tx,past); y=p.lerp(y0,ty,past);
+          if(past>0.8){ const r=(past-0.8)/0.2; p.push(); p.noFill(); p.stroke(255,211,92,150*(1-r)); p.strokeWeight(1.5); p.circle(tx,ty,16+r*70); p.pop(); }
+          chip(x,y,c,"pick"); return; }
+        // legal, not picked: drift past the gate and fade
+        x=p.lerp(GATE-30, GATE+60, past); chipAlpha(x,y,c,"legal",1-0.6*past); return;
+      }
+      chip(x,y,c, masked?"idle":(c.legal?"idle":"idle"));
+    });
+  }
+  function chipAlpha(x,y,c,state,a){ p.push(); p.drawingContext.globalAlpha=p.constrain(a,0,1); chip(x,y,c,state); p.pop(); }
+
+  function drawPlan(st, verified){
+    const errs = verified ? verify(plan) : null;
+    st.forEach((s,i)=>{
+      if(!s.shown) return;
+      const x=NODEX, y=nodeY(i);
+      // conditional edge from ref -> this node
+      if(s.cond && s.edge){ const ri=plan.map(p=>p.id).indexOf(s.cond[0]);
+        if(ri>=0 && st[ri] && st[ri].shown){ const ay=nodeY(ri);
+          p.push(); p.stroke(88,196,221,190); p.strokeWeight(1.6);
+          p.drawingContext.lineDashOffset=-(p.frameCount*0.6)%7; p.drawingContext.setLineDash([4,3]); p.noFill();
+          p.bezier(x+34, ay+NODEH, x-22, ay+NODEH+30, x-22, y-28, x+18, y);
+          p.drawingContext.setLineDash([]); p.drawingContext.lineDashOffset=0; p.noStroke(); p.fill(88,196,221); p.textSize(9.5); p.textAlign(p.LEFT);
+          p.text("if "+s.cond[0]+"."+s.cond[1], x-42, (ay+NODEH+y)/2); p.pop();
+        } }
+      if(appear[i]===undefined) appear[i]=0;
+      appear[i]=Math.min(1, appear[i]+p.deltaTime/240);
+      const ap=ease(appear[i]), yy=y+(1-ap)*12;
+      const bad = errs && errs.some(e=>e.indexOf(s.id+":")===0);
+      let stroke = [42,47,56];
+      if(verified) stroke = bad ? [252,98,85] : [131,193,103];
+      else if(i===currentNode()) stroke=[255,211,92];
+      p.push(); p.drawingContext.globalAlpha=ap;
+      p.noStroke(); p.fill(23,27,33); p.stroke(stroke[0],stroke[1],stroke[2]); p.strokeWeight(1.3); p.rect(x,yy,NODEW,NODEH,9);
+      p.noStroke(); p.fill(255,211,92); p.textSize(11.5); p.textAlign(p.LEFT); p.text(s.id, x+12, yy+20);
+      p.fill(205,211,218); p.text("= "+s.tool, x+38, yy+20);
+      const argstr = s.argShown ? "("+Object.keys(s.args).map(k=>k+"="+s.args[k]).join(", ")+")" : "(...)";
+      p.text(argstr, x+12, yy+40);
+      if(verified){ p.fill(bad?"#fc6255":"#83c167"); p.textAlign(p.RIGHT); p.text(bad?"X":"OK", x+NODEW-12, yy+20); }
+      p.drawingContext.globalAlpha=1; p.pop();
+    });
+  }
+  function currentNode(){ return (k<steps.length)?steps[k].node:-1; }
+
+  function drawVerdict(){
+    if(grammarOff) return;
+    const ok = verify(plan).length===0;
+    p.push(); p.textAlign(p.LEFT); p.textSize(12); p.noStroke();
+    p.fill(ok?"#83c167":"#fc6255"); p.text(ok?"compiles - a verified, runnable plan":"COMPILE ERROR", 508, H-56); p.pop();
+  }
+  function drawRun(){
+    drawVerdict();
+    plan.forEach((s,i)=>{ const y=nodeY(i)+NODEH/2, x0=NODEX, x1=NODEX+NODEW;
+      const ph=(runT/650 - i*0.5); if(ph<0) return; const f=(ph%1);
+      p.push(); p.noStroke(); p.drawingContext.shadowColor="rgba(131,193,103,.7)"; p.drawingContext.shadowBlur=10;
+      p.fill(131,193,103); p.circle(p.lerp(x0,x1,f), y+18, 6); p.pop(); });
+  }
+
+  function updateCaption(){
+    const slot=document.getElementById("slot"), why=document.getElementById("why");
+    if(k<steps.length){ const s=steps[k];
+      slot.textContent = "> the front-end must emit "+s.slot;
+      why.innerHTML = grammarOff ? "<span class='r'>grammar OFF:</span> nothing is masked - a bare word or fake tool can win, and the plan breaks."
+        : s.why + " Legal winner: <span class='g'>"+(s.cands.filter(c=>c.pick)[0]||{t:""}).t+"</span>.";
+      react("cortex", grammarOff?"panic":(s.kind==="tool"?"reach":"think"),
+        grammarOff?"Nothing's stopping me - I'll say whatever ranks highest, even if it's nonsense."
+        :"Proposing "+s.slot+"... the gate will only let the legal ones through.");
+    } else {
+      const ok = !grammarOff && verify(plan).length===0;
+      slot.textContent = "> the verifier type-checks the finished plan";
+      why.innerHTML = ok ? "All checks pass: tools exist, args fit the schema, refs resolve. <b>Runnable.</b>"
+        : "<span class='r'>compile error</span> - the verifier caught what the grammar would have prevented.";
+    }
+  }
+  window.__caption = updateCaption;
+}, "canvas");
+
+/* ---------------- DOM wiring ---------------- */
+document.getElementById("pick").innerHTML = REQS.map((r,i)=>'<button class="req'+(i===0?" on":"")+'" data-i="'+i+'">'+r.t+"</button>").join("");
+document.getElementById("pick").addEventListener("click", e=>{ const b=e.target.closest(".req"); if(!b) return;
+  document.querySelectorAll(".req").forEach((r,j)=>r.classList.toggle("on", j===+b.dataset.i));
+  document.getElementById("gtoggle").classList.remove("on"); document.getElementById("gtoggle").textContent="break: grammar off";
+  window.__loadReq(+b.dataset.i); if(window.__caption) window.__caption(); });
+document.getElementById("run").onclick=()=>window.__run();
+document.getElementById("gtoggle").onclick=function(){ const on=!this.classList.contains("on"); this.classList.toggle("on",on);
+  this.textContent = on?"grammar: OFF (broken)":"break: grammar off"; window.__setGrammar(on); };
+</script>
+</body>
+</html>
