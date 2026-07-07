@@ -33,30 +33,24 @@ verified backend**, with a repair loop closing the gap:
   legal set, so the same sentence lowers to the same plan, byte-identical.
 
 ## See it (no key)
-`widgets/compile-live/index.html` - the INTERACTIVE view (built on p5): click a
-request and watch it compile live - candidate tokens fly at the grammar gate,
-illegal ones bounce off, the legal winner snaps into a plan graph, the verifier
-checks it. Pick a request, run the plan, or break the grammar. The goal is stated
-up front: turn plain English into a runnable, verified plan.
+`widgets/compile-live/index.html` - the INTERACTIVE view (built on p5). A
+"meet the pieces" beat introduces reader / rules / plan / checker in plain
+words, then: click a request and watch it compile live - candidate words fly
+at the rules gate, disallowed ones bounce off, the winner snaps into a plan
+graph, the checker confirms it, and a cost ledger prices the compile (driver
+size computed from params x bits/8, KV cache, experts - Modules 8/3/4). Then
+BREAK it, one lever per prior module: rules off (invalid plan - M0's unmasked
+sampler), temperature up (same sentence, two different compiles - M0), checker
+weak (a wrong plan ships silently - M7), untrained reader (legal syntax,
+nonsense plan - M6). Run the verified plan and watch it execute.
 
 `widgets/architecture/index.html` - the WIRING diagram (built on p5): the same
-pieces as an architecture graph - click any piece to light up its connections.
-Surfaces the two structural ahas the process view hides: one tool catalog
-defines BOTH the rules and the checker (front and back, same schema), and the
-checker wires back to the reader to repair.
-
-`widgets/talk-to-compile/index.html` - the mechanism, act by act, two passes:
-- **intuition (7 steps):** naive model is unreliable -> the three disciplines
-  (grammar, verifier, determinism) -> the aha (front-end + verified backend).
-- **mechanism (17 steps, 3 acts):** act 1 decodes the plan token by token, the
-  grammar greying illegal candidates and renormalizing the legal set live (a
-  different static rule enforced each step: tool catalog, arg schema, literal
-  type, scope, return-type). Act 2 type-checks the DAG (four real checks), shows
-  temp-0 determinism, then a bad reference failing loudly and the repair loop.
-  Act 3 BREAKS it - grammar off (invalid plan), temperature up (two compiles
-  from one sentence), weak verifier (wrong plan passes silently), base driver
-  (valid-but-nonsense) - each toggle a prior module - and closes with the cost
-  ledger.
+pieces as an architecture graph - click any piece to light up its connections,
+and open the reader to see the entire models track inside it (tokens -> layers
+-> logits -> the sampler, where the rules plug in). Surfaces the two structural
+ahas the process view hides: one tool catalog defines BOTH the rules and the
+checker (front and back, same schema), and the checker wires back to the reader
+to repair.
 
 ## The aha
 The whole course was building the front-end. A compiler is what you do with it:

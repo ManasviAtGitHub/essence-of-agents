@@ -285,13 +285,16 @@ Prompt: `The capital of France is`
   the renormalized legal set - it cannot emit an invalid plan. Backend = a
   verifier (M7) type-checking the DAG, failing loudly, repairing. Determinism =
   temp 0.
-- Build (acts): (1) decode under the grammar - token by token, a different
-  static rule masked each step (tool catalog, arg schema, literal type, scope,
-  return-type); mask + renorm computed live over illustrative logits. (2) verify
-  + repair - four real checks on the DAG, temp-0 determinism, a bad ref failing
-  loudly, the repair loop. (3) break it + cost ledger - grammar off / temp up /
-  weak verifier / base driver, each toggle a prior module; ledger = M8 driver
-  size (computed) + M3/M4 running cost.
+- Build (two p5 views; the act-by-act widget was folded into compile-live and
+  retired 2026-07-08): (1) compile-live - "meet the pieces" intro in plain words,
+  then a live compile (candidate words fly at the rules gate, masked ones bounce,
+  the winner snaps into a plan graph, the checker confirms), a cost ledger (M8
+  driver size computed, M3 KV cache, M4 experts), and four break levers each =
+  a prior module (rules off/M0, temperature up/M0, checker weak/M7, untrained
+  reader/M6), plus run-the-plan execution. (2) architecture - the wiring diagram
+  with labeled data on every edge, module tags on every piece, open-the-reader
+  internals (tokens -> layers -> logits -> sampler, where the rules plug in),
+  the shared tool catalog defining both rules and checker, and the repair loop.
 - Genuine-capstone test: every break-toggle is powered by an earlier module
   (M0 sampler, M0/temp determinism, M7 verifier, M6 instruction-tuning), so the
   course demonstrably converges here. The IR is course 1's agent loop - the two
