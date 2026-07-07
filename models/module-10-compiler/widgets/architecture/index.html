@@ -115,7 +115,10 @@ function cx(n){ return n.x+n.w/2; }
 function readerGeom(){ return open ? PANEL : N.reader; }
 
 new p5(function(p){
-  p.setup=function(){ const c=p.createCanvas(W,H); c.parent("canvas"); p.textFont("ui-monospace, Menlo, Consolas, monospace"); };
+  p.setup=function(){ const c=p.createCanvas(W,H); c.parent("canvas"); p.textFont("ui-monospace, Menlo, Consolas, monospace");
+    p.pixelDensity(Math.max(1, window.devicePixelRatio||1)); };
+  // browser zoom changes devicePixelRatio and fires resize: re-render at the new density so text stays crisp
+  p.windowResized=function(){ p.pixelDensity(Math.max(1, window.devicePixelRatio||1)); };
 
   p.draw=function(){
     p.background(11,14,18);
