@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Attention unchained</title>
+<!-- Frontier F2. Verified as of 2026-07. Toy vectors hand-authored (labeled);
+     indexer scores, top-k, state updates and reads computed live. Flagship
+     numbers primary-sourced. Rule 12: the argument is taught, not a winner. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:28px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto; display:block; }
+  .panel { border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:9px 12px; margin-top:10px; }
+  .panel .th { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:6px; }
+  #readChart svg { display:block; width:100%; max-width:640px; height:auto; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:76px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .react { margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>Attention unchained</h1>
+<div class="stamp">TRACK 4 . F2 . verified as of 2026-07 - the argument is taught, not a winner</div>
+<p class="sub">Track 3 handed you two bills: compare against EVERYTHING (M2's n^2) and remember EVERYTHING
+(M3's KV formula). The 2026 flagships refuse to pay - <b>three different ways, in public, with evidence
+on every side.</b></p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (the three positions)</button>
+  <button class="modebtn" data-mode="mech">mechanism (compute the escapes)</button>
+  <span class="modehint">toy vectors hand-authored (labeled); scores, top-k and states computed live</span>
+</div>
+
+<div id="canvas" aria-label="Three escape routes from full attention, computed"></div>
+
+<div class="panel" id="chartP" hidden><div class="th">entries READ per new token - computed (log-ish scale, labeled)</div>
+  <div id="readChart"></div></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script src="../../../../assets/vendor/d3.min.js"></script>
+<script>
+/* ============ toy data (hand-authored, labeled) ============ */
+// 8 past tokens; each has a cheap 2-D "index key" for the sparse indexer
+const TOKS=["The","umbrella","that","Marie","bought","in","Paris","was"];
+const IKEY=[[0.1,0.2],[0.9,0.4],[0.0,0.3],[0.8,0.7],[0.6,0.5],[0.1,0.1],[0.7,0.9],[0.2,0.6]];
+const IQ=[0.9,0.6];                       // the new token's cheap index query
+const ISCORE=IKEY.map(k=>+(IQ[0]*k[0]+IQ[1]*k[1]).toFixed(2));
+const TOPK=3;
+const TOPIDX=ISCORE.map((s,i)=>[s,i]).sort((a,b)=>b[0]-a[0]).slice(0,TOPK).map(x=>x[1]);
+// linear toy: 2x2 state, S += outer(k,v); read h = q x S  (normalization/gating omitted - labeled)
+const LKV=[ {k:[1,0],v:[2,1]}, {k:[0,1],v:[1,3]}, {k:[1,1],v:[1,0]} ];
+function stateAfter(n){ const S=[[0,0],[0,0]];
+  for(let t=0;t<n;t++){ const {k,v}=LKV[t];
+    for(let i=0;i<2;i++) for(let j=0;j<2;j++) S[i][j]+=k[i]*v[j]; } return S; }
+const LQ=[1,2];
+function readS(S){ return [LQ[0]*S[0][0]+LQ[1]*S[1][0], LQ[0]*S[0][1]+LQ[1]*S[1][1]]; }
+
+/* ============ dom + cast ============ */
+const $=id=>document.getElementById(id);
+const caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(w,e,l){ chrR.dataset.c=w; chrR.dataset.e=e; reactLine.textContent=l; Cast.render($("react")); }
+
+/* ============ D3: entries read per new token (act 3) ============ */
+function drawReads(){
+  const n=131072, k=2048;
+  const rows=[
+    {name:"FULL  (M2/M3, unchanged)", reads:n,   col:"#fc6255", note:n.toLocaleString()+" reads"},
+    {name:"SPARSE (DSA top-2048)",    reads:k,   col:"#ffd35c", note:k.toLocaleString()+" reads (~1.6%) - after a cheap index pass over all "+n.toLocaleString()},
+    {name:"LINEAR (fixed state)",     reads:1,   col:"#83c167", note:"one fixed-size state - independent of context"},
+  ];
+  const w=640,h=132, scale=v=>40+Math.log10(Math.max(1,v))*95;
+  const svg=d3.create("svg").attr("viewBox","0 0 "+w+" "+h);
+  rows.forEach((r,i)=>{
+    const y=10+i*38;
+    svg.append("rect").attr("x",0).attr("y",y).attr("width",scale(r.reads)).attr("height",18).attr("rx",4)
+      .attr("fill",r.col).attr("fill-opacity",0.85);
+    svg.append("text").attr("x",4).attr("y",y-2).attr("fill","#cdd3da")
+      .style("font","10px ui-monospace,monospace").text(r.name);
+    svg.append("text").attr("x",scale(r.reads)+8).attr("y",y+13).attr("fill","#98a2b0")
+      .style("font","9.5px ui-monospace,monospace").text(r.note);
+  });
+  svg.append("text").attr("x",0).attr("y",h-4).attr("fill","#5b6470").style("font","9px ui-monospace,monospace")
+    .text("bar length ~ log10(reads), labeled . context 128k . STORAGE is a separate question (sparse keeps the cache; linear deletes it)");
+  const host=$("readChart"); host.innerHTML=""; host.appendChild(svg.node());
+}
+
+/* ============ p5 stage ============ */
+if (window.p5) p5.disableFriendlyErrors=true;
+const CW=920, CH=380;
+let MODE="int", STEP=0;
+new p5(function(p){
+  const density=()=>Math.max(2,window.devicePixelRatio||1);
+  p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
+    p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+  p.draw=function(){ if(p.pixelDensity()!==density()) p.pixelDensity(density());
+    p.background(11,14,18); (MODE==="int"?drawInt:drawMech)(); };
+
+  function lane(x,y,w,h,label){ p.push(); p.noStroke(); p.fill(255,255,255,4); p.rect(x,y,w,h,10);
+    p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER); p.text(label,x+w/2,y-6); p.pop(); }
+  function tokRow(y, hi, dim){ // the 8 past tokens + the new one
+    p.push(); p.textSize(10.5);
+    TOKS.forEach((t,i)=>{ const x=60+i*92;
+      const on=hi&&hi.indexOf(i)>=0;
+      p.fill(on?"#2a2410":"#171b21"); p.stroke(on?"#ffd35c":(dim?"#20242c":"#2a2f38")); p.strokeWeight(on?1.6:1);
+      p.rect(x,y,84,26,6); p.noStroke(); p.fill(on?"#ffd35c":(dim?"#4a5260":"#cdd3da"));
+      p.textAlign(p.CENTER,p.CENTER); p.text(t,x+42,y+12); p.stroke(0); });
+    p.noStroke(); p.fill("#58c4dd"); p.rect(60+8*92,y,64,26,6);
+    p.fill("#04222a"); p.textAlign(p.CENTER,p.CENTER); p.text("NEW",60+8*92+32,y+12); p.pop(); }
+  function backpack(x,y,S,label){ p.push();
+    p.fill(23,27,33); p.stroke("#83c167"); p.strokeWeight(1.5); p.rect(x,y,120,84,10);
+    p.noStroke(); p.fill("#83c167"); p.textSize(10); p.textAlign(p.CENTER); p.text(label||"the state S (2x2)",x+60,y-8);
+    p.fill("#cdd3da"); p.textSize(12);
+    if(S){ p.text("[ "+S[0][0]+"  "+S[0][1]+" ]",x+60,y+30); p.text("[ "+S[1][0]+"  "+S[1][1]+" ]",x+60,y+54); }
+    p.pop(); }
+
+  /* ---- intuition: 7 steps ---- */
+  function drawInt(){
+    const k=STEP;
+    if(k===0){ lane(30,60,860,90,"THE TWO BILLS (tracks 3, M2 + M3)"); tokRow(90,null,false);
+      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
+      p.text("bill 1: the NEW token compares against ALL 8 (n^2 as n grows)", 60, 190);
+      p.text("bill 2: all 8 K,V stay in memory forever (the KV wagon train)", 60, 212); p.pop(); }
+    if(k===1||k===2){ lane(30,60,860,90,"ESCAPE 1 - SPARSE: learn WHERE to look"); tokRow(90,(k===2?TOPIDX:null),k===2);
+      p.push(); p.noStroke(); p.textAlign(p.LEFT);
+      p.fill("#ffd35c"); p.textSize(11);
+      p.text(k===1?"a cheap INDEXER sweeps the row like a spotlight - scoring every past token, fast and rough"
+                  :"...then exact attention reads ONLY the top-3. The rest never get touched this step.", 60, 190);
+      p.fill("#98a2b0"); p.textSize(10);
+      p.text("NSA (Feb 2025) -> DSA lightning indexer (Sep 2025) -> V4 compression (Jun 2026); GLM-5 and MiniMax M3 adopted the family", 60, 212); p.pop();
+      if(k===1){ const t=(p.frameCount%160)/160; p.push(); p.noFill(); p.stroke(255,211,92,150); p.strokeWeight(2);
+        p.rect(56+t*730,86,92,34,8); p.pop(); } }
+    if(k===3){ lane(30,60,860,120,"ESCAPE 2 - LINEAR: stop keeping the list");
+      backpack(120,110,stateAfter(3));
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#83c167"); p.textSize(11);
+      p.text("every passing token is FOLDED into a fixed-size state - a backpack, not a wagon train", 290, 140);
+      p.text("memory at 1M tokens = memory at 10 tokens", 290, 160);
+      p.fill("#98a2b0"); p.textSize(10);
+      p.text("Gated DeltaNet (Sep 2025) -> Kimi KDA (Oct 2025: 75% KV cut, ~6x decode at 1M) -> Qwen3.5 flagship (Feb 2026)", 290, 186); p.pop(); }
+    if(k===4){ lane(30,60,860,120,"THE DISSENT - MiniMax M2 (Oct 2025)");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#fc6255"); p.textSize(12);
+      p.text("the linear-attention PIONEER went BACK to full attention.", 60, 110);
+      p.fill("#cdd3da"); p.textSize(11);
+      p.text("hybrids matched benchmarks at small scale - then degraded on MULTI-HOP REASONING when scaled.", 60, 134);
+      p.text("the field's best-documented negative result. their next model (M3, Jun 2026) chose SPARSE, not linear.", 60, 154);
+      p.pop(); }
+    if(k===5){ lane(30,60,860,150,"THE ARGUMENT, HONESTLY");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+      p.fill("#ffd35c"); p.text("SPARSE: exact attention, fewer reads - but the indexer is a new organ with its own cost (GLM-5.2 added IndexShare for exactly this)", 60, 100);
+      p.fill("#83c167"); p.text("LINEAR: O(1) memory forever - but a fixed state must FORGET; reasoning risk documented at scale", 60, 130);
+      p.fill("#fc6255"); p.text("FULL: pays the whole bill - and is the only design with no documented capability regression", 60, 160);
+      p.fill("#98a2b0"); p.textSize(10); p.text("no winner is declared here because the field has not declared one (rule 12)", 60, 190); p.pop(); }
+    if(k===6){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(13); p.textAlign(p.CENTER);
+      p.text("the n^2 wall and the KV bill were never laws - they were choices,", CW/2, 150);
+      p.text("and 2026 split three ways on them", CW/2, 172); p.pop(); }
+  }
+
+  /* ---- mechanism: 16 steps, 3 acts ---- */
+  function drawMech(){
+    const k=STEP;
+    if(k<=5){ // ACT 1: sparse, computed
+      lane(30,46,860,240, k<=1?"THE INDEXER - cheap scores over EVERY past token (computed live)":"TOP-K SELECTION -> EXACT ATTENTION OVER 3, NOT 8");
+      tokRow(76,(k>=2?TOPIDX:null),k>=2);
+      p.push(); p.noStroke(); p.textAlign(p.LEFT);
+      if(k>=1){ p.fill("#98a2b0"); p.textSize(9.5);
+        TOKS.forEach((t,i)=>{ const x=60+i*92;
+          p.fill(TOPIDX.indexOf(i)>=0&&k>=2?"#ffd35c":"#98a2b0");
+          p.text("u="+ISCORE[i].toFixed(2), x+18, 122); });
+        p.fill("#cdd3da"); p.textSize(11);
+        p.text("index query q* = ["+IQ.join(", ")+"] (toy 2-D, hand-authored) . u_i = q* . k*_i, all 8 computed live", 60, 156); }
+      if(k>=2){ p.fill("#ffd35c"); p.textSize(11);
+        p.text("sort -> keep top-"+TOPK+": tokens "+TOPIDX.map(i=>'"'+TOKS[i]+'"').join(", ")+" . exact attention now reads 3 entries, not 8", 60, 180); }
+      if(k>=3){ p.fill("#cdd3da"); p.textSize(11);
+        p.text("at scale (primary): DSA keeps top-2048 of 131,072 -> the attention step reads ~1.6% of the context", 60, 210); }
+      if(k>=4){ p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("lineage: NSA (Feb 2025, trainable 3-branch sparsity, ACL best paper) -> DSA lightning indexer (V3.2, Sep 2025, FP8, distilled from dense)", 60, 236);
+        p.text("-> V4 CSA+HCA (Jun 2026): compression joins - ~27% of V3.2 FLOPs, ~10% of its KV . adopted: GLM-5, MiniMax M3 (MSA)", 60, 254); }
+      if(k>=5){ p.fill("#fc6255"); p.textSize(11);
+        p.text("the new bottleneck is the INDEXER itself (it still touches everything, cheaply) - GLM-5.2's IndexShare reuses indices across layers, 2.9x fewer FLOPs at 1M", 60, 284); }
+      p.pop();
+    } else if(k<=10){ // ACT 2: linear, computed
+      const t=Math.min(k-6,3);
+      lane(30,46,520,250,"THE STATE - S += outer(k,v), computed live");
+      lane(580,46,310,250,"READ - h = q x S");
+      backpack(200,120,stateAfter(t), "S after "+t+" token"+(t===1?"":"s"));
+      p.push(); p.noStroke(); p.textAlign(p.LEFT);
+      p.fill("#cdd3da"); p.textSize(11);
+      for(let i=0;i<t;i++) p.text("token "+(i+1)+": k=["+LKV[i].k.join(",")+"] v=["+LKV[i].v.join(",")+"] -> S += k x v^T", 60, 90+i*20);
+      if(t===0) { p.fill("#98a2b0"); p.text("S starts at zero. Tokens will stream past and FOLD IN.", 60, 90); }
+      if(k>=9){ const S=stateAfter(3), h=readS(S);
+        p.fill("#83c167"); p.textSize(11.5);
+        p.text("q = ["+LQ.join(", ")+"]", 610, 100);
+        p.text("h1 = "+LQ[0]+"x"+S[0][0]+" + "+LQ[1]+"x"+S[1][0]+" = "+h[0], 610, 126);
+        p.text("h2 = "+LQ[0]+"x"+S[0][1]+" + "+LQ[1]+"x"+S[1][1]+" = "+h[1], 610, 148);
+        p.fill("#98a2b0"); p.textSize(10);
+        p.text("one matrix-vector read - no matter how", 610, 176);
+        p.text("many tokens ever streamed past", 610, 190); }
+      if(k>=10){ p.fill("#cdd3da"); p.textSize(11);
+        p.text("the catch: S is FIXED SIZE, so folding in means FORGETTING - the delta rule + gating (KDA's", 60, 250);
+        p.text("channel-wise gate, described not computed here - labeled) decide what to overwrite", 60, 268);
+        p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("lineage: Gated DeltaNet in Qwen3-Next (Sep 2025) -> Kimi KDA (Oct 2025) -> Qwen3.5 (Feb 2026): ~75% of a FLAGSHIP's layers", 60, 292); }
+      p.pop();
+    } else { // ACT 3: the argument
+      const k3=k-11;
+      lane(30,46,860,120, k3<=1 ? "READS vs STORAGE - keep the distinction honest" : "THE RETREAT + WHERE THE FIELD STANDS");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT);
+      if(k3<=1){ p.fill("#ffd35c"); p.textSize(11);
+        p.text("SPARSE cuts what attention READS - the cache is still STORED (until V4-style compression shrinks it)", 60, 86);
+        p.fill("#83c167"); p.text("LINEAR cuts STORAGE itself - the cache is gone; only the fixed state remains", 60, 110);
+        if(k3===1){ p.fill("#cdd3da"); p.text("the D3 chart below computes reads-per-new-token for all three at 128k context", 60, 140); } }
+      else if(k3===2){ p.fill("#fc6255"); p.textSize(12);
+        p.text("MiniMax M2 (Oct 2025): the linear pioneer went back to FULL attention.", 60, 86);
+        p.fill("#cdd3da"); p.textSize(11);
+        p.text("their account: hybrids matched benchmarks at small scale, degraded multi-hop reasoning at scale.", 60, 110);
+        p.text("presented here with equal billing (rule 12). M3 (Jun 2026) then chose SPARSE.", 60, 134); }
+      else if(k3===3){ p.fill("#cdd3da"); p.textSize(11);
+        p.text("bonus exhibit: mHC (DeepSeek, Dec 2025) - even the RESIDUAL STREAM was redesigned", 60, 86);
+        p.text("(n parallel streams, doubly-stochastic mixing; shipped in V4) - the first change to that layer in a decade", 60, 108);
+        p.fill("#98a2b0"); p.textSize(10.5); p.text("M2's two-beat layer diagram is now itself an exhibit that ages", 60, 134); }
+      else { p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
+        p.text("attack map: F2 attacked M2's n^2 and M3's KV formula - three ways, no winner declared", CW/2, 90);
+        p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("done when: given a design + context length, you can state reads, storage, and the documented risk", CW/2, 116); }
+      p.pop();
+    }
+  }
+}, "canvas");
+
+/* ============ steps + captions ============ */
+const CAPS_INT=[
+["The two bills, restated. When one new token arrives, M2 says: compare it against every past token. M3 says: keep every past token's K,V in memory forever. At 128k context both bills are enormous - and every 2026 flagship renegotiated at least one of them.","cortex","think","Eight tokens, fine. A hundred twenty-eight thousand? The bills are the architecture now."],
+["ESCAPE 1 - SPARSE. A second, much cheaper attention-like pass (the INDEXER, the moving spotlight) scores every past token roughly. It is allowed to be sloppy - it only has to RANK.","bit","reach","A cheap scout runs ahead of the expensive army."],
+["Then exact attention - the real thing from M2, unchanged - runs only over the top-k. The reads collapse: DSA keeps 2,048 of 131,072 (~1.6%). The rest are still stored, just not touched this step.","bit","happy","The army only marches where the scout pointed. Reads collapse; the mechanism is intact."],
+["ESCAPE 2 - LINEAR. Do not keep the list at all. Each passing token is FOLDED into a fixed-size state - a backpack instead of M3's wagon train. Memory at a million tokens equals memory at ten.","cortex","reach","I stop hoarding and start carrying a backpack. Whatever fits, fits."],
+["THE DISSENT. MiniMax - who pioneered linear attention at scale - publicly went BACK to full attention for M2 (Oct 2025): hybrids looked fine on benchmarks, then degraded on multi-hop reasoning when scaled. This retreat gets equal billing here - it is the best-documented negative result in the field.","cortex","confused","The pioneer turned around. That is data, not embarrassment."],
+["The argument, honestly: sparse buys exact-but-few reads at the price of a new organ (the indexer); linear buys constant memory at the price of forgetting; full pays everything and is the only design with no documented regression. The field has not declared a winner, so neither do we (rule 12).","bit","neutral","Three positions, three receipts. Pick your bill."],
+["The aha: n^2 and the KV formula were never physics. They were choices - and 2026 is the year the frontier split three ways on them, in public.","bit","happy","Track 3 taught you the rules. The frontier is renegotiating them - and now you can read the negotiation."]];
+const CAPS_MECH=[
+["Act 1, SPARSE, computed. Eight past tokens (toy), one new token arriving. Every past token gets a cheap 2-D index key (hand-authored, labeled); the new token gets an index query q*.","bit","neutral","Small numbers, real mechanism. Watch the scout work."],
+["The indexer scores ALL eight - u_i = q* . k*_i, computed live under each token. Cheap and rough is the point: low precision (DSA runs this in FP8), tiny vectors, no softmax needed - it only has to RANK.","bit","read","Eight little dot products. The scout is allowed to be sloppy - it only ranks."],
+["Sort, keep top-3: the gold tokens. Exact attention - M2's real arithmetic, unchanged - now reads 3 entries instead of 8. The other 5 were scored but never touched by the expensive pass.","bit","happy","The army marches on three tokens. The mechanism you learned in M2 is intact - just aimed."],
+["Scale it with primary numbers: DSA (V3.2, Sep 2025) keeps the top 2,048 of a 131,072-token context - the attention step reads ~1.6% of what full attention would. The indexer was distilled from dense attention so it ranks like the real thing.","cortex","happy","At 128k I read two thousand things instead of everything. Same me, new glasses."],
+["The lineage, dated: NSA (Feb 2025) made sparsity TRAINABLE end to end; DSA (Sep 2025) made it a tiny FP8 indexer; V4 (Jun 2026) added compression on top - ~27% of V3.2's per-token FLOPs, ~10% of its KV. GLM-5 adopted DSA wholesale; MiniMax M3 shipped its own (MSA).","bit","read","One idea maturing in public, three labs converging on it. That is what a lineage looks like."],
+["And the honest catch: the indexer still touches EVERYTHING (cheaply) - so IT becomes the bottleneck. GLM-5.2's IndexShare (Jun 2026) reuses one layer's top-k indices across a group of layers: 2.9x fewer FLOPs at 1M. The fix needed its own fix.","cortex","confused","My scout got so busy they hired one scout for every four armies."],
+["Act 2, LINEAR, computed. Forget the list entirely: keep one fixed-size state S (toy 2x2, starts at zero). Tokens will stream past and be folded in - watch every number.","bit","neutral","No wagon train. One backpack, currently empty."],
+["Token 1 arrives: k=[1,0], v=[2,1]. Fold it in: S += k x v^T (outer product) - each cell computed on screen. The token itself is now DISCARDED; only its imprint on S remains.","bit","read","The token leaves. Its imprint stays. That is the whole trade."],
+["Tokens 2 and 3 fold in the same way. S changed values - but never SIZE. This is the entire memory story: O(1), forever.","cortex","happy","Three tokens in, still a 2x2 backpack. A million tokens in? Still 2x2."],
+["Reading: the new token's q multiplies the state - h = q x S, computed live. One matrix-vector product, independent of how many tokens ever streamed past. Compare M3: no cache, no per-token rent.","cortex","reach","I read my whole past in one multiplication. The wagon train is gone."],
+["The catch, honestly: a fixed S must FORGET to make room. The delta rule + gating decide what to overwrite (KDA's channel-wise gate - described, not computed here; labeled). Lineage: Gated DeltaNet in Qwen3-Next (Sep 2025) -> Kimi KDA (Oct 2025: 75% KV cut, ~6x decode at 1M) -> Qwen3.5 (Feb 2026): ~75% of a flagship's layers are linear.","bit","think","A backpack that cannot grow must choose what to drop. Choosing well is the research."],
+["Act 3 - keep one distinction honest: SPARSE cuts what attention READS (the cache is still stored, until V4-style compression); LINEAR cuts STORAGE itself. Two different bills, often conflated in headlines. Not here.","bit","neutral","Reads and storage are different bills. Headlines blur them; we will not."],
+["The chart below computes reads-per-new-token at 128k for all three designs: full reads 131,072; DSA-style sparse reads 2,048 after a cheap index pass; linear reads one fixed state. Log scale, labeled.","bit","read","Three bars, three philosophies, one computed comparison."],
+["The retreat, straight: MiniMax M2 (Oct 2025) - from the lab that pioneered linear attention at scale - returned to FULL attention after hybrids degraded multi-hop reasoning at scale. Equal billing, per rule 12. Their M3 (Jun 2026) then chose sparse.","cortex","confused","The most experienced linear lab voted full - then sparse. Evidence moves positions."],
+["Bonus exhibit: DeepSeek's mHC (Dec 2025) redesigned the RESIDUAL STREAM itself - n parallel streams with doubly-stochastic mixing, shipped in V4. Even M2's two-beat layer diagram is now a dated exhibit.","bit","read","Nothing in the diagram is sacred. Not even the arrows."],
+["Attack map: F2 attacked M2's n^2 (sparse: read less; linear: read a state) and M3's KV formula (linear: delete it; V4 compression: shrink it). No winner declared - the field has not declared one. Done when: given a design and a context, you can state reads, storage, and the documented risk.","bit","happy","You can now read any 1M-context announcement and ask the only two questions that matter."]];
+const MECH_ACTS=[["sparse, computed",6],["linear, computed",5],["the argument",5]];
+
+let tl=null;
+function render(i){
+  STEP=i;
+  const caps=MODE==="int"?CAPS_INT:CAPS_MECH, c=caps[i];
+  caption.textContent=c[0]; react(c[1],c[2],c[3]);
+  insight.className="insight";
+  insight.innerHTML = MODE==="int"
+    ? (i>=6?"<b>The aha:</b> the two bills were choices, not laws. Switch to <b>mechanism</b> to compute both escapes yourself."
+          :"One idea: <b>sparse = learn where to look; linear = stop keeping the list; full = pay, and keep every capability.</b>")
+    : (i<=5?"Act 1: <b>a cheap indexer ranks everything; exact attention reads only the top-k.</b> Scores computed live."
+      : i<=10?"Act 2: <b>S += outer(k,v); h = q x S.</b> The state never grows - and must therefore forget."
+      : "Act 3: <b>reads vs storage - two different bills.</b> The argument is taught, not a winner (rule 12).");
+  const showChart = MODE==="mech" && STEP>=12;
+  $("chartP").hidden=!showChart; if(showChart) drawReads();
+}
+function build(mode){ MODE=mode;
+  const isInt=mode==="int";
+  tl=new Anim.Timeline({ length:isInt?7:16, autoMs:isInt?3100:3400, onStep:(i)=>render(i) });
+  Anim.scrubber($("scrub"), tl, { label:isInt?(i=>"step "+(i+1)+" / 7"):Anim.actLabel(MECH_ACTS), acts:isInt?null:MECH_ACTS });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".modebtn").forEach(x=>x.classList.toggle("on",x===b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>
