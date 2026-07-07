@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RL eats the pipeline</title>
+<!-- Frontier F3. Verified as of 2026-07. Toy rewards/probabilities hand-authored
+     (labeled); every mean, std, advantage, log-ratio and vote computed live. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:28px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto; display:block; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:76px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .react { margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>RL eats the pipeline</h1>
+<div class="stamp">TRACK 4 . F3 . verified as of 2026-07 - exhibits age, the principle does not</div>
+<p class="sub">M6 drew training as four tidy stages with RL as the final polish. By mid-2026 the reward signal
+lives in <b>pretraining, a brand-new middle stage, post-training, and at test time</b> - the stage became an
+ingredient.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (the invasion)</button>
+  <button class="modebtn" data-mode="mech">mechanism (compute the rewards)</button>
+  <span class="modehint">toy rewards hand-authored (labeled); every advantage, vote and log-ratio computed live</span>
+</div>
+
+<div id="canvas" aria-label="The reward signal spreading through the whole training pipeline"></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+/* ===== toy data (hand-authored, labeled) ===== */
+const R=[1,0,0,1,0];                                  // GRPO group rewards
+const RM=R.reduce((a,b)=>a+b,0)/R.length;             // mean
+const RSD=Math.sqrt(R.reduce((a,b)=>a+(b-RM)*(b-RM),0)/R.length);
+const ADV=R.map(r=>((r-RM)/RSD));
+const VOTES=["72","68","72","72","65"];               // TTRL samples
+const MAJ="72", VR=VOTES.map(v=>v===MAJ?1:0);
+const P_WITH=0.42, P_WITHOUT=0.15;                    // RLP info gain toy
+const IG=Math.log(P_WITH/P_WITHOUT);
+const PS=0.5, PT=0.8;                                 // on-policy distill toy
+const KLT=Math.log(PS/PT);
+
+const $=id=>document.getElementById(id);
+const caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(w,e,l){ chrR.dataset.c=w; chrR.dataset.e=e; reactLine.textContent=l; Cast.render($("react")); }
+
+if (window.p5) p5.disableFriendlyErrors=true;
+const CW=920, CH=380;
+let MODE="int", STEP=0;
+new p5(function(p){
+  const density=()=>Math.max(2,window.devicePixelRatio||1);
+  p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
+    p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+  p.draw=function(){ if(p.pixelDensity()!==density()) p.pixelDensity(density());
+    p.background(11,14,18); (MODE==="int"?drawInt:drawMech)(); };
+
+  function lane(x,y,w,h,label){ p.push(); p.noStroke(); p.fill(255,255,255,4); p.rect(x,y,w,h,10);
+    p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER); p.text(label,x+w/2,y-6); p.pop(); }
+  // the pipeline: 4 stages + test-time; invaded stages glow red
+  function pipeline(y, invaded, newStage){
+    const st=[["PRETRAIN","14.8T -> 33T tokens"],["SFT","imitate dialogues"],["PREFERENCE","rankings"],["REASONING RL","verifier (M7)"]];
+    let x=46; const W2=175;
+    st.forEach((s,i)=>{
+      if(newStage && i===1){ // insert mid-training before SFT
+        p.push(); p.fill(23,27,33); p.stroke("#ffd35c"); p.strokeWeight(1.6); p.rect(x,y,150,52,9);
+        p.noStroke(); p.fill("#ffd35c"); p.textSize(10.5); p.textAlign(p.CENTER);
+        p.text("AGENTIC MID-TRAIN",x+75,y+20); p.fill("#98a2b0"); p.textSize(8.5); p.text("NEW STAGE (Tongyi, Oct 2025)",x+75,y+38); p.pop();
+        x+=162; }
+      const inv=invaded&&invaded.indexOf(i)>=0;
+      p.push(); p.fill(23,27,33); p.stroke(inv?"#fc6255":"#2a2f38"); p.strokeWeight(inv?1.8:1.2); p.rect(x,y,W2-30,52,9);
+      p.noStroke(); p.fill(inv?"#fc6255":"#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text(s[0],x+(W2-30)/2,y+20);
+      p.fill("#98a2b0"); p.textSize(8.5); p.text(s[1],x+(W2-30)/2,y+38); p.pop();
+      x+=W2-18;
+    });
+    return x;
+  }
+  function grpoTable(x,y,upto,drfix){
+    p.push(); p.textAlign(p.LEFT); p.noStroke(); p.textSize(11);
+    p.fill("#cdd3da"); p.text("group rewards (toy): ["+R.join(", ")+"]   mean = "+RM.toFixed(1)+"   std = "+RSD.toFixed(2), x, y);
+    if(upto>=1){ p.fill("#ffd35c");
+      ADV.forEach((a,i)=>p.text("attempt "+(i+1)+": adv = ("+R[i]+" - "+RM.toFixed(1)+") / "+RSD.toFixed(2)+" = "+a.toFixed(2), x, y+22+i*17)); }
+    p.pop();
+  }
+
+  /* ---- intuition: 7 steps ---- */
+  function drawInt(){
+    const k=STEP;
+    if(k===0){ lane(30,80,860,110,"M6'S PIPELINE (2024's tidy picture)"); pipeline(110,null,false); }
+    if(k===1){ lane(30,80,860,110,"THE FIRST INVASION - PRETRAINING"); pipeline(110,[0],false);
+      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
+      p.text("RLP (Oct 2025): a chain of thought becomes an ACTION taken before predicting each token,", 60, 230);
+      p.text("rewarded by how much it helps - inside ordinary pretraining, no verifier anywhere", 60, 250); p.pop(); }
+    if(k===2){ lane(30,80,860,110,"A NEW STAGE APPEARS"); pipeline(110,null,true);
+      p.push(); p.noStroke(); p.fill("#ffd35c"); p.textSize(11); p.textAlign(p.LEFT);
+      p.text("Tongyi DeepResearch (Oct 2025) inserts AGENTIC MID-TRAINING - fully synthetic agent-task", 60, 230);
+      p.text("data between pretraining and post-training. The pipeline grew an organ.", 60, 250); p.pop(); }
+    if(k===3){ lane(30,80,860,110,"AND PAST THE END - TEST TIME"); pipeline(110,[3],false);
+      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
+      p.text("TTRL: at inference, on UNLABELED data, the model votes on its own answers and", 60, 230);
+      p.text("rewards agreement with the majority - updating itself after training 'ended'", 60, 250); p.pop(); }
+    if(k===4){ lane(30,80,860,150,"REWARDS OUTGROW THE VERIFIER");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+      p.fill("#83c167"); p.text("M7's world: reward = a checkable answer (math, code)", 60, 120);
+      p.fill("#ffd35c"); p.text("2025-26: RUBRIC checklists scored by judges carry RL into medicine, science, open-ended work", 60, 146);
+      p.fill("#fc6255"); p.text("...and rubric rewards can be gamed - reward hacking follows the reward (M7's warning, still true)", 60, 172);
+      p.fill("#98a2b0"); p.textSize(10); p.text("Kimi K2 (Jul 2025) even rewards the model for judging ITSELF against internal rubrics", 60, 198); p.pop(); }
+    if(k===5){ lane(30,80,860,150,"THE V4 TWIST (Jun 2026)");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+      ["MATH specialist","CODE specialist","AGENT specialist"].forEach((s,i)=>{
+        p.fill(23,27,33); p.stroke("#58c4dd"); p.strokeWeight(1.2); p.rect(60+i*210,110,180,40,8);
+        p.noStroke(); p.fill("#58c4dd"); p.textAlign(p.CENTER); p.text(s,150+i*210,130);
+        p.fill("#98a2b0"); p.textSize(8.5); p.text("SFT + GRPO, own reward",150+i*210,144); p.textSize(11); });
+      p.fill("#83c167"); p.textAlign(p.CENTER); p.text("ONE STUDENT - fused by ON-POLICY DISTILLATION (teachers grade every token)", 460, 195);
+      p.stroke("#83c167"); p.strokeWeight(1.2);
+      [150,360,570].forEach(x=>p.line(x,152,460,180)); p.noStroke();
+      p.fill("#cdd3da"); p.textSize(10.5); p.text("\"RL makes the teachers, distillation makes the model\" - M7 + M8, merged", 460, 216); p.pop(); }
+    if(k===6){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(13); p.textAlign(p.CENTER);
+      p.text("'post-training' is dying as a phrase -", CW/2, 150);
+      p.text("reward became an ingredient, not a stage", CW/2, 172); p.pop(); }
+  }
+
+  /* ---- mechanism: 15 steps, 3 acts ---- */
+  function drawMech(){
+    const k=STEP;
+    if(k<=4){ // ACT 1: the GRPO zoo
+      lane(30,46,860,250, k<=1?"GRPO'S ADVANTAGE - M7'S ARITHMETIC, RECOMPUTED":"THE DESCENDANTS - EACH FIXES ONE NAMED FLAW");
+      if(k<=1) grpoTable(60,86,k,false);
+      if(k===2){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+        p.fill("#cdd3da"); p.text("two WRONG answers, same advantage -0.4 (from the group above):", 60, 90);
+        p.fill("#fc6255"); p.text("answer X: 20 tokens  -> per-token penalty = -0.4 / 20  = -0.020", 80, 118);
+        p.text("answer Y: 200 tokens -> per-token penalty = -0.4 / 200 = -0.002", 80, 140);
+        p.fill("#ffd35c"); p.text("the long wrong answer is punished 10x LESS per token -> models learn to RAMBLE", 60, 170);
+        p.fill("#83c167"); p.text("Dr.GRPO (Mar 2025): remove the length division - wrong costs the same at any length", 60, 196); p.pop(); }
+      if(k===3){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(10.5);
+        const rows=[["DAPO (Mar 2025)","entropy collapse","clip-higher (asymmetric) + drop zero-gradient groups"],
+                    ["GSPO (Jul 2025, Qwen)","token-ratio noise destabilizes MoE RL","importance ratio at the SEQUENCE level"],
+                    ["VAPO (Apr 2025)","critic-free methods plateau on long CoT","bring the VALUE MODEL back (PPO returns)"],
+                    ["CISPO (Jun 2025)","clipping kills rare 'fork' tokens (wait, however)","clip the weight, keep the gradient"]];
+        rows.forEach((r,i)=>{ const y=92+i*44;
+          p.fill("#ffd35c"); p.text(r[0], 60, y); p.fill("#fc6255"); p.text("flaw: "+r[1], 240, y);
+          p.fill("#83c167"); p.text("fix: "+r[2], 240, y+16); });
+        p.pop(); }
+      if(k===4){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+        p.fill("#cdd3da"); p.text("and the meta-result: ScaleRL (Meta, Oct 2025) - RL compute follows PREDICTABLE", 60, 100);
+        p.text("sigmoid scaling curves, like pretraining did. RL got its first scaling laws.", 60, 122);
+        p.fill("#98a2b0"); p.textSize(10); p.text("the zoo is not chaos - it is one algorithm being debugged in public, flaw by flaw", 60, 152); p.pop(); }
+    } else if(k<=9){ // ACT 2: the invasion, computed
+      const k2=k-5;
+      lane(30,46,860,250, k2<=1?"RLP - REWARD INSIDE PRETRAINING (computed)":(k2<=3?"TTRL - REWARD AT TEST TIME (computed)":"THE NEW MIDDLE STAGE"));
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+      if(k2===0){ p.fill("#cdd3da");
+        p.text("ordinary pretraining text: \"...the capital of France is [Paris]\"", 60, 90);
+        p.text("the model first SAMPLES a private thought, then predicts the token:", 60, 116);
+        p.fill("#98a2b0"); p.text("p(Paris | text alone)        = "+P_WITHOUT.toFixed(2)+"   (toy, hand-authored)", 80, 146);
+        p.text("p(Paris | text + thought)    = "+P_WITH.toFixed(2), 80, 168); }
+      if(k2===1){ p.fill("#98a2b0");
+        p.text("p(Paris | text alone) = "+P_WITHOUT.toFixed(2)+"   p(Paris | text + thought) = "+P_WITH.toFixed(2), 60, 90);
+        p.fill("#ffd35c"); p.textSize(12);
+        p.text("reward = log( "+P_WITH.toFixed(2)+" / "+P_WITHOUT.toFixed(2)+" ) = "+IG.toFixed(2), 60, 124);
+        p.fill("#83c167"); p.textSize(11);
+        p.text("the thought earned "+IG.toFixed(2)+" nats of INFORMATION GAIN - no verifier, no labels, dense reward on every token", 60, 154);
+        p.fill("#98a2b0"); p.textSize(10); p.text("RLP (NVIDIA, Oct 2025; ICLR 2026) - RL moved into the pretraining objective itself", 60, 180); }
+      if(k2===2){ p.fill("#cdd3da"); p.text("unlabeled question at TEST time. The model samples 5 answers:", 60, 90);
+        VOTES.forEach((v,i)=>{ const on=v===MAJ;
+          p.fill(on?"#2a2410":"#171b21"); p.stroke(on?"#ffd35c":"#2a2f38"); p.rect(60+i*130,110,110,34,7);
+          p.noStroke(); p.fill(on?"#ffd35c":"#98a2b0"); p.textAlign(p.CENTER); p.text('"'+v+'"',115+i*130,128); p.textAlign(p.LEFT); });
+        p.fill("#ffd35c"); p.text("majority vote: \""+MAJ+"\" (3 of 5) -> becomes the PSEUDO-LABEL", 60, 172); }
+      if(k2===3){ p.fill("#cdd3da"); p.text("now GRPO runs on the votes - rewards = agree with majority:", 60, 90);
+        p.fill("#ffd35c"); p.text("rewards: ["+VR.join(", ")+"]   (computed from the vote)", 80, 116);
+        p.fill("#83c167"); p.text("the model teaches ITSELF at inference - +211% on AIME for a 7B math model (primary)", 60, 146);
+        p.fill("#fc6255"); p.text("the catch: if the majority is confidently wrong, it reinforces the error - no oracle anywhere", 60, 172);
+        p.fill("#98a2b0"); p.textSize(10); p.text("TTRL (Apr 2025, NeurIPS) -> unsupervised-RLVR subfield (ICLR 2026)", 60, 198); }
+      if(k2===4){ pipeline(100,[0,3],true);
+        p.fill("#cdd3da"); p.textSize(11);
+        p.text("the full 2026 picture: reward in pretraining (RLP), a new mid-training stage (Tongyi),", 60, 210);
+        p.text("the GRPO family in post-training, TTRL past the end. The tidy row is history.", 60, 232); }
+      p.pop();
+    } else { // ACT 3: V4 fusion + rubrics + close
+      const k3=k-10;
+      lane(30,46,860,250, k3<=1?"ON-POLICY DISTILLATION - THE TEACHER GRADES EVERY TOKEN (computed)":(k3<=2?"RUBRICS - REWARDS PAST THE VERIFIER":"THE ATTACK MAP"));
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+      if(k3===0){ p.fill("#cdd3da");
+        p.text("the STUDENT samples its own next token; suppose it picks \"thus\":", 60, 90);
+        p.fill("#98a2b0");
+        p.text("student probability   pS(\"thus\") = "+PS.toFixed(2)+"   (toy, hand-authored)", 80, 118);
+        p.text("teacher probability   pT(\"thus\") = "+PT.toFixed(2), 80, 140);
+        p.fill("#ffd35c"); p.textSize(12);
+        p.text("per-token grade = log( pS / pT ) = log( "+PS.toFixed(2)+" / "+PT.toFixed(2)+" ) = "+KLT.toFixed(2), 60, 174);
+        p.fill("#83c167"); p.textSize(11);
+        p.text("negative -> the gradient pushes the student TOWARD the teacher, on the student's OWN trajectory", 60, 202); }
+      if(k3===1){ p.fill("#cdd3da");
+        p.text("that one grade, industrialized, is DeepSeek-V4's post-training (Jun 2026):", 60, 90);
+        p.fill("#58c4dd"); p.text("1. specialists (math / code / agents) each trained with SFT + GRPO + their own reward", 80, 118);
+        p.fill("#83c167"); p.text("2. one student fused from all teachers by on-policy distillation - dense, per-token, cheap vs RL", 80, 142);
+        p.fill("#ffd35c"); p.text("\"RL makes the teachers, distillation makes the model\" - M7 and M8, merged into one pipeline", 60, 174);
+        p.fill("#98a2b0"); p.textSize(10); p.text("mechanism first shown by Thinking Machines (Oct 2025); a survey subfield by Apr 2026", 60, 200); }
+      if(k3===2){ p.fill("#83c167"); p.text("M7's reward: a checkable answer. 2026's reward: a RUBRIC - a prompt-specific checklist", 60, 90);
+        p.fill("#83c167"); p.text("scored by an LLM judge - carrying RL into medicine, science, open-ended agent work", 60, 112);
+        p.fill("#fc6255"); p.text("and the eternal price: rubric rewards get HACKED too - 2026 papers study exactly that", 60, 142);
+        p.fill("#98a2b0"); p.textSize(10);
+        p.text("Rubrics as Rewards (Jul 2025); reward-hacking-in-rubric-RL (2026); benchmark deltas stated qualitatively (rule 11)", 60, 168); }
+      if(k3>=3){ p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
+        p.text("attack map: F3 attacked M6's tidy stages (reward is an ingredient now)", CW/2, 110);
+        p.text("and extended M7 (the verifier's reach) + M8 (distillation became RL's partner)", CW/2, 134);
+        p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("done when: place RLP / mid-training / GRPO / TTRL on the pipeline and compute the length-bias fix", CW/2, 168); }
+      p.pop();
+    }
+  }
+}, "canvas");
+
+/* ===== captions ===== */
+const CAPS_INT=[
+["Here is M6's picture, unchanged: four stages in a row, each bending the same machine, RL last. In 2024 this diagram was the truth. Watch what a year did to it.","bit","neutral","A tidy assembly line. Enjoy it while it lasts."],
+["First invasion: the START. RLP (Oct 2025) has the model sample a private THOUGHT before predicting each pretraining token, and rewards the thought by how much it helps. Reinforcement learning inside pretraining - no verifier, no labels, just information gain.","cortex","think","I was learning to think WHILE learning to read. Nobody waited for a polish stage."],
+["Then the pipeline grew a NEW organ: agentic mid-training (Tongyi DeepResearch, Oct 2025) - a whole stage of synthetic agent-task data between pretraining and post-training, because agent skills need more than a polish.","bit","reach","They didn't tune the last stage. They built a new floor in the building."],
+["And past the END: TTRL - at inference, on unlabeled questions, the model samples several answers, votes, and rewards agreement with its own majority. Training continues after training is over.","cortex","confused","I grade myself with my own show of hands. Bold. Slightly circular. It works - mostly."],
+["Meanwhile the reward itself outgrew M7's checkable answers: RUBRIC checklists scored by judges carry RL into medicine and open-ended work - and, being softer targets, invite their own reward hacking. The verifier's limit moved; it did not vanish.","bit","think","Softer rewards reach further and bend easier. M7's warning travels with them."],
+["And the twist that closes the loop: DeepSeek-V4 (Jun 2026) runs GRPO only on domain SPECIALISTS, then fuses them into one student by on-policy distillation - the teachers grade every token of the student's own attempts. RL makes the teachers; distillation makes the model.","cortex","happy","Three tutors, one me. They argued with reality; I just inherit the conclusions."],
+["The aha: 'post-training' is dying as a phrase. Reward became an INGREDIENT mixed through the whole pipeline - and M6's tidy diagram is now a dated exhibit of how 2024 thought.","bit","happy","Stages become ingredients. The pipeline became a recipe."]];
+const CAPS_MECH=[
+["Act 1. Recompute M7's arithmetic so the descendants make sense: a group of 5 attempts, rewards hand-authored. Mean and std computed live.","bit","neutral","Same toy as M7. Watch what the children fix."],
+["Each attempt's advantage = (reward - mean) / std, all five computed on screen. This is vanilla GRPO - the parent. Every 2025-26 descendant is a bug-fix on what you see here.","bit","read","The parent algorithm, in full. Now the bug reports arrive."],
+["Bug #1 - LENGTH BIAS, computed: two wrong answers, same -0.4 advantage. Spread over 20 tokens: -0.020 each. Over 200 tokens: -0.002 each. Long wrong answers cost 10x less per token, so models learn to RAMBLE. Dr.GRPO (Mar 2025) deletes the length division.","cortex","confused","Being wrong at length was CHEAPER. No wonder I rambled - the math paid me to."],
+["The rest of the zoo, one flaw each: DAPO fixes entropy collapse (clip-higher); GSPO moves the ratio to sequence level (MoE RL stabilizes - it trained Qwen3); VAPO brings the critic back; CISPO stops clipping from killing rare fork tokens like 'wait'.","bit","read","Not chaos - one algorithm debugged in public, flaw by flaw, with names attached."],
+["And the meta-result: ScaleRL (Meta, Oct 2025) showed RL compute follows predictable sigmoid scaling curves. RL stopped being alchemy and got its first scaling laws.","bit","happy","When a field gets scaling laws, the arguing turns into engineering."],
+["Act 2 - the invasion, computed. RLP first: ordinary text, next token 'Paris'. Without a thought the model gives it 0.15; after sampling a private thought, 0.42. Both numbers toy, hand-authored - the mechanism is the ratio.","bit","neutral","One token, two probabilities. The thought either helps or it does not."],
+["reward = log(0.42/0.15) = 1.03 nats of information gain, computed live. The thought is REWARDED for making the actual next token more likely - dense signal, every token, no verifier anywhere. That is RL inside pretraining.","cortex","reach","My thoughts get paid by how much they help my reading. Piecework, honestly."],
+["TTRL next: an unlabeled question at test time. The model samples five answers: 72, 68, 72, 72, 65. Majority vote - '72', three of five - becomes the pseudo-label. No oracle was consulted.","bit","read","Five guesses, one election. The winner becomes the answer key."],
+["Rewards from the vote: [1,0,1,1,0], computed - and GRPO runs on them at inference. Result (primary): +211% on AIME for a 7B math model. The honest catch: a confidently wrong majority reinforces its own error.","cortex","confused","I improve by agreeing with myself. Powerful - right up until I am confidently wrong together."],
+["The full 2026 pipeline, assembled: reward at the start (RLP), a new middle stage (Tongyi), the GRPO family after, TTRL past the end. Count the red: the invasion is complete.","bit","reach","Four stages walked in; an ecosystem walked out."],
+["Act 3 - the fusion, computed. On-policy distillation: the STUDENT samples its own token ('thus', pS = 0.5); the TEACHER would have given it 0.8. Per-token grade = log(0.5/0.8) = -0.47 - negative, so the gradient pulls the student toward the teacher on the student's OWN trajectory.","bit","read","The student writes; the teacher marks every word. Dense feedback, no dice."],
+["Industrialized, that is DeepSeek-V4's whole post-training (Jun 2026): specialists trained by RL, one student fused by on-policy distillation. Dense per-token signal at a fraction of RL's cost - 'RL makes the teachers, distillation makes the model.' M7 + M8, merged.","cortex","happy","My tutors did the dangerous exploring. I inherit their taste, token by token."],
+["Rewards past the verifier: rubric checklists scored by judges (Jul 2025 onward) carry RL into medicine and open-ended work - and 2026's papers already study rubric reward hacking. The reward moved; Goodhart moved with it.","bit","think","Every new reward is a new thing to game. The arms race is the curriculum now."],
+["Attack map: F3 attacked M6's tidy stages, extended M7's verifier into rubrics and self-votes, and merged M8's distillation into RL's workflow. Nothing you learned was wasted - it all got promoted.","bit","happy","M6 gave you the stages. 2026 gave you the recipe. Same ingredients."],
+["Done when: you can place RLP, mid-training, GRPO-family and TTRL on the pipeline, say what signal rewards each, and compute the length-bias fix. CHALLENGE.md holds you to it.","bit","neutral","Place the reward, fix the bias. Then F4 - where the LOOP itself learns."]];
+const MECH_ACTS=[["the GRPO zoo",5],["the invasion, computed",5],["fusion + rubrics",5]];
+
+let tl=null;
+function render(i){
+  STEP=i;
+  const caps=MODE==="int"?CAPS_INT:CAPS_MECH, c=caps[i];
+  caption.textContent=c[0]; react(c[1],c[2],c[3]);
+  insight.className="insight";
+  insight.innerHTML = MODE==="int"
+    ? (i>=6?"<b>The aha:</b> reward became an ingredient, not a stage. Switch to <b>mechanism</b> to compute each invasion."
+          :"One idea: <b>the reward signal escaped its stage - start, middle, end, and past the end.</b>")
+    : (i<=4?"Act 1: <b>GRPO recomputed, then debugged in public</b> - the length-bias arithmetic is the star."
+      : i<=9?"Act 2: <b>RLP's log-ratio and TTRL's majority vote, computed live.</b> Reward without a verifier."
+      : "Act 3: <b>the teacher grades every token of the student's own attempt.</b> RL makes teachers; distillation makes the model.");
+}
+function build(mode){ MODE=mode;
+  const isInt=mode==="int";
+  tl=new Anim.Timeline({ length:isInt?7:15, autoMs:isInt?3100:3400, onStep:(i)=>render(i) });
+  Anim.scrubber($("scrub"), tl, { label:isInt?(i=>"step "+(i+1)+" / 7"):Anim.actLabel(MECH_ACTS), acts:isInt?null:MECH_ACTS });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".modebtn").forEach(x=>x.classList.toggle("on",x===b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

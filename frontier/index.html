@@ -74,9 +74,14 @@ const NAV = [
   { m:"F2 - Attention unchained", items:[
     { label:"Three escapes from the two bills", src:"module-f2-attention/widgets/three-escapes/index.html" },
   ]},
+  { m:"F3 - RL eats the pipeline", items:[
+    { label:"Reward everywhere (the invasion)", src:"module-f3-rl/widgets/reward-everywhere/index.html" },
+  ]},
 ];
 
 const LESSONS = {
+  "F3 - RL eats the pipeline": { q:"M6 drew four tidy stages with RL as the last polish. Where does the reward signal actually live in 2026?",
+    aha:"Everywhere. RLP puts RL inside pretraining (thoughts rewarded by information gain); Tongyi inserted a NEW agentic mid-training stage; the GRPO zoo debugged post-training flaw by flaw (Dr.GRPO's length-bias fix computed in the widget); TTRL keeps training at TEST TIME via majority-vote pseudo-rewards. And DeepSeek-V4 merges M7 with M8: GRPO trains specialists, on-policy distillation fuses them - RL makes the teachers, distillation makes the model. Verified as of 2026-07." },
   "F2 - Attention unchained": { q:"Track 3 said attention must compare against everything and remember everything. The 2026 flagships do neither. How?",
     aha:"Three positions in a live argument. SPARSE: a cheap learned indexer ranks every past token, exact attention reads only the top-k (NSA -> DSA -> V4; reads collapse, storage survives until compression). LINEAR: replace the growing KV with a fixed-size state folded forward - O(1) memory, but the state must forget (DeltaNet -> KDA -> Qwen3.5). THE DISSENT: MiniMax M2 went BACK to full attention after hybrids degraded multi-hop reasoning at scale. No winner declared - the field has not declared one. Verified as of 2026-07." },
   "F1 - Everything becomes a token": { q:"The model only reads tokens. How is it suddenly looking at photos and answering with pictures?",
