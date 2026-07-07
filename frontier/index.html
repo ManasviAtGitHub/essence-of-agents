@@ -75,7 +75,7 @@ const NAV = [
 
 const LESSONS = {
   "F1 - Everything becomes a token": { q:"The model only reads tokens. How is it suddenly looking at photos and answering with pictures?",
-    aha:"The menu grows through two doors. IN: images are cut into patches and PROJECTED into the same vector space as word embeddings (not a menu lookup - attention treats them like any h). OUT: to emit images or speech the menu literally grows - a learned CODEBOOK the model samples autoregressively, M0's loop unchanged. Multimodal = more entrances and entries, not a new brain. Verified as of 2026-07." },
+    aha:"The menu grows through two doors. IN: images are cut into patches and PROJECTED into the same vector space as word embeddings (not a menu lookup - attention treats them like any h). OUT: to emit images or speech the menu literally grows - a learned CODEBOOK the model samples autoregressively (for sound, QUANTIZATION snaps each ~20ms frame to its nearest entry). And the names are wiring diagrams, not species: ViT -> CLIP -> VLM (eye + projector + LLM) -> native (seam removed) -> VLA (actions out). Verified as of 2026-07." },
 };
 
 const side=document.getElementById("side"), frame=document.getElementById("frame"),

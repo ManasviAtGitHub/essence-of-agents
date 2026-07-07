@@ -40,12 +40,19 @@ chart:
   patches; the patches fly into the token stream beside the words; attention
   arcs treat both alike; then the other doors - speech in, images out - and
   the growing menu.
-- **mechanism (16 steps, 3 acts):** act 1 computes one patch end to end on a
+- **mechanism (21 steps, 4 acts):** act 1 computes one patch end to end on a
   toy 4x4 grayscale image - pixels -> flatten -> the projector's arithmetic,
   every number on screen. Act 2 is the real bill: tokens = (H/p) x (W/p),
   computed live with size/patch controls, and what one screenshot costs the
-  KV cache (M3's meter returns). Act 3 is the reverse trip - the output
-  codebook (now it IS a menu), speech both ways, and the attack-map close.
+  KV cache (M3's meter returns). Act 3 is the output door - the image
+  codebook (now it IS a menu), then SPEECH computed properly: quantization
+  (a frame vector snapped to its nearest codebook entry, distances computed
+  live), stacked residual codebooks, and the way back out (Omni's
+  Thinker/Talker). Act 4 names the family: ViT (2020) -> CLIP (2021, where
+  "image and text in one space" was born) -> the VLM recipe (LLaVA 2023:
+  eye -> projector -> LLM; honesty note - act 1 skipped the eye) -> native
+  multimodal (the seam removed, Feb 2026) -> VLA (add an action head;
+  RT-2 Jul 2023, F5 opens the box).
 
 ## The aha
 "Multimodal" is not a new kind of intelligence bolted on. It is M1's menu

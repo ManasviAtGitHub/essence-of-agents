@@ -287,26 +287,117 @@ new p5(function(p){
         p.text("exhibits: Qwen3-VL native resolution (Oct 2025) . Qwen3.5 - vision native in the flagship (Feb 2026)", 60, 345);
         p.fill("#98a2b0"); p.textSize(10.5);
         p.text(k>=10 ? "\"native multimodal\" = the projector trained from token one, not bolted on after" : "", 60, 362); p.pop(); }
-    } else { // ACT 3: the output door + the whole menu
-      lane(30,40,420,200,"THE OUTPUT DOOR (a real menu)"); lane(490,40,400,200,"M0'S LOOP, UNCHANGED");
-      p.push(); p.noStroke();
-      for(let r=0;r<6;r++) for(let c=0;c<10;c++){ const on=(k>=12)&&((r*10+c)%7===2);
-        p.fill(on?"#ffd35c":"#1b2028"); p.rect(56+c*36, 70+r*26, 30, 20, 3); }
-      p.fill("#98a2b0"); p.textSize(10); p.textAlign(p.LEFT);
-      p.text("a learned CODEBOOK of image tokens (illustrative grid)", 56, 258);
-      p.fill("#cdd3da"); p.textSize(11.5);
-      p.text("emit: sample token -> append -> repeat", 520, 84);
-      p.text("(the dice from M0 - rolling over pixels)", 520, 104);
-      if(k>=12){ p.fill("#ffd35c"); p.text("~1,290 image tokens per image", 520, 138);
-        p.fill("#98a2b0"); p.textSize(10); p.text("Nano Banana Pro (Nov 2025) - exhibit stat, autoregressive", 520, 156);
-        p.text("the best image generator now beats diffusion USING the menu", 520, 172); }
-      if(k>=13){ p.fill("#83c167"); p.textSize(11.5);
-        p.text("speech: same door, both directions (Omni, Mar 2026)", 520, 206); }
-      if(k>=14){ p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
-        p.text("the attack map: this module EXTENDED M1 and M0 - nothing downstream changed", CW/2, 300);
+    } else if(k<=16){ // ACT 3: the output door - images, then SPEECH computed
+      if(k<=12){
+        lane(30,40,420,200,"THE OUTPUT DOOR (a real menu)"); lane(490,40,400,200,"M0'S LOOP, UNCHANGED");
+        p.push(); p.noStroke();
+        for(let r=0;r<6;r++) for(let c=0;c<10;c++){ const on=(k>=12)&&((r*10+c)%7===2);
+          p.fill(on?"#ffd35c":"#1b2028"); p.rect(56+c*36, 70+r*26, 30, 20, 3); }
+        p.fill("#98a2b0"); p.textSize(10); p.textAlign(p.LEFT);
+        p.text("a learned CODEBOOK of image tokens (illustrative grid)", 56, 258);
+        p.fill("#cdd3da"); p.textSize(11.5);
+        p.text("emit: sample token -> append -> repeat", 520, 84);
+        p.text("(the dice from M0 - rolling over pixels)", 520, 104);
+        if(k>=12){ p.fill("#ffd35c"); p.text("~1,290 image tokens per image", 520, 138);
+          p.fill("#98a2b0"); p.textSize(10); p.text("Nano Banana Pro (Nov 2025) - exhibit stat, autoregressive", 520, 156);
+          p.text("the best image generator now beats diffusion USING the menu", 520, 172); }
+        p.pop();
+      } else if(k<=14){ // SPEECH, computed: quantization is the whole trick
+        lane(30,40,860,240, k===13 ? "HOW SOUND BECOMES A TOKEN - QUANTIZATION (computed live)" : "STACKED CODEBOOKS + THE WAY BACK OUT");
+        p.push(); p.textAlign(p.LEFT); p.noStroke();
+        // the wave with one frame highlighted
+        p.stroke(131,193,103); p.strokeWeight(1.5); p.noFill(); p.beginShape();
+        for(let i=0;i<70;i++){ const x=60+i*4, y=100+Math.sin(i*0.55)*20*Math.sin(i*0.11); p.vertex(x,y); } p.endShape();
+        p.noFill(); p.stroke("#ffd35c"); p.strokeWeight(1.4); p.rect(140,70,26,60,4);
+        p.noStroke(); p.fill("#98a2b0"); p.textSize(10); p.text("one ~20ms frame", 128, 148);
+        if(k===13){
+          const F=[0.8,-0.4], CB=[[0.9,-0.3],[-0.2,0.7],[0.1,-0.9]];
+          const D=CB.map(c=>Math.pow(F[0]-c[0],2)+Math.pow(F[1]-c[1],2));
+          const win=D.indexOf(Math.min.apply(null,D));
+          p.fill("#cdd3da"); p.textSize(11.5);
+          p.text("the encoder turns the frame into a vector (toy 2-D, hand-authored): f = ["+F.join(", ")+"]", 60, 180);
+          p.fill("#98a2b0"); p.textSize(10.5); p.text("now SNAP f to the NEAREST entry of a learned audio codebook - squared distance, computed live:", 60, 200);
+          CB.forEach((c,i)=>{ const on=i===win;
+            p.fill(on?"#83c167":"#98a2b0"); p.textSize(11);
+            p.text("entry a"+i+" = ["+c.join(", ")+"]   d = "+D[i].toFixed(2)+(on?"   <- NEAREST: emit token a"+i:""), 80, 224+i*20); });
+          p.fill("#83c167"); p.textSize(11.5); p.text("a continuous instant of sound just became a DISCRETE menu entry. That is the entire door.", 60, 296);
+        } else {
+          p.fill("#cdd3da"); p.textSize(11.5);
+          p.text("one codebook is too coarse - so stack them: each layer quantizes the RESIDUAL the last one missed", 60, 180);
+          [[210,"a3  (coarse)"],[150,"b7  (finer)"],[95,"c1  (finest)"]].forEach((bar,i)=>{
+            p.fill(131,193,103, 230-i*60);
+            p.rect(80, 200+i*26, bar[0], 16, 3);
+            p.fill("#98a2b0"); p.textSize(10); p.text(bar[1]+"  - the leftover error shrinks", 80+bar[0]+10, 212+i*26); });
+          p.fill("#83c167"); p.textSize(11.5);
+          p.text("OUT is the same door in reverse: the model PREDICTS codec tokens (M0's loop),", 520, 200);
+          p.text("a decoder renders them back to waveform.", 520, 218);
+          p.fill("#98a2b0"); p.textSize(10.5);
+          p.text("Qwen3.5-Omni (Mar 2026): Thinker reasons, Talker emits multi-codebook", 520, 246);
+          p.text("speech tokens; ARIA keeps text and audio token rates aligned.", 520, 262);
+          p.text("113 languages, both directions - all through this one mechanism.", 520, 288);
+        }
+        p.pop();
+      } else { // attack-map close + done-when
+        lane(30,40,860,240,"THE ATTACK MAP");
+        p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
+        p.text("this module EXTENDED M1 and M0 - nothing downstream changed", CW/2, 120);
         p.fill("#98a2b0"); p.textSize(10.5);
-        p.text("(later this track: robot ACTIONS take the same doors - F5. fenced teaser.)", CW/2, 322); }
-      p.pop();
+        p.text("projection IN (images) . quantization IN/OUT (speech) . codebook OUT (images)", CW/2, 146);
+        p.text("(later this track: robot ACTIONS take the same doors - F5. fenced teaser.)", CW/2, 170);
+        if(k>=16){ p.fill("#ffd35c"); p.textSize(11.5);
+          p.text("done when: price an image in tokens; name the door; explain quantization in one sentence", CW/2, 220); }
+        p.pop();
+      }
+    } else { // ACT 4: the family, named (ViT -> CLIP -> VLM -> native -> VLA)
+      const k2=k-17;
+      function box(x,y,w,label,sub,col,dim){
+        p.push(); p.drawingContext.globalAlpha=dim?0.28:1;
+        p.fill(23,27,33); p.stroke(col); p.strokeWeight(1.4); p.rect(x,y,w,56,9);
+        p.noStroke(); p.fill(col); p.textSize(12); p.textAlign(p.CENTER); p.text(label,x+w/2,y+22);
+        p.fill("#98a2b0"); p.textSize(9.5); p.text(sub,x+w/2,y+40);
+        p.drawingContext.globalAlpha=1; p.pop(); }
+      function arrow(x1,y,x2){ p.push(); p.stroke("#3a4350"); p.strokeWeight(1.6); p.line(x1,y,x2-7,y);
+        p.noStroke(); p.fill("#3a4350"); p.triangle(x2-8,y-5,x2-8,y+5,x2,y); p.pop(); }
+      if(k2===0){ // CLIP: the eye is born
+        lane(30,40,860,230,"CLIP (Feb 2021) - WHERE 'IMAGE AND TEXT IN ONE SPACE' WAS BORN");
+        umbrella(90,80,8,1);
+        p.push(); p.textAlign(p.LEFT); p.noStroke();
+        chip(330,105,'"a red umbrella"',"#58c4dd",1);
+        chip(330,165,'"a brown dog"',"#98a2b0",1);
+        p.stroke("#83c167"); p.strokeWeight(1.8); p.line(165,110,262,105);
+        p.stroke("#fc6255"); p.strokeWeight(1.2); p.drawingContext.setLineDash([4,3]); p.line(165,120,262,165); p.drawingContext.setLineDash([]);
+        p.noStroke(); p.fill("#83c167"); p.textSize(10); p.text("matching pair: PULLED TOGETHER in a shared space", 430, 108);
+        p.fill("#fc6255"); p.text("mismatched pair: pushed apart", 430, 168);
+        p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("two encoders (an image ViT + a text encoder), trained CONTRASTIVELY on ~400M pairs", 60, 232);
+        p.text("result: an EYE whose patch vectors already live near the words that describe them", 60, 250);
+        p.pop();
+      } else { // the recipe tree, growing
+        lane(30,40,860,240,"THE FAMILY TREE - every name is a wiring diagram");
+        const y=90;
+        box(50,y,150,"THE EYE","ViT, CLIP-trained (2020-21)","#c084fc", false);
+        arrow(200,y+28,250);
+        box(250,y,150,"PROJECTOR","the translator (act 1)","#ffd35c", false);
+        arrow(400,y+28,450);
+        box(450,y,150,"THE LLM","Cortex (tracks 1-3)","#58c4dd", false);
+        p.push(); p.noStroke(); p.textAlign(p.LEFT);
+        p.fill("#e9ebee"); p.textSize(12); p.text("= a VLM (vision-language model). LLaVA (Apr 2023) fixed this recipe; Qwen3-VL / InternVL3 (2025) perfected it.", 50, y+80);
+        p.fill("#98a2b0"); p.textSize(10);
+        p.text("honesty: act 1 skipped the eye and projected raw patches - the simplest door (some models do exactly that);", 50, y+98);
+        p.text("most VLMs first run patches through this CLIP-style eye, THEN project.", 50, y+112);
+        if(k2>=2){ p.fill("#83c167"); p.textSize(11.5);
+          p.text("NATIVE multimodal (Qwen3.5, Feb 2026): the eye stops being a separate organ -", 50, y+142);
+          p.text("vision is trained INSIDE the model from token one. The dotted seam disappears.", 50, y+156);
+          p.stroke("#83c167"); p.strokeWeight(1.4); p.drawingContext.setLineDash([5,4]); p.noFill();
+          p.rect(40,y-12,580,80,12); p.drawingContext.setLineDash([]); p.noStroke(); }
+        if(k2>=3){ arrow(600,y+28,650);
+          box(650,y,220,"+ ACTION HEAD","actions out = a VLA (F5)","#fc6255", false);
+          p.fill("#fc6255"); p.textSize(11);
+          p.text("VLA (vision-language-ACTION): the same VLM, but its output tokens MOVE a robot.", 50, y+186);
+          p.fill("#98a2b0"); p.textSize(10);
+          p.text("RT-2 (Jul 2023) proved it; pi-0.7 (Apr 2026) runs it. F5 opens this box.", 50, y+202); }
+        p.pop();
+      }
     }
   }
 }, "canvas");
@@ -323,8 +414,8 @@ const CAPS_INT=[
    "cortex","read","They... taste like tokens. Slightly crunchy. Where did these come from?"],
   ["And attention does not care. The word 'photo' attends to the patches; patches attend to each other; M2's machinery runs unchanged. Nothing downstream knows the difference - that is the whole design.",
    "cortex","happy","I am attending over a PICTURE with the same trick I use for words!"],
-  ["Speech takes the input door too (Omni, Mar 2026): audio becomes tokens in the same stream. One model, listening and reading in one context.",
-   "bit","happy","Ears bolted on - and the stream just... accepts it."],
+  ["Speech joins too (Omni, Mar 2026): the wave is sliced into ~20ms frames and each slice is SNAPPED to its nearest entry in a learned audio menu - quantization. Mechanism act 3 computes one snap by hand. One model, listening and reading in one context.",
+   "bit","happy","Ears bolted on - every instant of sound snapped to its nearest menu entry."],
   ["Now the REVERSE trip: to answer with a picture, the model EMITS image tokens one by one - M0's loop, sampling from a learned image menu - and the tokens assemble into pixels. Nano Banana Pro (Nov 2025) made this the best image generator anywhere - beating diffusion with autoregression.",
    "cortex","reach","Wait - I can SPEAK image? Same loop, new dice."],
   ["The aha: multimodal is not a new brain. It is M1's menu with more entrances (projected patches IN) and more entries (codebooks OUT) - and everything you learned downstream, attention to KV bills, follows unchanged.",
@@ -343,12 +434,17 @@ const CAPS_MECH=[
   ["So 'VLM' as a separate species is dissolving: the 2026 flagship simply reads patches. The projector stopped being an add-on and became an entrance.","cortex","happy","I was never a VLM. I am a token machine with more doors."],
   ["The OUTPUT door is different - and this one really is a menu. To EMIT an image, the model needs discrete choices to sample from: a learned CODEBOOK of image tokens.","bit","neutral","Reading needs a projection. SAYING needs a menu - dice can only roll over choices."],
   ["M0's loop runs unchanged: sample an image token, append, repeat - ~1,290 tokens per image in Nano Banana Pro (Nov 2025; exhibit stat, not our arithmetic). Autoregression beat diffusion at image generation using nothing you have not already learned.","cortex","reach","Same loop. Same dice. The menu just grew a picture section."],
-  ["Speech exits the same way (Omni, Mar 2026): codebook tokens rendered to waveform, both directions. The menu grew a sound section too.","bit","happy","In through projection, out through codebooks. Two doors, one stream."],
+  ["Now SPEECH, properly. Sound is a continuous wave - no menu in sight. The trick is QUANTIZATION: slice the wave into ~20ms frames, encode each frame as a vector, then SNAP it to the NEAREST entry of a learned audio codebook. The distances are computed live on screen - the winner becomes the token.","bit","read","No dice can roll over a smooth wave. So we snap every instant to its nearest menu entry."],
+  ["One codebook is too coarse for real audio, so they STACK: each layer quantizes the residual the previous one missed (finer and finer). And OUT is the same door in reverse - the model predicts codec tokens with M0's loop, a decoder renders waveform. Omni (Mar 2026) speaks 113 languages through exactly this.","cortex","happy","I hum in tokens now. Coarse token, finer token, finest - then a decoder sings them."],
   ["Place it on the attack map: F1 EXTENDED M1 (the menu grows) and M0 (the loop samples new kinds of tokens). Nothing was replaced. Next module, something IS attacked: the 2026 flagships refuse to pay M2's n^2 and M3's KV bill.","bit","reach","Extension, not attack - this time. F2 draws blood."],
-  ["Done-when check: given an image size and patch size, you can price the image in tokens and name its door. CHALLENGE.md holds you to it.","bit","neutral","Price the image, name the door. Then you own this module."]];
-const MECH_ACTS=[["one patch, end to end",6],["the real bill",5],["the output door",5]];
+  ["Done-when check: price an image in tokens, name the door, and explain quantization in one sentence. CHALLENGE.md holds you to it.","bit","neutral","Price the image, name the door, snap the wave. Then you own this module."],
+  ["One act left: the NAMES. You have met the mechanisms - now meet what the world calls them. It starts with CLIP (Feb 2021): two encoders trained to pull matching image-caption pairs together in one shared space. That is where 'images and text living together' was BORN - years before any chat model could see.","bit","read","Before any model could chat about a photo, CLIP taught an eye and a language to share a space."],
+  ["Put the pieces in a row and you have named a VLM: a CLIP-style EYE -> a PROJECTOR -> the LLM. LLaVA (Apr 2023) fixed this recipe; Qwen3-VL and InternVL3 (2025) perfected it. Honesty: our act 1 skipped the eye and projected raw patches - the simplest door; most VLMs keep the eye.","cortex","read","So 'VLM' was never a species - it is a wiring diagram: eye, translator, me."],
+  ["NATIVE multimodal (Qwen3.5, Feb 2026) is the same diagram with the seam removed: no separate pretrained eye - vision is trained inside the model from token one. That is the entire meaning of the word 'native'.","cortex","happy","They stopped bolting an eye onto me and grew it with me instead."],
+  ["And extend the row by one box - an ACTION head - and you have named a VLA (vision-language-action): the same VLM, but its output tokens move a robot. RT-2 proved it (Jul 2023); pi-0.7 runs it (Apr 2026). F5 opens that box. Now the zoo has names: ViT is the eye's skeleton, CLIP its training, VLM the recipe, native the seam removed, VLA the body.","bit","happy","Five names, one diagram growing left to right. You can now read a multimodal model card."]];
+const MECH_ACTS=[["one patch, end to end",6],["the real bill",5],["the output door + speech",6],["the family, named",4]];
 const MENU_BY_STEP={ int:[["text"],["text"],["text"],["text","patch"],["text","patch"],["text","patch","audio"],["text","patch","audio","image"],["text","patch","audio","image","action"]],
-  mech:[["text"],["text"],["text"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch","image"],["text","patch","image"],["text","patch","image","audio"],["text","patch","image","audio","action"],["text","patch","image","audio","action"]] };
+  mech:[["text"],["text"],["text"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch","image"],["text","patch","image"],["text","patch","image","audio"],["text","patch","image","audio"],["text","patch","image","audio","action"],["text","patch","image","audio","action"],["text","patch"],["text","patch"],["text","patch"],["text","patch","action"]] };
 
 let tl=null;
 function render(i){
@@ -361,7 +457,8 @@ function render(i){
             : "One idea: <b>the stream never changes - the menu grows through two doors: projection in, codebook out.</b>")
     : (i<=5 ? "Act 1: <b>pixels -> flatten -> projector -> h.</b> Hand-authored toy, live arithmetic - check it with a pencil."
        : i<=10 ? "Act 2: <b>tokens = (H/p) x (W/p), and the KV bill follows.</b> Area is the price of seeing."
-       : "Act 3: <b>reading needs a projection; saying needs a menu.</b> M0's loop, new dice.");
+       : i<=16 ? "Act 3: <b>saying needs a menu - codebooks for images, QUANTIZATION for sound</b> (snap the wave to its nearest entry). M0's loop, new dice."
+       : "Act 4: <b>ViT -> CLIP -> VLM -> native -> VLA - every name is a wiring diagram,</b> not a species.");
   drawMenu((MENU_BY_STEP[MODE==="int"?"int":"mech"])[i]||["text"]);
   $("calcP").hidden = !(MODE==="mech" && STEP>=6 && STEP<=10);
   if(!$("calcP").hidden) calc();
@@ -369,7 +466,7 @@ function render(i){
 function build(mode){
   MODE=mode;
   const isInt=mode==="int";
-  tl=new Anim.Timeline({ length:isInt?8:16, autoMs:isInt?3000:3400, onStep:(i)=>render(i) });
+  tl=new Anim.Timeline({ length:isInt?8:21, autoMs:isInt?3000:3400, onStep:(i)=>render(i) });
   Anim.scrubber($("scrub"), tl, { label:isInt?(i=>"step "+(i+1)+" / 8"):Anim.actLabel(MECH_ACTS), acts:isInt?null:MECH_ACTS });
   tl.render(0);
 }
