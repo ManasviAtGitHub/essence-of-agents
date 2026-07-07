@@ -1,0 +1,40 @@
+name: bake-real-trace
+
+# Opt-in, manual: runs the capstone compiler with a REAL model (a quantized
+# MiniCPM GGUF via llama.cpp, grammar-constrained) and uploads the measured
+# trace as an artifact. Not part of the keyless CI gates. GitHub's ubuntu-latest
+# runners have the CPU features the prebuilt llama.cpp wheel needs, so this runs
+# where a local box may not.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sentence:
+        description: "sentence to compile"
+        default: "get the weather in Paris, and if it is raining add an umbrella to my cart"
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install llama-cpp-python (prebuilt cpu wheel)
+        run: pip install --only-binary :all: llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+      - name: cache the model
+        id: model
+        uses: actions/cache@v4
+        with:
+          path: model.gguf
+          key: minicpm5-1b-q4km-v1
+      - name: download the MiniCPM GGUF
+        if: steps.model.outputs.cache-hit != 'true'
+        run: curl -fL -o model.gguf https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf
+      - name: bake the real trace
+        run: python models/module-10-compiler/bake_trace.py --model model.gguf --sentence "${{ inputs.sentence }}" --stamp "${{ github.run_id }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-run
+          path: models/module-10-compiler/widgets/talk-to-compile/data/real-run.json

@@ -95,5 +95,19 @@ GBNF format for full token-level constraint. (The keyword parser is honest-toy
 quality - it turns simple sentences into plans; a real model understands
 language properly.)
 
-Phase next: bake real driver traces into the widget as a "measured" tab, plus an
-opt-in live mode.
+**Bake a real trace.** `bake_trace.py` runs the real grammar-constrained model on
+the worked sentence and writes `widgets/talk-to-compile/data/real-run.json` - a
+measured trace beside the widget's illustrative default:
+```bash
+python models/module-10-compiler/bake_trace.py --model MiniCPM5-1B-Q4_K_M.gguf
+python models/module-10-compiler/bake_trace.py --dry-run   # no model, just the plan of action
+```
+The GitHub Actions job `.github/workflows/bake-trace.yml` (manual dispatch) does
+this on a runner - installs the CPU wheel, downloads a MiniCPM GGUF, runs
+`bake_trace.py`, and uploads the trace as an artifact. Note: the prebuilt
+llama.cpp CPU wheel needs a CPU with AVX2 (fine on GitHub runners and modern
+machines; an older/virtualized CPU may raise an illegal-instruction error on
+model load - rebuild the wheel from source for that CPU if so).
+
+Phase next: wire the widget to show the baked "measured" trace beside the
+illustrative one, plus an opt-in live mode.
