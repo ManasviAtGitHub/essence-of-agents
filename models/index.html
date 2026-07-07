@@ -105,6 +105,9 @@ const NAV = [
     { label:"Assemble the machine (build it)", src:"module-09-atlas/widgets/assemble/index.html" },
     { label:"The efficiency budget (toggle it)", src:"module-09-atlas/widgets/budget/index.html" },
   ]},
+  { m:"Capstone - The compiler you can talk to", items:[
+    { label:"Talk to compile: NL to a verified plan", src:"module-10-compiler/widgets/talk-to-compile/index.html" },
+  ]},
 ];
 
 // The written lesson (Question -> Aha) surfaced per module, above the widget.
@@ -129,6 +132,8 @@ const LESSONS = {
     aha:"Three compressions: overtrain (Chinchilla ~20 tok/param is training-optimal; inference is forever, so overtrain small), distill (copy a teacher's soft distribution, not its size), and quantize (params x bits/8 - int4 is 4x smaller). Copy the distribution, not the size." },
   "Module 9 - Map of the landscape": { q:"Two dozen methods - GQA, MLA, MoE, GRPO, LoRA, distillation... how do they relate?",
     aha:"Every method attacks ONE resource - memory, compute, speed, params, data, or behavior. Filter the atlas by resource and stage, click any method for its summary and home module. The zoo becomes a map; the mechanisms live in Modules 0-8." },
+  "Capstone - The compiler you can talk to": { q:"Can a stochastic model behave like a compiler - and does the whole course lead here?",
+    aha:"Yes: a stochastic FRONT-END (the model lowering language into a typed plan) bolted to a deterministic, VERIFIED backend. A grammar masks illegal tokens at the sampler (M0) so it can't emit an invalid plan; a verifier type-checks the plan and fails loudly (M7); temperature 0 makes it deterministic. Break any lever and it stops being a compiler - and each lever is a prior module." },
 };
 
 const side = document.getElementById("side");

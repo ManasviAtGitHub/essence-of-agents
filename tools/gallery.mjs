@@ -24,6 +24,7 @@ const TARGETS = [
   ["models m9 landscape", "models/module-09-atlas/widgets/landscape/index.html", ['.chip[data-res="mem"]', '.chip[data-cat="0"]']],
   ["models m9 assemble", "models/module-09-atlas/widgets/assemble/index.html", ['.part[data-id="tok"]', '.part[data-id="emb"]']],
   ["models m9 budget", "models/module-09-atlas/widgets/budget/index.html", ['.trick[data-id="mla"]', '.trick[data-id="moe"]']],
+  ["models cap talk-to-compile", "models/module-10-compiler/widgets/talk-to-compile/index.html", ['.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["about", "agentic-course/about.html"],
   ["production-hub", "production/index.html"],
   ["prod-stage (offline)", "production/web/index.html"],

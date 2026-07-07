@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The compiler you can talk to</title>
+<!-- Essence of Models, capstone. Constrained decoding is REAL: the grammar mask and the
+     renormalization over the legal token set are computed live from an actual tool schema,
+     and the verifier runs real static checks over the compiled DAG. The raw logits are
+     illustrative (keyless, like Module 0); everything downstream of them is computed. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:940px; margin:34px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 12px; }
+  .sub b { color:var(--ink); }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  .flow { display:flex; gap:12px; align-items:stretch; }
+  .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:10px 12px; }
+  .panel .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em;
+               color:var(--faint); margin-bottom:7px; display:flex; justify-content:space-between; gap:8px; }
+  .srcp { flex:1; min-width:0; }
+  .irp  { flex:1; min-width:0; }
+
+  .nlq { font:13.5px/1.5 var(--mono); color:#cdd3da; background:var(--panel); border:1px solid var(--line);
+         border-radius:8px; padding:8px 10px; }
+  .nlq .hot { color:var(--gold); }
+
+  /* candidate distribution (the money shot) */
+  .cands { display:flex; flex-direction:column; gap:4px; margin-top:4px; }
+  .cand { display:grid; grid-template-columns:118px 1fr 46px; align-items:center; gap:8px; }
+  .cand .tk { font:12px var(--mono); color:#cdd3da; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cand .track { height:14px; border-radius:4px; background:#141b22; overflow:hidden; position:relative; }
+  .cand .fill { display:block; height:100%; border-radius:4px; transition:width .45s ease; background:var(--dim); }
+  .cand .pv { font:10.5px var(--mono); color:var(--dim); text-align:right; }
+  .cand.legal .tk { color:var(--gold); }
+  .cand.legal .fill { background:var(--gold); }
+  .cand.illegal .tk { color:var(--faint); text-decoration:line-through; }
+  .cand.illegal .fill { background:#2b3038; }
+  .cand.illegal .pv { color:var(--faint); }
+  .cand.picked { outline:1px solid var(--blue); outline-offset:2px; border-radius:5px; }
+  .reduce .cand .fill { transition:none; }
+  .slot { font:11px var(--mono); color:var(--blue); margin:6px 0 2px; }
+  .masknote { font:10px var(--mono); color:var(--faint); margin-top:6px; }
+
+  /* the growing IR / DAG */
+  .ir { font:12.5px/1.7 var(--mono); color:#cdd3da; white-space:pre-wrap; min-height:64px; }
+  .ir .kw { color:var(--blue); } .ir .tool { color:var(--gold); } .ir .lit { color:var(--green); }
+  .ir .ref { color:#8fb7c8; } .ir .cursor { color:var(--gold); }
+  .dag { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  .node { font:11px var(--mono); border:1px solid var(--line); border-radius:7px; padding:4px 8px; background:var(--panel); color:#cdd3da; }
+  .node.bad { border-color:var(--red); color:var(--red); }
+  .node.ok { border-color:var(--green); }
+  .edge { color:var(--faint); font:11px var(--mono); }
+
+  /* verifier checklist */
+  .checks { font:11.5px/1.7 var(--mono); }
+  .checks .c { display:flex; justify-content:space-between; gap:10px; border-bottom:1px solid #1b2028; padding:2px 0; }
+  .checks .ok  { color:var(--green); } .checks .no { color:var(--red); }
+  .verdict { font:12px var(--mono); margin-top:8px; padding:5px 9px; border-radius:7px; border:1px solid var(--line); display:inline-block; }
+  .verdict.pass { color:var(--green); border-color:var(--green); background:rgba(131,193,103,.07); }
+  .verdict.fail { color:var(--red); border-color:var(--red); background:rgba(252,98,85,.07); }
+
+  /* break toggles + ledger (act 3) */
+  .breaks { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 4px; }
+  .brk { font:11px var(--mono); border:1px solid var(--line); background:var(--panel); color:var(--dim);
+         border-radius:7px; padding:4px 10px; cursor:pointer; }
+  .brk.on { border-color:var(--red); color:#ffd0ca; background:rgba(252,98,85,.10); }
+  .ledger { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .lchip { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
+           font:11px var(--mono); color:var(--dim); }
+  .lchip b { color:var(--ink); }
+
+  .nums { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .stat { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
+          font:11.5px var(--mono); color:var(--dim); }
+  .stat b { color:var(--ink); }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:76px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .insight.bad { border-left-color:var(--red); }
+
+  @media (max-width:720px){ body { padding:0 12px 48px; } .flow { flex-direction:column; }
+    .cand { grid-template-columns:96px 1fr 40px; } }
+</style>
+</head>
+<body>
+<h1>The compiler you can talk to</h1>
+<p class="sub">A compiler turns a spec into a runnable thing - <b>deterministically</b>, and it fails LOUDLY.
+An LLM is stochastic and speaks fuzzy English. This capstone bolts one to the other: the model is the
+<b>front-end</b> that lowers a sentence into a checkable plan, and everything downstream is deterministic and
+verified. The trick that makes a stochastic model behave like a compiler lives inside Module 0 - the sampler.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (the idea)</button>
+  <button class="modebtn" data-mode="mech">mechanism (compile it)</button>
+  <span class="modehint">the grammar mask + renormalization are computed live; the raw logits are illustrative</span>
+</div>
+
+<div class="flow" role="group" aria-label="A sentence compiling into a verified tool-call plan">
+  <div class="panel srcp">
+    <div class="hd"><span id="srcHd">the natural-language spec</span><span id="srcN"></span></div>
+    <div class="nlq" id="nlq"></div>
+    <div class="slot" id="slot" style="display:none"></div>
+    <div class="cands" id="cands"></div>
+    <div class="masknote" id="masknote"></div>
+    <div class="breaks" id="breaks" style="display:none"></div>
+    <div class="ledger" id="ledger" style="display:none"></div>
+  </div>
+  <div class="panel irp">
+    <div class="hd"><span id="irHd">the compiled plan (IR)</span><span id="irN"></span></div>
+    <div class="ir" id="ir"></div>
+    <div class="dag" id="dag"></div>
+    <div class="checks" id="checks"></div>
+    <div id="verdictWrap"></div>
+  </div>
+</div>
+
+<div class="nums" id="nums"></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+/* ================= the real backend: tool catalog + grammar + verifier ================= */
+const TOOLS = {
+  get_weather: { args:["city"],  ret:["rain","temp"] },
+  add_to_cart: { args:["item"],  ret:[] },
+  search:      { args:["query"], ret:["top"] },
+  send_email:  { args:["to"],    ret:[] },
+};
+const TOOL_NAMES = Object.keys(TOOLS);
+
+// legality of a candidate token, computed live from the grammar state + the tool schema
+function isLegal(c, step) {
+  if (step.allow.indexOf(c.kind) === -1) return false;
+  if (c.kind === "argkey") return TOOLS[step.ctxTool].args.indexOf(c.t) !== -1;
+  if (c.kind === "field")  return TOOLS[step.ctxTool].ret.indexOf(c.t) !== -1;
+  if (c.kind === "ref")    return step.defined.indexOf(c.t) !== -1;
+  return true;
+}
+// softmax over all candidates, then renormalize over ONLY the legal set (this is constrained decoding)
+function distOf(step, temp) {
+  const zs = step.cands.map(c => c.z);
+  const mx = Math.max.apply(null, zs);
+  const ex = zs.map(z => Math.exp((z - mx) / temp));
+  const legal = step.cands.map(c => isLegal(c, step));
+  const legalSum = ex.reduce((a, e, i) => a + (legal[i] ? e : 0), 0) || 1;
+  const fullSum = ex.reduce((a, e) => a + e, 0) || 1;
+  const pFull = ex.map(e => e / fullSum);                       // unconstrained
+  const pMask = ex.map((e, i) => legal[i] ? e / legalSum : 0);  // grammar-constrained (renormalized)
+  return { pFull, pMask, legal };
+}
+// the verifier: real static checks over a compiled DAG
+function verify(ir) {
+  const defined = [], errs = [];
+  for (const s of ir) {
+    if (!TOOLS[s.tool]) errs.push(s.id + ": unknown tool '" + s.tool + "'");
+    else for (const k in s.args) if (TOOLS[s.tool].args.indexOf(k) === -1) errs.push(s.id + ": '" + s.tool + "' has no arg '" + k + "'");
+    if (s.cond) {
+      const src = ir.filter(x => x.id === s.cond.ref)[0];
+      if (defined.indexOf(s.cond.ref) === -1) errs.push(s.id + ": ref '" + s.cond.ref + "' used before it is defined");
+      else if (TOOLS[src.tool] && TOOLS[src.tool].ret.indexOf(s.cond.field) === -1) errs.push(s.id + ": '" + s.cond.ref + "' has no field '" + s.cond.field + "'");
+    }
+    defined.push(s.id);
+  }
+  return errs;
+}
+
+/* the correct compiled IR for the worked example */
+const IR_GOOD = [
+  { id:"n1", tool:"get_weather", args:{ city:'"Paris"' }, cond:null },
+  { id:"n2", tool:"add_to_cart", args:{ item:'"umbrella"' }, cond:{ ref:"n1", field:"rain" } },
+];
+
+/* ================= the decode trace (act 1): illustrative logits, real grammar ================= */
+// each step advances one token; every step enforces a DIFFERENT static rule at decode time.
+const DECODE = [
+  { slot:"expecting a TOOL name", allow:["tool"], ctxTool:null, defined:[],
+    cands:[{t:'"Paris"',z:2.7,kind:"string"},{t:"get_weather",z:2.4,kind:"tool"},{t:"add_to_cart",z:1.6,kind:"tool"},{t:"the",z:1.2,kind:"word"},{t:"0.72",z:0.6,kind:"num"}],
+    ir:'n1 = get_weather(',
+    why:"Only the four known tools are legal here. The model's raw favourite was the string \"Paris\" - the grammar greys it out, and renormalizes over the tool names only.",
+    cx:["reach","I want to say 'Paris', it's right there in the sentence!"], bt:["neutral","Not in a tool slot you don't. Tool names only - I renormalize your odds over just those."] },
+  { slot:"expecting an ARG name for get_weather", allow:["argkey"], ctxTool:"get_weather", defined:["n1"],
+    cands:[{t:"city",z:2.2,kind:"argkey"},{t:"item",z:1.9,kind:"argkey"},{t:"query",z:1.1,kind:"argkey"},{t:"to",z:0.8,kind:"argkey"}],
+    ir:'n1 = get_weather(city=',
+    why:"get_weather's SCHEMA has exactly one arg: city. 'item', 'query', 'to' belong to other tools - illegal here, greyed. The schema is checked at decode time, not after.",
+    cx:["think","'item' feels plausible..."], bt:["read","get_weather takes 'city'. That's the whole schema. The rest can't fit."] },
+  { slot:"expecting a VALUE (string literal)", allow:["string"], ctxTool:null, defined:["n1"],
+    cands:[{t:'"Paris"',z:2.5,kind:"string"},{t:'"London"',z:1.4,kind:"string"},{t:"rain",z:1.0,kind:"field"},{t:"0.72",z:0.7,kind:"num"}],
+    ir:'n1 = get_weather(city="Paris")',
+    why:"A city value must be a string literal. Here the model's top pick IS legal - it reads 'Paris' from the sentence. The grammar agrees, so it sails through.",
+    cx:["happy","Paris! Finally a token I wanted that's also allowed."], bt:["happy","String literal in a value slot - legal. Carry on."] },
+  { slot:"next statement: control, tool, or END", allow:["ctrl","tool","end"], ctxTool:null, defined:["n1"],
+    cands:[{t:"if",z:2.0,kind:"ctrl"},{t:"send_email",z:1.3,kind:"tool"},{t:"<end>",z:1.5,kind:"end"},{t:"city",z:1.1,kind:"argkey"}],
+    ir:'n1 = get_weather(city="Paris")\nn2 = if ',
+    why:"After a complete statement, three things are legal: a control word, a new tool call, or END. The sentence says 'if it's raining', so 'if' wins - a bare arg-key does not.",
+    cx:["think","The sentence said 'if it's raining'."], bt:["neutral","'if' is a legal continuation. Good - lower it into a conditional."] },
+  { slot:"expecting a REF to an earlier result", allow:["ref"], ctxTool:null, defined:["n1"],
+    cands:[{t:"n1",z:2.1,kind:"ref"},{t:"n2",z:1.7,kind:"ref"},{t:"n3",z:1.2,kind:"ref"}],
+    ir:'n1 = get_weather(city="Paris")\nn2 = if n1',
+    why:"SCOPE, enforced by the grammar: only n1 is defined so far. n2 is the line we're writing (can't reference itself); n3 never existed. Both greyed - a whole class of bugs, impossible to even emit.",
+    cx:["reach","n2? n3?"], bt:["read","Only n1 exists yet. You cannot reference a result you have not produced. Greyed."] },
+  { slot:"expecting a FIELD of n1 (a get_weather result)", allow:["field"], ctxTool:"get_weather", defined:["n1"],
+    cands:[{t:"rain",z:2.3,kind:"field"},{t:"temp",z:1.5,kind:"field"},{t:"city",z:1.4,kind:"field"},{t:"top",z:0.9,kind:"field"}],
+    ir:'n1 = get_weather(city="Paris")\nn2 = if n1.rain: ',
+    why:"n1 came from get_weather, whose RETURN schema is {rain, temp}. So only .rain and .temp are legal. .city was an input, not an output; .top belongs to search. Return-type checking, at decode time.",
+    cx:["think","'.city'? I put a city in..."], bt:["neutral","In, yes. Out, no. get_weather RETURNS {rain, temp}. Pick from those."] },
+  { slot:"expecting a TOOL for the then-branch", allow:["tool"], ctxTool:null, defined:["n1"],
+    cands:[{t:"add_to_cart",z:2.2,kind:"tool"},{t:"get_weather",z:1.4,kind:"tool"},{t:"umbrella",z:1.8,kind:"word"},{t:"rain",z:1.0,kind:"field"}],
+    ir:'n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")',
+    why:"Back to a tool slot for the action. 'umbrella' is the thing we want, but it is a bare word here - only a tool name is legal. add_to_cart wins; its arg fills in the same way. The plan is complete.",
+    cx:["happy","add_to_cart it is - and I get my umbrella in the args a moment later."], bt:["happy","A complete, legal plan. Now I get to CHECK it."] },
+];
+
+/* ================= dom ================= */
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const nlq=$("nlq"), slot=$("slot"), cands=$("cands"), masknote=$("masknote"), breaks=$("breaks"),
+      ledger=$("ledger"), ir=$("ir"), dag=$("dag"), checks=$("checks"), verdictWrap=$("verdictWrap"),
+      srcHd=$("srcHd"), srcN=$("srcN"), irHd=$("irHd"), irN=$("irN"), nums=$("nums"),
+      caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+if (Anim.reduced()) document.body.classList.add("reduce");
+function react(who, emote, line) { chrR.dataset.c = who; chrR.dataset.e = emote; reactLine.textContent = line; Cast.render($("react")); }
+
+const SENTENCE = 'get the weather in <span class="hot">Paris</span>, and <span class="hot">if</span> it is raining add an <span class="hot">umbrella</span> to my cart';
+
+function setNums(list) { nums.innerHTML = list.map(x => '<span class="stat">' + x[0] + ': <b>' + x[1] + '</b></span>').join(""); }
+function clearBackend() { slot.style.display = "none"; cands.innerHTML = ""; masknote.textContent = "";
+  breaks.style.display = "none"; ledger.style.display = "none"; dag.innerHTML = ""; checks.innerHTML = ""; verdictWrap.innerHTML = ""; }
+
+// colorize an IR string for display
+function irHTML(s, withCursor) {
+  let h = esc(s)
+    .replace(/\b(if|and)\b/g, '<span class="kw">$1</span>')
+    .replace(/\b(get_weather|add_to_cart|search|send_email)\b/g, '<span class="tool">$1</span>')
+    .replace(/(&quot;[^&]*&quot;)/g, '<span class="lit">$1</span>')
+    .replace(/\b(n[0-9]+)\b/g, '<span class="ref">$1</span>');
+  return h + (withCursor ? '<span class="cursor">&#9611;</span>' : "");
+}
+
+// render the candidate distribution with grammar mask + renorm (the money shot)
+function renderDecode(k, temp, maskOn) {
+  const step = DECODE[k];
+  const d = distOf(step, temp);
+  slot.style.display = "block"; slot.textContent = "> " + step.slot;
+  let nMask = 0;
+  cands.innerHTML = step.cands.map((c, i) => {
+    const legal = maskOn ? d.legal[i] : true;
+    const p = maskOn ? d.pMask[i] : d.pFull[i];
+    if (maskOn && !d.legal[i]) nMask++;
+    const picked = legal && p === Math.max.apply(null, step.cands.map((cc, j) => (maskOn ? (d.legal[j] ? d.pMask[j] : 0) : d.pFull[j])));
+    const cls = "cand " + (maskOn ? (legal ? "legal" : "illegal") : "legal") + (picked ? " picked" : "");
+    return '<div class="' + cls + '"><span class="tk">' + esc(c.t) + '</span>' +
+      '<span class="track"><span class="fill" style="width:' + Math.round(p * 100) + '%"></span></span>' +
+      '<span class="pv">' + (p > 0.001 ? (p * 100).toFixed(0) + "%" : "0") + "</span></div>";
+  }).join("");
+  masknote.innerHTML = maskOn
+    ? "grammar greyed <b style='color:#98a2b0'>" + nMask + "</b> of " + step.cands.length + " candidates; the rest renormalized to sum to 100% (computed live)"
+    : "<b style='color:var(--red)'>grammar OFF</b> - raw model distribution, nothing masked";
+}
+
+// render the DAG + verifier checklist for an IR
+function renderVerify(irArr, showChecks) {
+  dag.innerHTML = irArr.map((s, i) =>
+    (i ? '<span class="edge">&rarr;</span>' : "") +
+    '<span class="node" id="nd' + s.id + '">' + s.id + " = " + s.tool + (s.cond ? " (if " + s.cond.ref + "." + s.cond.field + ")" : "") + "</span>").join("");
+  if (!showChecks) { checks.innerHTML = ""; verdictWrap.innerHTML = ""; return; }
+  const errs = verify(irArr);
+  const rows = [
+    ["every tool in the catalog", !errs.some(e => e.indexOf("unknown tool") > -1)],
+    ["every arg key in its schema", !errs.some(e => e.indexOf("no arg") > -1)],
+    ["every ref defined before use", !errs.some(e => e.indexOf("before it is defined") > -1)],
+    ["every field in its return type", !errs.some(e => e.indexOf("no field") > -1)],
+  ];
+  checks.innerHTML = rows.map(r => '<div class="c"><span>' + r[0] + '</span><span class="' + (r[1] ? "ok" : "no") + '">' + (r[1] ? "PASS" : "FAIL") + "</span></div>").join("");
+  irArr.forEach(s => { const nd = $("nd" + s.id); if (nd) nd.className = "node " + (errs.some(e => e.indexOf(s.id + ":") === 0) ? "bad" : "ok"); });
+  verdictWrap.innerHTML = errs.length
+    ? '<div class="verdict fail">COMPILE ERROR: ' + esc(errs[0]) + "</div>"
+    : '<div class="verdict pass">compiles - a verified, runnable plan</div>';
+  return errs;
+}
+
+/* ================= INTUITION: 7 steps ================= */
+function renderInt(i) {
+  clearBackend();
+  nlq.innerHTML = SENTENCE; srcHd.textContent = "you type a request"; irHd.textContent = "what should come out";
+  const F = [
+    () => { ir.innerHTML = '<span class="dim">?</span>'; },
+    () => { ir.innerHTML = irHTML('do_thing("umbrella"?)\ngt_wether(...)\nn7.rain??', false); },
+    () => { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); },
+    () => { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, false); },
+    () => { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, true); },
+    () => { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, true); },
+    () => { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, true); },
+  ];
+  F[i]();
+  const caps = [
+    "Natural language is becoming the way we drive computers. But a request like this is not a program - it is a fuzzy English sentence. A compiler's job is to turn a spec into something that RUNS, exactly and repeatably. Can a stochastic model be a compiler?",
+    "Ask the model naively and you get this: near-misses. A misspelled tool, a made-up field, a reference to a result that does not exist. Plausible-looking, unrunnable. A real compiler would never emit a typo - it CAN'T. That is the bar.",
+    "The target: lower the sentence into a typed tool-call plan - the same agent loop you hand-built in course 1. n1 fetches the weather; n2 conditionally adds an umbrella. This is the INTERMEDIATE REPRESENTATION (IR): deterministic, inspectable, re-runnable.",
+    "Three disciplines turn the stochastic model into a compiler. First, a GRAMMAR: the model may only emit tokens that keep the plan valid - it literally cannot type a wrong tool name (Act 1 shows how, inside Module 0's sampler).",
+    "Second, a VERIFIER: the finished plan is type-checked - tools exist, args match the schema, refs resolve - and it fails LOUDLY, a compile error, not a silent wrong answer (Act 2). This is Module 7's lesson: a system is only as good as its verifier.",
+    "Third, DETERMINISM: same sentence in, same plan out (temperature 0). The stochastic model proposes; the deterministic backend disposes. Break any one of the three and it stops being a compiler - Act 3 breaks each on purpose.",
+    "The aha: an 'LLM compiler' is not one magic model. It is a stochastic FRONT-END (the model, lowering fuzzy language into structure) bolted to a deterministic, VERIFIED backend - with a repair loop closing the gap. The whole course was building the front-end; this is what you do with it.",
+  ];
+  caption.textContent = caps[i];
+  setNums([["front-end", "the model (stochastic)"], ["backend", "grammar + verifier (exact)"], ["IR", "a typed tool-call plan"], ["target", "the agent loop (course 1)"]]);
+  insight.className = "insight";
+  insight.innerHTML = i >= 6
+    ? "<b>The aha:</b> a compiler you can talk to = stochastic front-end + deterministic verified backend. Switch to <b>mechanism</b> to watch the grammar carve the model's own distribution."
+    : "One idea: <b>make the stochastic model unable to emit anything the backend can't verify.</b>";
+  const R = [
+    ["cortex","think","English in, something runnable out. I can guess the shape - but 'guess' is the problem, isn't it."],
+    ["cortex","panic","gt_wether? n7? I was so close. Close doesn't compile."],
+    ["bit","think","So we pick a target with rules - a typed plan. Now 'close' can be CHECKED."],
+    ["bit","reach","Rule one: you may only say tokens that keep the plan legal. I hold the grammar."],
+    ["bit","neutral","Rule two: I type-check the whole thing and reject it loudly if it's wrong."],
+    ["cortex","read","Rule three: same sentence, same plan. I stop rolling dice at the forks."],
+    ["bit","happy","Not a magic model - a stochastic front-end and a strict backend. That's the machine."],
+  ];
+  react.apply(null, R[i]);
+}
+
+/* ================= MECHANISM: 17 steps, 3 acts ================= */
+const MECH_ACTS = [["decode under the grammar", 7], ["verify + repair", 5], ["break it + the cost", 5]];
+let temp = 0.7, activeBreak = null;
+const PARAMS = 1.2e9, BITS = 4;   // the driver: a ~1.2B model, 4-bit quantized
+
+function ledgerChips() {
+  const specTok = 14, layers = 24, kvB = 2 * layers * 2 * 64 * 2 * specTok;   // toy KV bytes for the spec (M3 formula)
+  ledger.style.display = "flex";
+  ledger.innerHTML = [
+    ["driver on disk", (PARAMS * BITS / 8 / 1e9).toFixed(1) + " GB", "M8: params x bits/8, 4-bit"],
+    ["KV cache, this spec", (kvB / 1e3).toFixed(0) + " KB", "M3: grows with the spec"],
+    ["expert woken", "1 of many", "M4: routed per token"],
+    ["masked this compile", "grammar-gated", "M0: at the sampler"],
+  ].map(x => '<span class="lchip" title="' + x[2] + '"><b>' + x[1] + "</b> " + x[0] + "</span>").join("");
+}
+
+function renderMech(i) {
+  clearBackend();
+  nlq.innerHTML = SENTENCE;
+
+  if (i <= 6) {  // ---- ACT 1: decode under the grammar (money shot) ----
+    const k = i;
+    srcHd.textContent = "front-end: decoding token " + (k + 1) + " of the plan";
+    srcN.textContent = ""; irHd.textContent = "the plan, growing";
+    renderDecode(k, temp, true);
+    ir.innerHTML = irHTML(DECODE[k].ir, true);
+    caption.textContent = DECODE[k].why;
+    insight.className = "insight";
+    insight.innerHTML = "Act 1: <b>constrained decoding</b> - the grammar masks the illegal tokens and the model samples from the renormalized legal set. It cannot emit an invalid plan, one token at a time.";
+    react("cortex", DECODE[k].cx[0], DECODE[k].cx[1]);
+    if (k === 6) react("bit", DECODE[k].bt[0], DECODE[k].bt[1]);
+    setNums([["slot", "grammar-typed"], ["logits", "illustrative"], ["mask + renorm", "computed live"], ["result", "always a legal token"]]);
+  }
+
+  else if (i <= 11) {  // ---- ACT 2: verify + repair ----
+    const k = i - 7;
+    srcHd.textContent = "backend: the verifier"; irHd.textContent = "the compiled plan (IR)";
+    nlq.innerHTML = SENTENCE;
+    if (k === 0) { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, false); }
+    else if (k === 1) { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, true); }
+    else if (k === 2) { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, true); }
+    else if (k === 3) {
+      const broken = [IR_GOOD[0], { id:"n2", tool:"add_to_cart", args:{ item:'"umbrella"' }, cond:{ ref:"n5", field:"rain" } }];
+      ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n5.rain: add_to_cart(item="umbrella")', false); renderVerify(broken, true);
+    }
+    else { ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, true); }
+    const caps2 = [
+      "The front-end has produced a plan. But grammar-legal is not the same as CORRECT - the grammar guarantees the syntax, not the meaning. So the backend type-checks the whole DAG before anything runs.",
+      "Four checks, all real, computed over the plan: every tool is in the catalog, every arg key is in that tool's schema, every reference resolves to an earlier result, and the graph is acyclic. All PASS - this plan compiles.",
+      "And it is DETERMINISTIC: temperature 0 makes the front-end pick the argmax of the legal set every time, so the same sentence lowers to the same plan. Run it twice, byte-identical. That is the property a compiler must have and a chatbot does not.",
+      "Now suppose the front-end had emitted a reference to n5 - a result that does not exist. Watch the verifier: it does not shrug, it FAILS, loudly, naming the exact fault. A compile error, not a plausible wrong answer that runs and misbehaves.",
+      "So the backend does what Module 7 taught: it is the verifier, and the plan is only as trustworthy as it. On failure, the compiler LOOPS - feeds the error back to the front-end to re-decode just that span - until it type-checks. Repair, not hope.",
+    ];
+    caption.textContent = caps2[k];
+    insight.className = k === 3 ? "insight bad" : "insight";
+    insight.innerHTML = k === 3
+      ? "<b>FAIL, loudly.</b> A wrong reference is a compile error the moment it is checked - never a silent runtime surprise."
+      : "Act 2: <b>the verifier type-checks the DAG and the compiler repairs on failure</b> - Module 7's 'as good as its verifier', now the backend of a compiler.";
+    react(k === 3 ? "bit" : k === 4 ? "bit" : "cortex",
+      k === 0 ? "read" : k === 1 ? "happy" : k === 2 ? "neutral" : k === 3 ? "panic" : "happy",
+      k === 0 ? "Legal syntax, sure. But did I mean the right thing? That's your department." :
+      k === 1 ? "All four checks green. This one is real." :
+      k === 2 ? "Temp zero: I take the top legal token every time. Same sentence, same plan." :
+      k === 3 ? "n5? There is no n5! I refuse to compile this." :
+      "Caught, named, and sent back to re-decode. That's a repair loop, not a prayer.");
+    setNums([["checks", "4, computed live"], ["determinism", "temp 0 = argmax"], ["on failure", "loud + repair"], ["backend", "the verifier (M7)"]]);
+  }
+
+  else {  // ---- ACT 3: break it + the cost ----
+    const k = i - 12;
+    srcHd.textContent = "break it on purpose"; irHd.textContent = "what breaks";
+    nlq.innerHTML = SENTENCE;
+    breaks.style.display = "flex";
+    const BRK = [["grammar","grammar OFF"],["temp","temperature UP"],["verifier","verifier weak"],["base","base driver"]];
+    breaks.innerHTML = BRK.map(b => '<span class="brk' + (activeBreak === b[0] ? " on" : "") + '" data-b="' + b[0] + '">' + b[1] + "</span>").join("");
+
+    if (k === 0) { activeBreak = "grammar"; renderDecode(0, 1.0, false); ir.innerHTML = irHTML('"Paris"(city="Paris")   <- not a tool', false); }
+    else if (k === 1) { activeBreak = "temp"; ir.innerHTML = irHTML('run A:  n1 = get_weather(city="Paris")\nrun B:  n1 = search(query="Paris")', false); }
+    else if (k === 2) { activeBreak = "verifier"; const wrong = [{ id:"n1", tool:"add_to_cart", args:{ city:'"Paris"' }, cond:null }]; ir.innerHTML = irHTML('n1 = add_to_cart(city="Paris")   <- wrong arg', false); renderVerify(wrong, true); }
+    else if (k === 3) { activeBreak = "base"; ir.innerHTML = irHTML('n1 = send_email(to="rain")\nn2 = search(query="umbrella")', false); }
+    else { activeBreak = null; breaks.innerHTML = BRK.map(b => '<span class="brk" data-b="' + b[0] + '">' + b[1] + "</span>").join(""); ir.innerHTML = irHTML('n1 = get_weather(city="Paris")\nn2 = if n1.rain: add_to_cart(item="umbrella")', false); renderVerify(IR_GOOD, true); ledgerChips(); }
+
+    const caps3 = [
+      "BREAK 1 - grammar OFF. Stop masking and the front-end samples its raw favourite: it puts the string 'Paris' in a tool slot. Invalid plan, un-runnable. This is Module 0's distribution with nothing carving it - the grammar was the whole trick.",
+      "BREAK 2 - temperature UP. Flatten the distribution and the model samples DIFFERENT legal tokens at a fork: the same sentence compiles to get_weather one run and search the next. Module 0's 'run it twice, get two answers' - here it is a compiler bug. Determinism is not optional.",
+      "BREAK 3 - verifier weak. Skip the schema check and a grammar-legal but WRONG plan sails through: add_to_cart(city=...) - a real arg name, on the wrong tool. It runs, and misbehaves silently. Module 7: the compiler is exactly as good as its verifier.",
+      "BREAK 4 - base driver. Swap the instruction-tuned model for a raw base model. The grammar still forces valid SYNTAX, but the front-end has no idea what you meant: it emails 'rain' and searches for umbrellas. Module 6: instruction-tuning is WHY the front-end follows a spec at all.",
+      "Restore all three and it compiles again - and look at what one sentence cost. This machine used the whole track: it sampled (M0) over tokens (M1), from a model made to follow specs (M6), small and quantized enough to run locally (M8), routed through experts (M4) at a memory cost (M3), gated by a grammar at the sampler and a verifier at the end (M7). That is the capstone.",
+    ];
+    caption.textContent = caps3[k];
+    insight.className = k === 4 ? "insight" : "insight bad";
+    insight.innerHTML = k === 4
+      ? "<b>The whole track, in one machine:</b> M0 sampling - M1 tokens - M6 instruction-tuning - M8 a small local driver - M3/M4 the running cost - M7 the verifier. Break any lever and it stops being a compiler."
+      : "Act 3: <b>each lever you remove is a prior module</b> - grammar/M0, determinism/M0, verifier/M7, instruction-tuning/M6.";
+    if (k === 4) ledgerChips();
+    react(k === 4 ? "bit" : "cortex", k === 4 ? "happy" : k === 3 ? "confused" : "panic",
+      k === 0 ? "Unmasked, I said 'Paris' where a tool goes. Told you I wanted to." :
+      k === 1 ? "Hotter, and I wander - weather one run, search the next. Same sentence!" :
+      k === 2 ? "city on add_to_cart? Legal letters, wrong tool. Nobody stopped me." :
+      k === 3 ? "Base me has no manners - I email the word 'rain'. Syntactic, senseless." :
+      "Sampler, tokens, training, size, memory, routing, verifier. One sentence touched all of it.");
+    setNums([["grammar", "M0 sampler"], ["determinism", "M0 / temp"], ["verifier", "M7"], ["a real driver", "M6 + M8"]]);
+  }
+}
+
+/* delegated clicks: break toggles in act 3 jump to that break's step */
+$("breaks").addEventListener("click", e => {
+  const b = e.target.closest(".brk"); if (!b || !tl) return;
+  const map = { grammar:12, temp:13, verifier:14, base:15 };
+  tl.seek(map[b.dataset.b]);
+});
+
+/* ================= wiring ================= */
+let tl = null;
+function build(mode) {
+  const isInt = mode === "int";
+  tl = new Anim.Timeline({ length: isInt ? 7 : 17, autoMs: isInt ? 2600 : 3200,
+    onStep: (i) => (isInt ? renderInt(i) : renderMech(i)) });
+  Anim.scrubber($("scrub"), tl, {
+    label: isInt ? (i => "step " + (i + 1) + " / 7") : Anim.actLabel(MECH_ACTS),
+    acts: isInt ? null : MECH_ACTS,
+  });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x === b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

@@ -275,6 +275,38 @@ Prompt: `The capital of France is`
 - Done when: learner can compute a quantized model's disk size by hand and
   say which of the three compressions attacks which cost.
 
+### Capstone - the compiler you can talk to (built 2026-07-07)
+- Q: Can a stochastic model behave like a compiler - and does the whole track
+  lead here?
+- P: An "LLM compiler" = a stochastic FRONT-END (the model lowering natural
+  language into a typed tool-call plan / DAG) bolted to a deterministic,
+  VERIFIED backend, with a repair loop. Front-end = constrained decoding: a
+  grammar masks illegal next-tokens at the sampler (M0) and the model samples
+  the renormalized legal set - it cannot emit an invalid plan. Backend = a
+  verifier (M7) type-checking the DAG, failing loudly, repairing. Determinism =
+  temp 0.
+- Build (acts): (1) decode under the grammar - token by token, a different
+  static rule masked each step (tool catalog, arg schema, literal type, scope,
+  return-type); mask + renorm computed live over illustrative logits. (2) verify
+  + repair - four real checks on the DAG, temp-0 determinism, a bad ref failing
+  loudly, the repair loop. (3) break it + cost ledger - grammar off / temp up /
+  weak verifier / base driver, each toggle a prior module; ledger = M8 driver
+  size (computed) + M3/M4 running cost.
+- Genuine-capstone test: every break-toggle is powered by an earlier module
+  (M0 sampler, M0/temp determinism, M7 verifier, M6 instruction-tuning), so the
+  course demonstrably converges here. The IR is course 1's agent loop - the two
+  courses meet: natural language COMPILES into the loop you hand-built.
+- Driver (the real LLM): pluggable interface; default a quantized small-instruct
+  GGUF (MiniCPM-class) grammar-constrained via GBNF - the grammar guarantees
+  valid structure even from a ~1B model. Runs local + in CI (never in the
+  keyless browser), named only in the Python/README layer. Phase 2: bake real
+  traces as a "measured" tab + an opt-in live mode. Honest caveat: grammar
+  guarantees valid STRUCTURE, not correct MEANING - honest-toy quality.
+- Placement: after M9, as the track's finale. It caps the BEHAVIORAL spine
+  (M0/M1/M6/M7/M8 directly power it); the ARCHITECTURE spine (M2-M5) lands as
+  the cost-ledger axis. M9 assemble/budget remains the architecture-side
+  synthesis. See [[read-order-not-build-order]] (all refs are backward here).
+
 ## Widget grammar extensions (build once, in assets/)
 
 - `acts` support in anim.js Timeline + scrubber label ("act 2 . step 4/7").
@@ -308,9 +340,10 @@ models/                      this track (sibling of agentic-course/, production/
 Build order (revised 2026-07-05): M0 autoregression -> M4 MoE -> M1 tokens +
 M2 attention -> M6 training stages (incl. LoRA/QLoRA/DPO) -> **M3 KV cache ->
 M5 DeepSeek -> M7 reasoning RL (GRPO here) -> M8 small models (distill+quant)
--> M9 atlas**. Done: ALL modules M0-M9 built (2026-07-05). Rule learned: a module's
-mechanism pass may only lean on ideas an EXISTING module has built - check
-before writing. Cast rule: Cortex/Bit must appear in every widget.
+-> M9 atlas**. Done: ALL modules M0-M9 built (2026-07-05), plus the CAPSTONE
+"the compiler you can talk to" (2026-07-07, module-10-compiler; see the breakdown
+above). Rule learned: a module's mechanism pass may only lean on ideas an EXISTING
+module has built - check before writing. Cast rule: Cortex/Bit must appear in every widget.
 
 ## Closing the asymmetry: nanomodel (2026-07-06)
 

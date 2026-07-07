@@ -1,0 +1,80 @@
+# Capstone - The compiler you can talk to
+
+If natural language is how we now drive computers, the honest question is: can a
+stochastic model behave like a **compiler** - turn a spec into something that
+runs, exactly and repeatably, and fail loudly when it can't? This capstone
+builds one, and in doing so uses every module in the track.
+
+## Question
+A compiler is deterministic, type-checked, and errors out on bad input. An LLM
+is stochastic and speaks fuzzy English. How do you get compiler behavior out of
+it - and does everything you learned actually lead here?
+
+## Principle
+An "LLM compiler" is not one magic model. It is a **stochastic front-end** (the
+model, lowering natural language into a typed plan) bolted to a **deterministic,
+verified backend**, with a repair loop closing the gap:
+
+- **Front-end = constrained decoding.** At each step the model produces a
+  distribution over next tokens (Module 0). A **grammar** masks every token that
+  would make the plan invalid, and the model samples from the *renormalized
+  legal set*. It literally cannot emit a wrong tool name, an unknown arg, or a
+  reference to a result that does not exist - the check happens at the sampler,
+  before the token is chosen.
+- **IR = a typed tool-call plan (DAG).** The same agent loop you hand-built in
+  course 1 - now the *output* of compiling a sentence. Deterministic,
+  inspectable, re-runnable.
+- **Backend = a verifier.** The finished plan is type-checked (tools exist, args
+  match the schema, refs resolve, graph acyclic) and **fails loudly** - a
+  compile error, not a plausible wrong answer that runs and misbehaves. On
+  failure the compiler loops and re-decodes. This is Module 7's lesson: the
+  system is only as good as its verifier.
+- **Determinism.** Temperature 0 makes the front-end take the argmax of the
+  legal set, so the same sentence lowers to the same plan, byte-identical.
+
+## See it (no key)
+`widgets/talk-to-compile/index.html` - two passes:
+- **intuition (7 steps):** naive model is unreliable -> the three disciplines
+  (grammar, verifier, determinism) -> the aha (front-end + verified backend).
+- **mechanism (17 steps, 3 acts):** act 1 decodes the plan token by token, the
+  grammar greying illegal candidates and renormalizing the legal set live (a
+  different static rule enforced each step: tool catalog, arg schema, literal
+  type, scope, return-type). Act 2 type-checks the DAG (four real checks), shows
+  temp-0 determinism, then a bad reference failing loudly and the repair loop.
+  Act 3 BREAKS it - grammar off (invalid plan), temperature up (two compiles
+  from one sentence), weak verifier (wrong plan passes silently), base driver
+  (valid-but-nonsense) - each toggle a prior module - and closes with the cost
+  ledger.
+
+## The aha
+The whole course was building the front-end. A compiler is what you do with it:
+constrain the sampler with a grammar, check the output with a verifier, pin the
+temperature - and a stochastic model becomes a machine that compiles language
+into verified, runnable plans.
+
+## The genuine-capstone test
+Every break-toggle is powered by an earlier module - if you can break it along
+each module's axis, the course genuinely led here: grammar/determinism = Module
+0's sampler; tokens = Module 1; the front-end follows a spec at all because of
+Module 6's instruction-tuning; it runs locally because it is small and quantized
+(Module 8); its running cost is Modules 3/4; the verifier is Module 7.
+
+## Honest notes
+- The grammar mask and the renormalization over the legal set are **computed
+  live** from a real tool schema; the verifier runs **real** static checks. The
+  raw per-token logits are illustrative (keyless), exactly the split used in
+  Module 0.
+- The grammar guarantees valid **structure, not correct meaning** - a small
+  model can compile a sentence into something syntactically perfect but
+  semantically off. Honest-toy quality.
+
+## Done when (the bar for this module)
+Given a tool schema and a partial plan, you can list which next tokens are legal
+(and why the rest are masked), and hand-run the verifier on a small plan.
+`CHALLENGE.md` is that exercise.
+
+## Run it for real (coming)
+A pluggable, grammar-constrained driver (a quantized small-instruct model via
+llama.cpp / GBNF) will run this compiler locally and in CI, baking real traces
+into the widget as a "measured" tab. The grammar guarantees valid structure even
+from a ~1B model - which is exactly why a tiny local model is enough.

@@ -29,7 +29,7 @@ production/                THE PRODUCTION TRACK (harden that loop; the sequel)
   vectorstore.py sandbox.py observability.py persistence.py router.py eval_gate.py run_agent.py
   README.md, test_*.py
 
-models/                    THE MODELS TRACK (inside the model; 10 modules + atlas - see models/docs/00-pedagogy.md)
+models/                    THE MODELS TRACK (inside the model; M0-M9 + capstone - see models/docs/00-pedagogy.md)
   module-XX-*/             README.md, CHALLENGE.md, keyless widget(s) per mechanism
   nanomodel/               the track, RUNNING: from-scratch autograd + tiny transformer + BPE
     autograd.py model.py train.py bpe.py README.md   (models-track counterpart of claude_harness)
