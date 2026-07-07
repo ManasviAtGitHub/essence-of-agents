@@ -73,7 +73,9 @@
     function _postH() {
       clearTimeout(_pt);
       _pt = setTimeout(function () {
-        try { global.parent.postMessage({ __embHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) }, "*"); } catch (e) {}
+        // +2px buffer: with fractional display scaling, an exact-fit height can overflow by
+        // <1px, spawning an inner scrollbar that reflows content and re-reports -> flicker loop.
+        try { global.parent.postMessage({ __embHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) + 2 }, "*"); } catch (e) {}
       }, 60);
     }
     global.addEventListener("load", _postH);

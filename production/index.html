@@ -175,7 +175,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     <span class="pill break"><span class="x">x</span> Symptom: the API returns a 529 (overloaded), an exception bubbles up, the whole run is gone.</span>
     <p>On your laptop this happens once a week. With real traffic it happens <b>constantly</b> &mdash;
     a transient blip mid-loop shouldn't lose the user's whole conversation.</p>
-    <iframe class="scene-embed" src="scenes/retries/index.html" title="retries failure/fix scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/retries/index.html" title="retries failure/fix scene" loading="lazy"></iframe>
     <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> wrap the model call in exponential backoff. Retry the
     <i>retryable</i> errors (429, 5xx, timeouts), give up on the rest, cap the attempts.</div></div>`
   },
@@ -187,7 +187,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     <span class="pill break"><span class="x">x</span> Symptom: the model keeps calling a tool, reading the result, calling again... a $40 run from one prompt.</span>
     <p>Nothing in the toy loop says <i>stop</i>. Two independent limits fix that: a hard <b>step cap</b>
     (never more than N turns) and a <b>spend budget</b> (stop when the run has cost $X).</p>
-    <iframe class="scene-embed" src="scenes/budget/index.html" title="budget failure/fix scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/budget/index.html" title="budget failure/fix scene" loading="lazy"></iframe>
     <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> count every step and every token; enforce both ceilings; return a clean
     "hit the limit" result instead of running (and billing) unbounded.</div></div>`
   },
@@ -200,7 +200,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     <p>The toy trusts every tool call. In production you need a <b>gate</b>: some tools run freely,
     some need a human "yes," some are flat-out denied. Plus a <b>guardrail</b> that scans tool output
     for injected instructions before it re-enters the model.</p>
-    <iframe class="scene-embed" src="scenes/guardrail/index.html" title="guardrail failure/fix scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/guardrail/index.html" title="guardrail failure/fix scene" loading="lazy"></iframe>
     <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> a per-tool policy (allow / ask / deny) with an approval callback, and an
     input guardrail on tool results.</div></div>`
   },
@@ -212,7 +212,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     <span class="pill break"><span class="x">x</span> Symptom: a user reports a bad answer. You have the answer and nothing else. Black box.</span>
     <p>The toy loop throws away everything between "question" and "answer." In production you record
     <b>every step</b>: which tools ran, with what args, how many tokens, how much it cost, how long it took.</p>
-    <iframe class="scene-embed" src="scenes/tracing/index.html" title="tracing failure/fix scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/tracing/index.html" title="tracing failure/fix scene" loading="lazy"></iframe>
     <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> emit a structured event per step and roll them into metrics (and OpenTelemetry-shaped
     spans) you can log, chart, and alert on.</div></div>`
   },
@@ -224,7 +224,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     <span class="pill break"><span class="x">x</span> Symptom: a one-word prompt tweak quietly drops accuracy from 100% to 67%. It ships. Users suffer.</span>
     <p>You can't eyeball this &mdash; agents fail on the <i>edge</i> cases you weren't looking at.
     You need a fixed test set with a pass bar that <b>blocks the change in CI</b> before it ever ships.</p>
-    <iframe class="scene-embed" src="scenes/evalgate/index.html" title="evalgate failure/fix scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/evalgate/index.html" title="evalgate failure/fix scene" loading="lazy"></iframe>
     <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> an eval set + a baseline, run on every change, non-zero exit on regression.</div></div>
     <p class="caption">This one is not hypothetical &mdash; an eval gate <b>caught a real bug</b> in this very project
     while it was being built. That's the whole point of it.</p>`
@@ -238,7 +238,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     <p>Memory <i>is</i> the message list (Module 2). Left unbounded it grows past the window.
     The fix is <b>compaction</b>: once the history crosses a threshold, summarize the old turns into a
     compact note and keep going &mdash; the same trick this very session uses.</p>
-    <iframe class="scene-embed" src="scenes/compaction/index.html" title="compaction failure/fix scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/compaction/index.html" title="compaction failure/fix scene" loading="lazy"></iframe>
     <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> a compactor that triggers past a size threshold and folds old history into a summary.</div></div>`
   },
 
@@ -257,7 +257,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
                 <span class="g">eval gate</span> (blocks bad changes)</div>
     <p>And here is that same picture <b>alive</b> - one request walking the real call graph, function by
     function (then the scaled-out version with workers and MCP):</p>
-    <iframe class="scene-embed" src="scenes/callgraph/index.html" title="live call graph scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/callgraph/index.html" title="live call graph scene" loading="lazy"></iframe>
     <div class="scene">
       <div class="actor"><span class="chr" data-c="bit" data-e="happy"></span><span class="who b">BIT</span></div>
       <div class="speech">
@@ -278,7 +278,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     context simply cannot hold it. The fix is a <b>supervisor with isolated workers</b> &mdash; and the
     operational details are the real lesson: per-worker budgets, retrying a failed worker <i>alone</i>,
     and merging <b>summaries, never contexts</b>.</p>
-    <iframe class="scene-embed" src="scenes/multiagent/index.html" title="multi-agent failure/fix scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/multiagent/index.html" title="multi-agent failure/fix scene" loading="lazy"></iframe>
     <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> fan out one worker per isolatable subtask, each with its own
     context and budget; retry failures per-worker; the supervisor merges short reports.</div></div>
     <p class="caption">Corollary from Module 8: when the task is sequential and fits one context,
@@ -295,7 +295,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     runtime</b>: one protocol for "list your tools" and "run this tool". The physics don't change &mdash;
     tools are still descriptions in the context, a runtime still executes the call &mdash; but the plug is
     standard, so a new capability is <i>connect a server</i>, not <i>ship a release</i>.</p>
-    <iframe class="scene-embed" src="scenes/mcp/index.html" title="MCP failure/fix scene" loading="lazy"></iframe>
+    <iframe class="scene-embed" scrolling="no" src="scenes/mcp/index.html" title="MCP failure/fix scene" loading="lazy"></iframe>
     <div class="fixline"><span class="arrow">+</span><div><b>The fix:</b> speak the protocol: discover tools at runtime from MCP servers
     instead of baking each one into the agent.</div></div>
     <p class="caption">The catch: a server's tool descriptions and results are <b>untrusted text entering
@@ -310,7 +310,7 @@ the whole toy, before production. six things go wrong. let's watch.</div>
     <p>A loop that only runs in your terminal is not a product &mdash; nobody but you can reach it. Wrap it
     in an <b>HTTP server</b> and stream each step back to the browser, so anyone with the link can use it
     and watch the loop think. Step through how that works:</p>
-    <iframe class="scene-embed" src="scenes/serve/index.html" title="serving scene" loading="lazy"></iframe>`
+    <iframe class="scene-embed" scrolling="no" src="scenes/serve/index.html" title="serving scene" loading="lazy"></iframe>`
   },
 
   { id:"chat", n:"", label:"Talk to it", group:"Use it",
