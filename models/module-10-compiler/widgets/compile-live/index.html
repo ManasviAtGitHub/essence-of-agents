@@ -14,6 +14,12 @@
   .goal b { color:var(--ink); } .goal i { color:var(--gold); font-style:normal; }
   .sub { color:var(--dim); margin:0 0 12px; font-size:13.5px; }
   .sub b { color:var(--ink); }
+  .pieces { display:flex; align-items:stretch; gap:6px; margin:0 0 12px; flex-wrap:wrap; }
+  .pc { flex:1; min-width:158px; border:1px solid var(--line); border-radius:9px; background:var(--panel); padding:7px 10px; }
+  .pc .pn { display:block; font:12px var(--mono); color:var(--gold); }
+  .pc .pd { display:block; font-size:11.5px; color:var(--dim); margin-top:2px; line-height:1.35; }
+  .arr { align-self:center; color:var(--faint); font:13px var(--mono); }
+  @media (max-width:640px){ .arr { display:none; } }
 
   .pick { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:8px; }
   .req { font:12.5px var(--mono); border:1px solid var(--line); background:var(--panel); color:#cdd3da;
@@ -46,26 +52,38 @@
 <p class="goal"><b>What we are building:</b> an <b>LLM compiler</b>. You type a request in plain English, and it produces a
 real, <b>runnable plan</b> - the same agent loop you built in course 1 - reliably, every time. A normal compiler
 turns code into a program by exact rules; here the "source" is a <i>sentence</i> and the reader is an AI <b>model</b>,
-which makes things up. So a <b>grammar</b> stands in front of the model and makes a wrong token impossible - and a
-<b>verifier</b> checks the result. That is the whole trick, and this is it happening.</p>
-<p class="sub"><b>How to read it:</b> click a request -&gt; its candidate tokens fly at the <b>grammar gate</b>, illegal
-ones bounce off, the legal winner snaps into the <b>plan graph</b>, then the verifier checks it. Grammar, plan and
-verifier run live here; the model's scores are illustrative until a real run is baked in.</p>
+which makes things up. So a set of <b>rules</b> (a "grammar") stands in front of the model and makes a wrong word
+impossible - and a <b>checker</b> (a "verifier") confirms the result before it runs. That is the whole trick, and
+this is it happening. (New to compilers? The four pieces are spelled out just below, and the animation introduces
+each one before it uses it.)</p>
+<p class="sub"><b>How to read it:</b> click a request -&gt; its candidate words fly at <b>the rules</b> (the gate),
+the disallowed ones bounce off, the winner snaps into <b>the plan</b>, then <b>the checker</b> confirms it. The rules,
+the plan and the checker run live here; the model's scores are illustrative until a real run is baked in.</p>
+
+<div class="pieces">
+  <div class="pc"><span class="pn">1 . the reader</span><span class="pd">the AI model - reads your words and guesses the next one (Module 0)</span></div>
+  <div class="arr">&rarr;</div>
+  <div class="pc"><span class="pn">2 . the rules</span><span class="pd">a "grammar" - decides which word is even ALLOWED next</span></div>
+  <div class="arr">&rarr;</div>
+  <div class="pc"><span class="pn">3 . the plan</span><span class="pd">the structured result: a list of tool calls (course 1's loop)</span></div>
+  <div class="arr">&rarr;</div>
+  <div class="pc"><span class="pn">4 . the checker</span><span class="pd">a "verifier" - confirms the plan is valid before it runs</span></div>
+</div>
 
 <div class="pick" id="pick"></div>
 
-<div id="canvas" aria-label="Candidate tokens passing a grammar gate and assembling into a plan graph"></div>
+<div id="canvas" aria-label="Candidate words passing a rules gate and assembling into a plan"></div>
 
 <div class="trace">
-  <div class="th">the grammar, live - what the front-end is allowed to say next</div>
+  <div class="th">the rules, live - which word the reader is allowed to say next</div>
   <div class="slot" id="slot">-</div>
   <div class="why" id="why"></div>
 </div>
 
 <div class="ctl">
   <button class="btn go" id="run">run the plan &#9654;</button>
-  <button class="btn" id="gtoggle">break: grammar off</button>
-  <span class="legend"><b>gold</b> = legal . struck = masked . the winner flies into the graph</span>
+  <button class="btn" id="gtoggle">break: rules off</button>
+  <span class="legend"><b>gold</b> = allowed . struck = blocked . the winner flies into the plan</span>
 </div>
 
 <div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
@@ -152,13 +170,34 @@ const nodeY = i => 84 + i*118;
 const ease = t => t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
 
 new p5(function(p){
-  let plan=[], steps=[], k=0, tacc=0, grammarOff=false, running=false, runT=0, reqIdx=0, appear={};
+  let plan=[], steps=[], k=0, tacc=0, grammarOff=false, running=false, runT=0, reqIdx=0, appear={}, phase="intro", introK=0, introT=0;
   const STEP_MS=1550;
 
-  function load(i){ reqIdx=i; plan=REQS[i].plan.map(s=>({...s,args:{...s.args}})); steps=decodeSteps(plan);
-    k=0; tacc=0; running=false; runT=0; appear={}; react("cortex","think","A sentence. Let me turn it into a plan, one legal token at a time."); updateCaption(); }
-  window.__loadReq = load;
-  window.__setGrammar = v => { grammarOff=v; k=0; tacc=0; running=false; updateCaption(); };
+  // the "meet the pieces" opening beat - introduce each piece before the animation uses it
+  const INTRO=[
+    {zone:[196,54,214,H-96], name:"THE READER", who:"cortex", emote:"read",
+     cap:"The AI <b>model</b>. It reads your sentence and guesses the next word, one at a time - exactly what you saw in Module 0.",
+     line:"That is me - I read your words and guess the next one, over and over."},
+    {zone:[GATE-70,54,140,H-96], name:"THE RULES", who:"bit", emote:"neutral",
+     cap:"The <b>rules</b> (a \"grammar\"). They decide which word is even ALLOWED next: only real tool names, valid arguments. Words must pass this gate.",
+     line:"The rules. A wrong word never gets past me - I only allow the legal ones."},
+    {zone:[500,44,404,H-80], name:"THE PLAN", who:"cortex", emote:"reach",
+     cap:"The <b>plan</b> being built - a short list of tool calls, the very same agent loop you hand-built in course 1.",
+     line:"The plan I am building - a little list of tool calls, like course 1's loop."},
+    {zone:[500,44,404,H-80], name:"THE CHECKER", who:"bit", emote:"read",
+     cap:"The <b>checker</b> (a \"verifier\"). It confirms the finished plan is valid before it runs. Now watch all four work together.",
+     line:"And I check the finished plan before it runs. Now - let us do it together."},
+  ];
+  function showIntro(i){ const s=INTRO[i];
+    document.getElementById("slot").textContent="meet the pieces ("+(i+1)+"/4): "+s.name;
+    document.getElementById("why").innerHTML=s.cap; react(s.who,s.emote,s.line); }
+
+  function load(i, skipIntro){ reqIdx=i; plan=REQS[i].plan.map(s=>({...s,args:{...s.args}})); steps=decodeSteps(plan);
+    k=0; tacc=0; running=false; runT=0; appear={};
+    if(skipIntro){ phase="compile"; react("cortex","think","A sentence. Let me turn it into a plan, one legal word at a time."); updateCaption(); }
+    else { phase="intro"; introK=0; introT=0; showIntro(0); } }
+  window.__loadReq = i => load(i, true);
+  window.__setGrammar = v => { grammarOff=v; phase="compile"; k=0; tacc=0; running=false; updateCaption(); };
   window.__run = () => { if(k<steps.length) return; running=true; runT=0;
     document.getElementById("slot").textContent = "> running the plan - each node fires in order";
     document.getElementById("why").innerHTML = "The compiled plan is now an <b>executable program</b>: the nodes run top to bottom (a conditional node fires only if its check passes). Simulated here - no real weather API or cart is wired; a real model plus real tools make it live.";
@@ -169,6 +208,7 @@ new p5(function(p){
   p.draw=function(){
     p.background(11,14,18);
     drawZones(); drawSentence(); drawGate();
+    if(phase==="intro"){ drawIntro(); return; }
     const done = Math.min(k, steps.length);
     drawPlan(planState(plan, done), running || k>=steps.length);
     if(running){ drawRun(); runT += p.deltaTime; return; }
@@ -182,11 +222,23 @@ new p5(function(p){
     }
   };
 
+  function drawIntro(){
+    introT += p.deltaTime;
+    const s=INTRO[Math.min(introK, INTRO.length-1)];
+    const pulse=0.5+0.5*Math.sin(p.frameCount*0.08);
+    p.push(); p.noFill(); p.stroke(255,211,92,120+90*pulse); p.strokeWeight(2);
+    p.rect(s.zone[0], s.zone[1], s.zone[2], s.zone[3], 10);
+    p.noStroke(); p.fill(255,211,92); p.textAlign(p.CENTER); p.textSize(13);
+    p.text((introK+1)+" . "+s.name, s.zone[0]+s.zone[2]/2, s.zone[1]-6); p.pop();
+    if(introT>2300){ introK++; introT=0;
+      if(introK>=INTRO.length){ phase="compile"; k=0; tacc=0; updateCaption(); react("cortex","reach","Now watch them work together - one legal word at a time."); }
+      else showIntro(introK); }
+  }
   function drawZones(){
     p.noStroke(); p.fill(255,255,255,4);
     p.rect(16,54,150,H-96,10); p.rect(196,54,214,H-96,10); p.rect(500,44,404,H-80,10);
     p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER);
-    p.text("REQUEST",91,44); p.text("FRONT-END  +  GRAMMAR",303,44); p.text("THE PLAN  (a runnable graph)",702,36);
+    p.text("WHAT YOU SAY",91,44); p.text("THE READER  +  THE RULES",303,44); p.text("THE PLAN  (it runs)",702,36);
   }
   function drawSentence(){
     p.fill(120,128,140); p.textAlign(p.LEFT); p.textSize(11);
@@ -202,7 +254,7 @@ new p5(function(p){
     else { p.stroke(88,196,221,150); p.strokeWeight(2); }
     p.line(GATE,60,GATE,H-46); p.drawingContext.setLineDash([]); p.drawingContext.shadowBlur=0;
     p.noStroke(); p.fill(grammarOff?"#fc6255":"#58c4dd"); p.textAlign(p.CENTER); p.textSize(9.5);
-    p.push(); p.translate(GATE-9,H-52); p.rotate(-p.HALF_PI); p.text(grammarOff?"GRAMMAR OFF":"grammar gate",0,0); p.pop();
+    p.push(); p.translate(GATE-9,H-52); p.rotate(-p.HALF_PI); p.text(grammarOff?"RULES OFF":"the rules (gate)",0,0); p.pop();
     p.pop();
   }
   function chip(x,y,c,state){
@@ -298,15 +350,15 @@ new p5(function(p){
   function updateCaption(){
     const slot=document.getElementById("slot"), why=document.getElementById("why");
     if(k<steps.length){ const s=steps[k];
-      slot.textContent = "> the front-end must emit "+s.slot;
-      why.innerHTML = grammarOff ? "<span class='r'>grammar OFF:</span> nothing is masked - a bare word or fake tool can win, and the plan breaks."
-        : s.why + " Legal winner: <span class='g'>"+(s.cands.filter(c=>c.pick)[0]||{t:""}).t+"</span>.";
+      slot.textContent = "> the reader must pick "+s.slot;
+      why.innerHTML = grammarOff ? "<span class='r'>rules OFF:</span> nothing is blocked - a bare word or fake tool can win, and the plan breaks."
+        : s.why + " Allowed winner: <span class='g'>"+(s.cands.filter(c=>c.pick)[0]||{t:""}).t+"</span>.";
       react("cortex", grammarOff?"panic":(s.kind==="tool"?"reach":"think"),
         grammarOff?"Nothing's stopping me - I'll say whatever ranks highest, even if it's nonsense."
-        :"Proposing "+s.slot+"... the gate will only let the legal ones through.");
+        :"Proposing "+s.slot+"... the rules will only let the allowed ones through.");
     } else {
       const ok = !grammarOff && verify(plan).length===0;
-      slot.textContent = "> the verifier type-checks the finished plan";
+      slot.textContent = "> the checker type-checks the finished plan";
       why.innerHTML = ok ? "All checks pass: tools exist, args fit the schema, refs resolve. <b>Runnable.</b>"
         : "<span class='r'>compile error</span> - the verifier caught what the grammar would have prevented.";
     }
@@ -318,11 +370,11 @@ new p5(function(p){
 document.getElementById("pick").innerHTML = REQS.map((r,i)=>'<button class="req'+(i===0?" on":"")+'" data-i="'+i+'">'+r.t+"</button>").join("");
 document.getElementById("pick").addEventListener("click", e=>{ const b=e.target.closest(".req"); if(!b) return;
   document.querySelectorAll(".req").forEach((r,j)=>r.classList.toggle("on", j===+b.dataset.i));
-  document.getElementById("gtoggle").classList.remove("on"); document.getElementById("gtoggle").textContent="break: grammar off";
+  document.getElementById("gtoggle").classList.remove("on"); document.getElementById("gtoggle").textContent="break: rules off";
   window.__loadReq(+b.dataset.i); if(window.__caption) window.__caption(); });
 document.getElementById("run").onclick=()=>window.__run();
 document.getElementById("gtoggle").onclick=function(){ const on=!this.classList.contains("on"); this.classList.toggle("on",on);
-  this.textContent = on?"grammar: OFF (broken)":"break: grammar off"; window.__setGrammar(on); };
+  this.textContent = on?"rules: OFF (broken)":"break: rules off"; window.__setGrammar(on); };
 </script>
 </body>
 </html>
