@@ -73,8 +73,27 @@ Given a tool schema and a partial plan, you can list which next tokens are legal
 (and why the rest are masked), and hand-run the verifier on a small plan.
 `CHALLENGE.md` is that exercise.
 
-## Run it for real (coming)
-A pluggable, grammar-constrained driver (a quantized small-instruct model via
-llama.cpp / GBNF) will run this compiler locally and in CI, baking real traces
-into the widget as a "measured" tab. The grammar guarantees valid structure even
-from a ~1B model - which is exactly why a tiny local model is enough.
+## Run it in code
+`compiler.py` is the whole pipeline, real and runnable:
+```bash
+python models/module-10-compiler/compiler.py
+python models/module-10-compiler/compiler.py "search for umbrellas and email me"
+```
+The **grammar** (legal-option computation) and the **verifier** (static checks)
+are real; the front-end model is a swappable **driver**. The default drivers are
+keyless and deterministic - a scripted stand-in and a tiny keyword parser, the
+FakeClient analog - so it runs in CI with no download (`tests/test_compiler.py`).
+The demo prints the compiled plan, then the thesis in one line: grammar ON
+(constrained) always verifies; grammar OFF (adversarial) produces a plan the
+verifier catches.
+
+**Run it with a real model (opt-in).** Plug in `LlamaDriver` - a quantized
+small-instruct GGUF (MiniCPM-class) via `llama-cpp-python`. The grammar
+guarantees valid structure even from a ~1B model, which is exactly why a tiny
+local model is enough. `grammar.gbnf` is the same grammar in llama.cpp's native
+GBNF format for full token-level constraint. (The keyword parser is honest-toy
+quality - it turns simple sentences into plans; a real model understands
+language properly.)
+
+Phase next: bake real driver traces into the widget as a "measured" tab, plus an
+opt-in live mode.

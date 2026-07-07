@@ -1,0 +1,25 @@
+# GBNF grammar for the tool-call plan DSL - llama.cpp's native constrained decoding.
+#
+# Pass this to llama.cpp (or llama-cpp-python's `grammar=`) and the model can ONLY
+# emit strings that match it: it is physically unable to produce a malformed plan,
+# even at 1B parameters. This is the token-level version of the mask you watch in
+# the widget.
+#
+# GBNF guarantees SYNTAX only. The three semantic checks it cannot express -
+# a ref must be defined before use, a field must belong to its ref's return schema,
+# an arg key must belong to its tool's schema - are the verifier's job (verify() in
+# compiler.py). Grammar for shape; verifier for meaning.
+
+root        ::= stmt ("\n" stmt)*
+stmt        ::= id " = " cond? call
+cond        ::= "if " ref "." field ": "
+call        ::= tool "(" arg ")"
+
+tool        ::= "get_weather" | "add_to_cart" | "search" | "send_email"
+arg         ::= argname "=" string
+argname     ::= "city" | "item" | "query" | "to"
+field       ::= "rain" | "temp" | "top"
+
+id          ::= "n" [1-9]
+ref         ::= "n" [1-9]
+string      ::= "\"" [a-zA-Z ]+ "\""

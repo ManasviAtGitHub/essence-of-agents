@@ -25,6 +25,8 @@ jobs:
         run: python tests/test_structure.py
       - name: nanomodel (from-scratch transformer runs + learns)
         run: python tests/test_nanomodel.py
+      - name: capstone compiler (grammar + verifier, keyless driver)
+        run: python tests/test_compiler.py
       - name: no stale UI links (every href/src/nav/iframe resolves)
         run: python tools/check_links.py
       - name: widget runtime gate (no console errors, scenes build)
