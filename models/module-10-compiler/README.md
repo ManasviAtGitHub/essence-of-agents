@@ -39,6 +39,12 @@ illegal ones bounce off, the legal winner snaps into a plan graph, the verifier
 checks it. Pick a request, run the plan, or break the grammar. The goal is stated
 up front: turn plain English into a runnable, verified plan.
 
+`widgets/architecture/index.html` - the WIRING diagram (built on p5): the same
+pieces as an architecture graph - click any piece to light up its connections.
+Surfaces the two structural ahas the process view hides: one tool catalog
+defines BOTH the rules and the checker (front and back, same schema), and the
+checker wires back to the reader to repair.
+
 `widgets/talk-to-compile/index.html` - the mechanism, act by act, two passes:
 - **intuition (7 steps):** naive model is unreliable -> the three disciplines
   (grammar, verifier, determinism) -> the aha (front-end + verified backend).
