@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Everything becomes a token</title>
+<!-- Essence of the Frontier, F1. Verified as of 2026-07. The toy image, its pixel
+     values and the tiny projector matrix are hand-authored (labeled); every
+     projection, token count and cache figure derived from them is computed live.
+     Token-count recipes are primary-sourced (ViT 16px; Qwen-VL 28px merged).
+     Nano Banana Pro's ~1,290 tokens/image is a labeled exhibit stat, not
+     arithmetic (rule 11). -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:28px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto; display:block; }
+
+  .row2 { display:flex; gap:10px; margin-top:10px; align-items:stretch; }
+  .panel { border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:9px 12px; }
+  .menuP { flex:1.2; min-width:0; }
+  .calcP { flex:1; min-width:0; }
+  .panel .th { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:6px; }
+  #menuChart svg { display:block; width:100%; max-width:470px; height:auto; }
+  .calc { font:12.5px/1.8 var(--mono); color:#cdd3da; }
+  .calc select { font:12px var(--mono); background:var(--panel); color:var(--ink); border:1px solid var(--line);
+                 border-radius:6px; padding:3px 6px; }
+  .calc .out { color:var(--gold); font-weight:600; }
+  .calc .kv { color:#8fb7c8; }
+  .calc .note { font-size:10px; color:var(--faint); line-height:1.5; display:block; margin-top:4px; }
+
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:76px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .react { margin-top:10px; }
+  @media (max-width:720px){ body { padding:0 12px 48px; } .row2 { flex-direction:column; } }
+</style>
+</head>
+<body>
+<h1>Everything becomes a token</h1>
+<div class="stamp">TRACK 4 . F1 . verified as of 2026-07 - exhibits age, the principle does not</div>
+<p class="sub">Track 3 said the model never sees letters - only tokens. So how is it suddenly looking at photos,
+hearing speech, and answering WITH pictures? <b>The menu grew - through two different doors.</b> Watch a photo
+enter the same token stream you already know.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (the story)</button>
+  <button class="modebtn" data-mode="mech">mechanism (compute a patch)</button>
+  <span class="modehint">toy pixels + projector are hand-authored (labeled); everything derived is computed live</span>
+</div>
+
+<div id="canvas" aria-label="A photo shattering into patches that join the token stream"></div>
+
+<div class="row2">
+  <div class="panel menuP"><div class="th">the menu (M1's vocabulary) - what joined it, and through which door</div>
+    <div id="menuChart"></div></div>
+  <div class="panel calcP" id="calcP" hidden><div class="th">the bill, computed live - tokens = (H/p) x (W/p)</div>
+    <div class="calc">
+      image <select id="selSize"><option value="224,224">224 x 224</option><option value="448,448">448 x 448</option><option value="896,896">896 x 896</option><option value="1344,896" selected>1344 x 896 (screenshot)</option></select>
+      recipe <select id="selPatch"><option value="16">ViT 16px</option><option value="28" selected>Qwen-VL 28px (14px patches, 2x2 merged)</option></select>
+      <div>tokens: <span class="out" id="tokOut"></span> &nbsp; KV cache: <span class="kv" id="kvOut"></span></div>
+      <span class="note" id="calcNote"></span>
+    </div></div>
+</div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script src="../../../../assets/vendor/d3.min.js"></script>
+<script>
+/* ================= data ================= */
+// 8x8 pixel-art umbrella (hand-authored, labeled illustrative on screen)
+const IMG8 = [
+  "...RR...","..RRRR..",".RRRRRR.","RRRRRRRR",
+  "...GG...","...GG...","..GG....","..GG...."];
+const PIX = { R:"#fc6255", G:"#98a2b0", ".":"#161b22" };
+
+// toy 4x4 grayscale image for the mechanism (hand-authored values 0-9)
+const TOY = [[8,7,2,1],[6,5,3,0],[2,1,7,8],[4,0,6,9]];
+// its four 2x2 patches, flattened row-major
+const PATCHES = [[8,7,6,5],[2,1,3,0],[2,1,4,0],[7,8,6,9]];
+// the toy projector: 3x4 (hand-authored, labeled) - h = W x patch
+const W3 = [[0.2,-0.1,0.3,0.0],[-0.2,0.4,0.0,0.1],[0.1,0.0,-0.2,0.3]];
+function proj(x){ return W3.map(row => row.reduce((a,w,i)=>a+w*x[i],0)); }
+function projStr(x,d){ const terms=W3[d].map((w,i)=>w.toFixed(1)+"x"+x[i]).join(" + ");
+  return "h"+(d+1)+" = "+terms+" = "+proj(x)[d].toFixed(1); }
+
+const WORDS = ["what","is","in","this","photo","?"];
+const BPT_M3 = 327680;   // M3's Llama-3-70B KV bytes/token (primary; the rate, reused)
+
+/* ================= dom ================= */
+const $=id=>document.getElementById(id);
+const caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(who,emote,line){ chrR.dataset.c=who; chrR.dataset.e=emote; reactLine.textContent=line; Cast.render($("react")); }
+
+/* ================= D3 menu chart (the data-truth layer) ================= */
+const MENU=[
+  {k:"text",   label:"text entries (~128k-152k)",         v:100, door:"lookup",    col:"#58c4dd"},
+  {k:"audio",  label:"audio codebook (Omni, Mar 2026)",   v:34,  door:"codebook",  col:"#83c167"},
+  {k:"image",  label:"image codebook (out; Nov 2025)",    v:46,  door:"codebook",  col:"#ffd35c"},
+  {k:"patch",  label:"image patches IN (no entries!)",    v:62,  door:"projection",col:"#c084fc"},
+  {k:"action", label:"actions (F5, later this track)",    v:24,  door:"teaser",    col:"#98a2b0"},
+];
+function drawMenu(active){
+  const w=430,h=150,bh=20;
+  const svg=d3.create("svg").attr("viewBox","0 0 "+w+" "+h);
+  const g=svg.selectAll("g").data(MENU).join("g")
+    .attr("transform",(d,i)=>"translate(0,"+(6+i*28)+")");
+  g.append("rect").attr("x",0).attr("y",0).attr("height",bh).attr("rx",4)
+    .attr("width",d=>d.v*2.6)
+    .attr("fill",d=>d.col)
+    .attr("fill-opacity",d=>active&&active.indexOf(d.k)>=0?0.95:0.18)
+    .attr("stroke",d=>d.col).attr("stroke-opacity",0.6)
+    .attr("stroke-dasharray",d=>d.door==="teaser"?"4 3":(d.door==="projection"?"2 2":null));
+  g.append("text").attr("x",d=>d.v*2.6+8).attr("y",14)
+    .attr("fill",d=>active&&active.indexOf(d.k)>=0?"#e9ebee":"#5b6470")
+    .style("font","10.5px ui-monospace, Menlo, Consolas, monospace").text(d=>d.label);
+  svg.append("text").attr("x",0).attr("y",h-4).attr("fill","#5b6470")
+    .style("font","9.5px ui-monospace, monospace")
+    .text("bar sizes illustrative . solid = discrete menu . dashed = projected vectors (not menu entries)");
+  const host=$("menuChart"); host.innerHTML=""; host.appendChild(svg.node());
+}
+
+/* ================= calculator (act 2) ================= */
+function calc(){
+  const [wpx,hpx]=$("selSize").value.split(",").map(Number), p=+$("selPatch").value;
+  const t=Math.floor(hpx/p)*Math.floor(wpx/p);
+  $("tokOut").textContent = Math.floor(wpx/p)+" x "+Math.floor(hpx/p)+" = "+t.toLocaleString()+" tokens";
+  $("kvOut").textContent = "~"+(t*BPT_M3/1e6).toFixed(0)+" MB";
+  $("calcNote").textContent = "KV rate: M3's Llama-3-70B ~320 KB/token, reused as the illustration rate. Recipes: ViT (224/16=14, 14x14=196); Qwen-VL merges 14px patches 2x2 -> 28px effective.";
+}
+$("selSize").onchange=calc; $("selPatch").onchange=calc;
+
+/* ================= p5 stage (the motion layer) ================= */
+if (window.p5) p5.disableFriendlyErrors = true;
+const CW=920, CH=380;
+const ease = t => t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+let MODE="int", STEP=0;
+
+new p5(function(p){
+  const density=()=>Math.max(2, window.devicePixelRatio||1);
+  // every drawable has a current + target position; p5 eases toward targets each frame
+  const pos={};   // id -> {x,y,tx,ty,a,ta}
+  function ent(id,x,y,a){ if(!pos[id]) pos[id]={x:x,y:y,tx:x,ty:y,a:(a==null?1:a),ta:(a==null?1:a)}; return pos[id]; }
+  function to(id,x,y,a){ const e=ent(id,x,y,a); e.tx=x; e.ty=y; if(a!=null) e.ta=a; }
+  function tick(){ for(const k in pos){ const e=pos[k]; e.x+=(e.tx-e.x)*0.12; e.y+=(e.ty-e.y)*0.12; e.a+=(e.ta-e.a)*0.12; } }
+
+  p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
+    p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+
+  p.draw=function(){
+    if(p.pixelDensity()!==density()) p.pixelDensity(density());
+    p.background(11,14,18); tick();
+    if(MODE==="int") drawInt(); else drawMech();
+  };
+
+  /* ---------- shared pieces ---------- */
+  function chip(x,y,t,col,a,w){ const cw=w||Math.max(40,p.textWidth(t)+16);
+    p.push(); p.drawingContext.globalAlpha=p.constrain(a,0,1);
+    p.rectMode(p.CENTER); p.fill(23,27,33); p.stroke(col); p.strokeWeight(1.2); p.rect(x,y,cw,24,6);
+    p.noStroke(); p.fill(col); p.textAlign(p.CENTER,p.CENTER); p.textSize(11.5); p.text(t,x,y-1);
+    p.drawingContext.globalAlpha=1; p.pop(); return cw; }
+  function umbrella(x,y,s,a){ p.push(); p.drawingContext.globalAlpha=p.constrain(a==null?1:a,0,1);
+    p.noStroke(); for(let r=0;r<8;r++) for(let c=0;c<8;c++){ p.fill(PIX[IMG8[r][c]]); p.rect(x+c*s,y+r*s,s-1,s-1); }
+    p.drawingContext.globalAlpha=1; p.pop(); }
+  function patchQuad(x,y,s,q,a){ // draw quadrant q (0..3) of the 8x8 umbrella at cell size s
+    const r0=(q>>1)*4, c0=(q%2)*4; p.push(); p.drawingContext.globalAlpha=p.constrain(a==null?1:a,0,1);
+    p.noStroke(); for(let r=0;r<4;r++) for(let c=0;c<4;c++){ p.fill(PIX[IMG8[r0+r][c0+c]]); p.rect(x+c*s,y+r*s,s-1,s-1); }
+    p.drawingContext.globalAlpha=1; p.noFill(); p.stroke(192,132,252,160); p.strokeWeight(1.2); p.rect(x-1,y-1,4*s+1,4*s+1,3); p.pop(); }
+  function lane(x,y,w,h,label){ p.push(); p.noStroke(); p.fill(255,255,255,4); p.rect(x,y,w,h,10);
+    p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER); p.text(label,x+w/2,y-6); p.pop(); }
+  function arc2(x1,y1,x2,y2,col,wgt){ p.push(); p.noFill(); p.stroke(col); p.strokeWeight(wgt||1.5);
+    p.bezier(x1,y1,x1,(y1+y2)/2-40,x2,(y1+y2)/2-40,x2,y2); p.pop(); }
+
+  /* ---------- INTUITION stage ---------- */
+  const STREAMY=300, PHX=60, PHY=70, PS=13;   // photo cell size
+  function drawInt(){
+    const k=STEP;
+    lane(30,50,190,180,"WHAT YOU ATTACH"); lane(30,270,860,64,"THE TOKEN STREAM (one stream, M1's)");
+    // word chips always live in the stream
+    let wx=90;
+    WORDS.forEach((w,i)=>{ to("w"+i, wx, STREAMY); const e=pos["w"+i]; wx+=chip(e.x,e.y,w,"#58c4dd",e.a)+8; });
+    const patchHome=[[PHX,PHY],[PHX+4*PS,PHY],[PHX,PHY+4*PS],[PHX+4*PS,PHY+4*PS]];
+    if(k===0){ umbrella(PHX,PHY,PS,1); for(let q=0;q<4;q++) to("p"+q,patchHome[q][0],patchHome[q][1],0); }
+    else {
+      if(k>=3){ umbrella(PHX,PHY,PS,0.14);   // ghost of the source photo stays in its lane
+        p.push(); p.noStroke(); p.fill(152,162,176,120); p.textSize(9.5); p.textAlign(p.LEFT);
+        p.text("(went into the stream ->)", PHX-16, PHY+4*PS*2+26); p.pop(); }
+      // patches replace the photo from step 1 on
+      for(let q=0;q<4;q++){
+        const sep=(k===1?4:(k>=2?18:0));
+        let tx=patchHome[q][0]+(q%2?sep:-sep), ty=patchHome[q][1]+(q>>1?sep:-sep), s=PS;
+        if(k>=3){ tx=wx+40+(q*64); ty=STREAMY-16; s=7; }           // fly into the stream
+        to("p"+q,tx,ty,1); const e=pos["p"+q]; patchQuad(e.x,e.y,(k>=3?7:PS),q,e.a);
+      }
+    }
+    if(k>=3){ p.push(); p.noStroke(); p.fill(192,132,252); p.textSize(9.5); p.textAlign(p.LEFT);
+      p.text("patch tokens (projected vectors)", wx+16, STREAMY+30); p.pop(); }
+    if(k===4){ // attention arcs: word 'photo' attends to patches, patches to each other
+      const w4=pos["w4"], pches=[0,1,2,3].map(q=>pos["p"+q]).filter(Boolean);
+      if(w4&&pches[0]) pches.forEach((pe,i)=>arc2(w4.x,w4.y-14,pe.x+14,pe.y-4,"rgba(88,196,221,.7)",1.4));
+      if(pches[0]&&pches[3]) arc2(pches[0].x+14,pches[0].y-4,pches[3].x+14,pches[3].y-4,"rgba(192,132,252,.6)",1.2);
+    }
+    if(k===5){ // speech joins: waveform -> codebook chips
+      p.push(); p.stroke(131,193,103); p.strokeWeight(1.5); p.noFill(); p.beginShape();
+      for(let i=0;i<40;i++) p.vertex(300+i*3, 120+Math.sin(i*0.7)*14*Math.sin(i*0.13)); p.endShape();
+      p.noStroke(); p.fill(131,193,103); p.textSize(9.5); p.text("speech in (Omni, Mar 2026)", 300, 96); p.pop();
+      ["a113","a007","a291"].forEach((t,i)=>{ to("s"+i, 480+i*62, 150); const e=pos["s"+i]; chip(e.x,e.y,t,"#83c167",e.a); });
+    }
+    if(k===6){ // the reverse trip: model emits image tokens -> tiny image assembles
+      ["i87","i412","i30","..."].forEach((t,i)=>{ to("o"+i, 330+i*58, 130); const e=pos["o"+i]; chip(e.x,e.y,t,"#ffd35c",e.a); });
+      umbrella(640,86,9,1);
+      p.push(); p.noStroke(); p.fill(255,211,92); p.textSize(9.5); p.textAlign(p.LEFT);
+      p.text("image OUT as ~1,290 tokens - autoregressive (Nano Banana Pro, Nov 2025; exhibit stat)", 300, 96+120); p.pop();
+    }
+    if(k===7){ p.push(); p.noStroke(); p.fill(233,235,238); p.textSize(13); p.textAlign(p.CENTER);
+      p.text("one transformer . one stream . a bigger menu", CW/2, 120); p.pop(); }
+  }
+
+  /* ---------- MECHANISM stage ---------- */
+  function toyGrid(x,y,s,hi){ // draw TOY 4x4 with values; hi = highlighted patch (0..3) or -1
+    p.push(); p.textSize(11); p.textAlign(p.CENTER,p.CENTER);
+    for(let r=0;r<4;r++) for(let c=0;c<4;c++){
+      const q=(r>>1)*2+(c>>1), on=hi===q;
+      p.fill(on?38:23,on?44:27,on?54:33); p.stroke(on?"#c084fc":"#2a2f38"); p.strokeWeight(1); p.rect(x+c*s,y+r*s,s,s);
+      p.noStroke(); p.fill(on?"#e9ebee":"#98a2b0"); p.text(TOY[r][c], x+c*s+s/2, y+r*s+s/2); p.stroke(0);
+    } p.pop(); }
+  function drawMech(){
+    const k=STEP;
+    if(k<=5){ // ACT 1: one patch, end to end
+      lane(30,40,300,220,"A TOY IMAGE (4x4, hand-authored)"); lane(370,40,520,220,"THE PROJECTOR (computed live)");
+      toyGrid(60,70,42,(k>=1?0:-1));
+      p.push(); p.textAlign(p.LEFT); p.noStroke();
+      if(k>=1){ p.fill("#c084fc"); p.textSize(11); p.text("patch #1 = top-left 2x2", 60, 262); }
+      if(k>=2){ p.fill("#cdd3da"); p.textSize(12);
+        p.text("flatten: ["+PATCHES[0].join(", ")+"]", 400, 80); }
+      if(k>=3){ p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("W (3x4, hand-authored - real ones are LEARNED):", 400, 106);
+        W3.forEach((row,i)=> p.text("[ "+row.map(v=>v.toFixed(1)).join("  ")+" ]", 400, 124+i*16));
+        p.fill("#ffd35c"); p.textSize(11.5);
+        const upto=(k===3?1:3);
+        for(let d=0; d<upto; d++) p.text(projStr(PATCHES[0],d), 400, 186+d*18);
+      }
+      if(k>=4){ p.fill("#83c167"); p.textSize(11.5);
+        p.text("h(patch1) = ["+proj(PATCHES[0]).map(v=>v.toFixed(1)).join(", ")+"]  + position(0,0)", 400, 186+3*18+6); }
+      if(k>=5){ p.fill("#cdd3da"); p.textSize(11);
+        PATCHES.forEach((pt,i)=> p.text("patch"+(i+1)+" -> h = ["+proj(pt).map(v=>v.toFixed(1)).join(", ")+"]", 400, 186+3*18+30+i*15));
+        p.fill("#58c4dd"); p.text("four vectors join the stream - attention (M2) treats them like any h", 60, 300); }
+      p.pop();
+    } else if(k<=10){ // ACT 2: the real bill
+      lane(30,40,860,90,"THE REAL RECIPES (primary-sourced)");
+      p.push(); p.textAlign(p.LEFT); p.noStroke(); p.fill("#cdd3da"); p.textSize(12.5);
+      p.text("tokens = floor(H/p) x floor(W/p)", 60, 78);
+      p.fill("#98a2b0"); p.textSize(11);
+      p.text("ViT (2020): p=16 -> a 224x224 image = 14 x 14 = 196 tokens", 60, 102);
+      if(k>=7) p.text("Qwen-VL (2024-25): 14px patches merged 2x2 -> p=28 effective, native resolution", 60, 120);
+      p.pop();
+      if(k>=7){ lane(30,160,860,60,"AREA IS THE BILL");
+        p.push(); p.noStroke(); p.textAlign(p.LEFT);
+        [[224,196],[448,784],[896,3136]].forEach((d,i)=>{ p.fill("#ffd35c"); p.textSize(11.5);
+          p.text(d[0]+"px -> "+d[1]+" tokens", 70+i*220, 196); const s=8+i*7;
+          p.fill(88,196,221,60); p.rect(70+i*220, 204, s*2.2, s*1.1); });
+        p.fill("#98a2b0"); p.textSize(10); p.text("double the side, 4x the tokens", 720, 196); p.pop(); }
+      if(k>=8){ lane(30,250,860,70,"THE CACHE FOLLOWS (M3 returns)");
+        p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#8fb7c8"); p.textSize(12);
+        p.text("1,536 tokens x ~328 KB/token (M3's Llama-3-70B rate) = ~503 MB of KV for ONE screenshot", 60, 288);
+        p.fill("#98a2b0"); p.textSize(10); p.text("multimodal does not escape track 3's memory story - it feeds it", 60, 306); p.pop(); }
+      if(k>=9){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#ffd35c"); p.textSize(11);
+        p.text("exhibits: Qwen3-VL native resolution (Oct 2025) . Qwen3.5 - vision native in the flagship (Feb 2026)", 60, 345);
+        p.fill("#98a2b0"); p.textSize(10.5);
+        p.text(k>=10 ? "\"native multimodal\" = the projector trained from token one, not bolted on after" : "", 60, 362); p.pop(); }
+    } else { // ACT 3: the output door + the whole menu
+      lane(30,40,420,200,"THE OUTPUT DOOR (a real menu)"); lane(490,40,400,200,"M0'S LOOP, UNCHANGED");
+      p.push(); p.noStroke();
+      for(let r=0;r<6;r++) for(let c=0;c<10;c++){ const on=(k>=12)&&((r*10+c)%7===2);
+        p.fill(on?"#ffd35c":"#1b2028"); p.rect(56+c*36, 70+r*26, 30, 20, 3); }
+      p.fill("#98a2b0"); p.textSize(10); p.textAlign(p.LEFT);
+      p.text("a learned CODEBOOK of image tokens (illustrative grid)", 56, 258);
+      p.fill("#cdd3da"); p.textSize(11.5);
+      p.text("emit: sample token -> append -> repeat", 520, 84);
+      p.text("(the dice from M0 - rolling over pixels)", 520, 104);
+      if(k>=12){ p.fill("#ffd35c"); p.text("~1,290 image tokens per image", 520, 138);
+        p.fill("#98a2b0"); p.textSize(10); p.text("Nano Banana Pro (Nov 2025) - exhibit stat, autoregressive", 520, 156);
+        p.text("the best image generator now beats diffusion USING the menu", 520, 172); }
+      if(k>=13){ p.fill("#83c167"); p.textSize(11.5);
+        p.text("speech: same door, both directions (Omni, Mar 2026)", 520, 206); }
+      if(k>=14){ p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
+        p.text("the attack map: this module EXTENDED M1 and M0 - nothing downstream changed", CW/2, 300);
+        p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("(later this track: robot ACTIONS take the same doors - F5. fenced teaser.)", CW/2, 322); }
+      p.pop();
+    }
+  }
+}, "canvas");
+
+/* ================= steps, captions, wiring ================= */
+const CAPS_INT=[
+  ["You attach a photo and ask about it. But Cortex reads ONE thing: tokens in a stream. Right now the words are tokens... and the photo is just pixels. Something has to happen at this boundary.",
+   "cortex","confused","A photo? I read tokens. I do not have eyes... do I?"],
+  ["Step one: cut. The image is sliced into square PATCHES on a fixed grid - here 4 patches for the toy; a real 224px image cuts into 196. No intelligence yet, just scissors.",
+   "bit","neutral","First the scissors. Squares of pixels - that is all a patch is."],
+  ["The patches separate. Each one is about to become a VECTOR - a list of numbers - because that is the only thing the stream carries. Remember M1: words became vectors through the menu. Patches take a different door.",
+   "bit","reach","Now each square needs to become numbers the stream can carry."],
+  ["The patches fly INTO the stream, right beside the words. Each was pushed through a learned PROJECTOR into the same vector space as word embeddings. Not a menu lookup - a projection. But the result is an h like any other.",
+   "cortex","read","They... taste like tokens. Slightly crunchy. Where did these come from?"],
+  ["And attention does not care. The word 'photo' attends to the patches; patches attend to each other; M2's machinery runs unchanged. Nothing downstream knows the difference - that is the whole design.",
+   "cortex","happy","I am attending over a PICTURE with the same trick I use for words!"],
+  ["Speech takes the input door too (Omni, Mar 2026): audio becomes tokens in the same stream. One model, listening and reading in one context.",
+   "bit","happy","Ears bolted on - and the stream just... accepts it."],
+  ["Now the REVERSE trip: to answer with a picture, the model EMITS image tokens one by one - M0's loop, sampling from a learned image menu - and the tokens assemble into pixels. Nano Banana Pro (Nov 2025) made this the best image generator anywhere - beating diffusion with autoregression.",
+   "cortex","reach","Wait - I can SPEAK image? Same loop, new dice."],
+  ["The aha: multimodal is not a new brain. It is M1's menu with more entrances (projected patches IN) and more entries (codebooks OUT) - and everything you learned downstream, attention to KV bills, follows unchanged.",
+   "bit","happy","One transformer. One stream. Bigger menu. That is the whole secret."]];
+const CAPS_MECH=[
+  ["Down a level, honestly. A toy 4x4 grayscale image, values hand-authored (0-9 for readability). Everything computed FROM them is live. Cut: four 2x2 patches.","bit","neutral","Toy numbers, real arithmetic. Watch patch #1."],
+  ["Take patch #1 - the top-left 2x2. Four pixel values. A real ViT patch is 16x16x3 = 768 numbers; ours is 4, so you can check every step with a pencil.","bit","read","Four numbers. Small enough to trust your own arithmetic."],
+  ["FLATTEN: the patch becomes a flat vector, row by row. No learning yet - just reshaping.","cortex","think","A square becomes a list. I can work with lists."],
+  ["THE PROJECTOR: a learned matrix W maps the flat patch into the model's embedding space. Ours is 3x4 and hand-authored (labeled); real ones are learned in pretraining. The first output dimension, computed live on screen.","bit","reach","One dot product per dimension. This is the entire door."],
+  ["All three dimensions, computed - then a POSITION embedding is added so the model knows WHERE the patch sat (attention has no eyes for layout otherwise; M2's lesson).","cortex","read","h = W x patch, plus where-it-was. I have seen this shape before - it is just h."],
+  ["Repeat for all four patches: four vectors, projected into the same space as word embeddings, joining the stream. Attention (M2) treats them like any h - that was the point all along.","cortex","happy","Four new h's in my stream. My machinery does not even blink."],
+  ["Now the real bill. The recipe is arithmetic: tokens = (H/p) x (W/p). ViT (2020) used 16px patches: a 224x224 image costs exactly 196 tokens. Try the calculator - it computes live.","bit","neutral","The calculator below is live - price any image you like."],
+  ["Qwen-VL (2024-25) works at NATIVE resolution with 14px patches merged 2x2 (28px effective). A 1344x896 screenshot: 48 x 32 = 1,536 tokens. Area is the bill - double the side, 4x the tokens.","cortex","confused","One screenshot costs more context than most prompts!"],
+  ["And the cache follows. At M3's rate (~328 KB/token, Llama-3-70B), that one screenshot occupies ~503 MB of KV - computed live below. Multimodal does not escape track 3's memory story - it FEEDS it. (F2 attacks this bill next.)","bit","think","Every patch pays rent in the cache. M3 never went away."],
+  ["Exhibits, dated: Qwen3-VL (Oct 2025) took the projector recipe to native resolution and GUI control. Qwen3.5 (Feb 2026) made vision NATIVE in the flagship - trained from token one, not bolted on.","bit","read","The recipe did not change - it moved earlier in training. That is what native means."],
+  ["So 'VLM' as a separate species is dissolving: the 2026 flagship simply reads patches. The projector stopped being an add-on and became an entrance.","cortex","happy","I was never a VLM. I am a token machine with more doors."],
+  ["The OUTPUT door is different - and this one really is a menu. To EMIT an image, the model needs discrete choices to sample from: a learned CODEBOOK of image tokens.","bit","neutral","Reading needs a projection. SAYING needs a menu - dice can only roll over choices."],
+  ["M0's loop runs unchanged: sample an image token, append, repeat - ~1,290 tokens per image in Nano Banana Pro (Nov 2025; exhibit stat, not our arithmetic). Autoregression beat diffusion at image generation using nothing you have not already learned.","cortex","reach","Same loop. Same dice. The menu just grew a picture section."],
+  ["Speech exits the same way (Omni, Mar 2026): codebook tokens rendered to waveform, both directions. The menu grew a sound section too.","bit","happy","In through projection, out through codebooks. Two doors, one stream."],
+  ["Place it on the attack map: F1 EXTENDED M1 (the menu grows) and M0 (the loop samples new kinds of tokens). Nothing was replaced. Next module, something IS attacked: the 2026 flagships refuse to pay M2's n^2 and M3's KV bill.","bit","reach","Extension, not attack - this time. F2 draws blood."],
+  ["Done-when check: given an image size and patch size, you can price the image in tokens and name its door. CHALLENGE.md holds you to it.","bit","neutral","Price the image, name the door. Then you own this module."]];
+const MECH_ACTS=[["one patch, end to end",6],["the real bill",5],["the output door",5]];
+const MENU_BY_STEP={ int:[["text"],["text"],["text"],["text","patch"],["text","patch"],["text","patch","audio"],["text","patch","audio","image"],["text","patch","audio","image","action"]],
+  mech:[["text"],["text"],["text"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch"],["text","patch","image"],["text","patch","image"],["text","patch","image","audio"],["text","patch","image","audio","action"],["text","patch","image","audio","action"]] };
+
+let tl=null;
+function render(i){
+  STEP=i;
+  const caps = MODE==="int"?CAPS_INT:CAPS_MECH;
+  const c=caps[i]; caption.textContent=c[0]; react(c[1],c[2],c[3]);
+  insight.className="insight";
+  insight.innerHTML = MODE==="int"
+    ? (i>=7 ? "<b>The aha:</b> multimodal = more entrances and entries on M1's menu. Switch to <b>mechanism</b> to compute a patch yourself."
+            : "One idea: <b>the stream never changes - the menu grows through two doors: projection in, codebook out.</b>")
+    : (i<=5 ? "Act 1: <b>pixels -> flatten -> projector -> h.</b> Hand-authored toy, live arithmetic - check it with a pencil."
+       : i<=10 ? "Act 2: <b>tokens = (H/p) x (W/p), and the KV bill follows.</b> Area is the price of seeing."
+       : "Act 3: <b>reading needs a projection; saying needs a menu.</b> M0's loop, new dice.");
+  drawMenu((MENU_BY_STEP[MODE==="int"?"int":"mech"])[i]||["text"]);
+  $("calcP").hidden = !(MODE==="mech" && STEP>=6 && STEP<=10);
+  if(!$("calcP").hidden) calc();
+}
+function build(mode){
+  MODE=mode;
+  const isInt=mode==="int";
+  tl=new Anim.Timeline({ length:isInt?8:16, autoMs:isInt?3000:3400, onStep:(i)=>render(i) });
+  Anim.scrubber($("scrub"), tl, { label:isInt?(i=>"step "+(i+1)+" / 8"):Anim.actLabel(MECH_ACTS), acts:isInt?null:MECH_ACTS });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".modebtn").forEach(x=>x.classList.toggle("on",x===b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

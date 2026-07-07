@@ -27,7 +27,8 @@ def test_shared_assets_exist():
 
 def test_widgets_use_shared_library():
     widgets = (glob.glob(os.path.join(ROOT, "agentic-course", "**", "widgets", "**", "index.html"), recursive=True) +
-               glob.glob(os.path.join(ROOT, "models", "**", "widgets", "**", "index.html"), recursive=True))
+               glob.glob(os.path.join(ROOT, "models", "**", "widgets", "**", "index.html"), recursive=True) +
+               glob.glob(os.path.join(ROOT, "frontier", "**", "widgets", "**", "index.html"), recursive=True))
     assert widgets, "no widgets found"
     for w in widgets:
         s = open(w, encoding="utf-8").read()

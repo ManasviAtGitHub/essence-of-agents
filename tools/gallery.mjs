@@ -26,6 +26,7 @@ const TARGETS = [
   ["models m9 budget", "models/module-09-atlas/widgets/budget/index.html", ['.trick[data-id="mla"]', '.trick[data-id="moe"]']],
   ["models cap compile-live", "models/module-10-compiler/widgets/compile-live/index.html", ['.req', '#run']],
   ["models cap architecture", "models/module-10-compiler/widgets/architecture/index.html", []],
+  ["frontier f1 patch-stream", "frontier/module-f1-tokens/widgets/patch-stream/index.html", ['.modebtn[data-mode="mech"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["about", "agentic-course/about.html"],
   ["production-hub", "production/index.html"],
   ["prod-stage (offline)", "production/web/index.html"],
