@@ -21,6 +21,13 @@
   .arr { align-self:center; color:var(--faint); font:13px var(--mono); }
   @media (max-width:640px){ .arr { display:none; } }
 
+  .stages { display:flex; gap:6px; align-items:center; margin:0 0 10px; flex-wrap:wrap; }
+  .stage { font:11px var(--mono); border:1px solid var(--line); border-radius:999px; padding:4px 12px;
+           color:var(--faint); background:var(--panel); }
+  .stage.on { color:var(--gold); border-color:var(--gold); }
+  .stage.done { color:var(--dim); }
+  .sarr { color:var(--faint); font:11px var(--mono); }
+
   .pick { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:8px; }
   .req { font:12.5px var(--mono); border:1px solid var(--line); background:var(--panel); color:#cdd3da;
          border-radius:8px; padding:6px 11px; cursor:pointer; text-align:left; }
@@ -44,6 +51,8 @@
   .legend { font:10.5px var(--mono); color:var(--faint); margin-left:auto; }
   .legend b { color:var(--gold); }
   .brklab { font:11px var(--mono); color:var(--faint); }
+  #brkrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #brkrow[hidden] { display:none; }
   .ledger { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
   .ledger[hidden] { display:none; }
   .lchip { border:1px solid var(--line); border-radius:8px; background:var(--panel); padding:5px 10px;
@@ -62,9 +71,6 @@ which makes things up. So a set of <b>rules</b> (a "grammar") stands in front of
 impossible - and a <b>checker</b> (a "verifier") confirms the result before it runs. That is the whole trick, and
 this is it happening. (New to compilers? The four pieces are spelled out just below, and the animation introduces
 each one before it uses it.)</p>
-<p class="sub"><b>How to read it:</b> click a request -&gt; its candidate words fly at <b>the rules</b> (the gate),
-the disallowed ones bounce off, the winner snaps into <b>the plan</b>, then <b>the checker</b> confirms it. The rules,
-the plan and the checker run live here; the model's scores are illustrative until a real run is baked in.</p>
 
 <div class="pieces">
   <div class="pc"><span class="pn">1 . the reader</span><span class="pd">the AI model - reads your words and guesses the next one (Module 0)</span></div>
@@ -74,6 +80,13 @@ the plan and the checker run live here; the model's scores are illustrative unti
   <div class="pc"><span class="pn">3 . the plan</span><span class="pd">the structured result: a list of tool calls (course 1's loop)</span></div>
   <div class="arr">&rarr;</div>
   <div class="pc"><span class="pn">4 . the checker</span><span class="pd">a "verifier" - confirms the plan is valid before it runs</span></div>
+</div>
+
+<div class="stages" id="stages" aria-label="where you are in the story">
+  <span class="stage" data-s="0">1 . meet the pieces</span><span class="sarr">&rarr;</span>
+  <span class="stage" data-s="1">2 . watch it compile</span><span class="sarr">&rarr;</span>
+  <span class="stage" data-s="2">3 . check + run</span><span class="sarr">&rarr;</span>
+  <span class="stage" data-s="3">4 . break it</span>
 </div>
 
 <div class="pick" id="pick"></div>
@@ -88,11 +101,13 @@ the plan and the checker run live here; the model's scores are illustrative unti
 
 <div class="ctl">
   <button class="btn go" id="run">run the plan &#9654;</button>
-  <span class="brklab">break it on purpose (each break = a prior module):</span>
-  <button class="btn brk" data-b="rules">rules off</button>
-  <button class="btn brk" data-b="temp">temperature up</button>
-  <button class="btn brk" data-b="verifier">checker weak</button>
-  <button class="btn brk" data-b="base">untrained reader</button>
+  <span id="brkrow" hidden>
+    <span class="brklab">now break it on purpose (each break = a prior module):</span>
+    <button class="btn brk" data-b="rules">rules off</button>
+    <button class="btn brk" data-b="temp">temperature up</button>
+    <button class="btn brk" data-b="verifier">checker weak</button>
+    <button class="btn brk" data-b="base">untrained reader</button>
+  </span>
   <span class="legend"><b>gold</b> = allowed . struck = blocked</span>
 </div>
 <div class="ledger" id="ledger" hidden>
@@ -178,6 +193,10 @@ function planState(plan, done){
 const chrR=document.getElementById("chrR"), reactLine=document.getElementById("reactLine");
 function react(who,emote,line){ chrR.dataset.c=who; chrR.dataset.e=emote; reactLine.textContent=line; Cast.render(document.getElementById("react")); }
 function ledger(v){ document.getElementById("ledger").hidden=!v; }
+function setStage(n){ document.querySelectorAll(".stage").forEach(el=>{ const s=+el.dataset.s;
+  el.classList.toggle("on", s===n); el.classList.toggle("done", s<n); }); }
+function showBreaks(v){ document.getElementById("brkrow").hidden=!v; }
+function showRun(v){ document.getElementById("run").style.display=v?"":"none"; }
 
 /* ---------------- the p5 sketch (instance mode) ---------------- */
 if (window.p5) p5.disableFriendlyErrors = true;
@@ -204,7 +223,7 @@ new p5(function(p){
      cap:"The <b>checker</b> (a \"verifier\"). It confirms the finished plan is valid before it runs. Now watch all four work together.",
      line:"And I check the finished plan before it runs. Now - let us do it together."},
   ];
-  function showIntro(i){ const s=INTRO[i];
+  function showIntro(i){ const s=INTRO[i]; setStage(0);
     document.getElementById("slot").textContent="meet the pieces ("+(i+1)+"/4): "+s.name;
     document.getElementById("why").innerHTML=s.cap; react(s.who,s.emote,s.line); }
 
@@ -212,7 +231,7 @@ new p5(function(p){
     k=0; tacc=0; running=false; runT=0; appear={}; ledger(false);
     if(skipIntro){ phase="compile"; react("cortex","think","A sentence. Let me turn it into a plan, one legal word at a time."); updateCaption(); }
     else { phase="intro"; introK=0; introT=0; showIntro(0); } }
-  window.__loadReq = i => { breakMode=null; grammarOff=false; load(i, true); };
+  window.__loadReq = i => { breakMode=null; grammarOff=false; showRun(true); load(i, true); };
 
   // the folded break scenes (each break = a prior module) - static, canned end-states
   const SCENES = {
@@ -227,6 +246,7 @@ new p5(function(p){
       who:"cortex", emote:"confused", line:"Base me has no manners - I email the word 'rain'. Syntactic, senseless." },
   };
   window.__setBreak = m => { breakMode=m; grammarOff=(m==="rules"); running=false; ledger(false);
+    showRun(m===null); setStage(m===null?1:3);
     if(m===null || m==="rules"){ phase="compile"; k=0; tacc=0; updateCaption(); return; }
     phase="scene"; const s=SCENES[m];
     document.getElementById("slot").textContent=s.slot;
@@ -421,6 +441,7 @@ new p5(function(p){
   function updateCaption(){
     const slot=document.getElementById("slot"), why=document.getElementById("why");
     if(k<steps.length){ const s=steps[k];
+      setStage(grammarOff?3:1);
       slot.textContent = "> the reader must pick "+s.slot;
       why.innerHTML = grammarOff ? "<span class='r'>rules OFF:</span> nothing is blocked - a bare word or fake tool can win, and the plan breaks."
         : s.why + " Allowed winner: <span class='g'>"+(s.cands.filter(c=>c.pick)[0]||{t:""}).t+"</span>.";
@@ -429,6 +450,7 @@ new p5(function(p){
         :"Proposing "+s.slot+"... the rules will only let the allowed ones through.");
     } else {
       const ok = !grammarOff && verify(plan).length===0;
+      setStage(grammarOff?3:2); showBreaks(true);
       slot.textContent = "> the checker type-checks the finished plan";
       why.innerHTML = ok ? "All checks pass: tools exist, args fit the schema, refs resolve. <b>Runnable</b> - and below, what this compile costs (the architecture modules' bill)."
         : "<span class='r'>compile error</span> - the verifier caught what the grammar would have prevented.";
