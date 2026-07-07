@@ -77,9 +77,14 @@ const NAV = [
   { m:"F3 - RL eats the pipeline", items:[
     { label:"Reward everywhere (the invasion)", src:"module-f3-rl/widgets/reward-everywhere/index.html" },
   ]},
+  { m:"F4 - The loop learns itself", items:[
+    { label:"The trained loop (script -> weights)", src:"module-f4-agents/widgets/trained-loop/index.html" },
+  ]},
 ];
 
 const LESSONS = {
+  "F4 - The loop learns itself": { q:"You hand-wrote the agent loop in course 1. The 2026 labs do not. What replaced your while loop?",
+    aha:"Weights. Tongyi DeepResearch trains the whole search/read/reason loop end to end (leave-one-out advantages over full trajectories - computed in the widget); Cursor Composer's test-running EMERGED from reward; Kimi's PARL trains the ORCHESTRATOR itself (spawn up to ~100 workers; serial collapse is the named failure, reward shaping the fix). Meanwhile the plumbing froze into standards (MCP -> foundation, A2A v1.0) and the sandbox stayed code - behavior in weights, interfaces in standards, walls in code. Verified as of 2026-07." },
   "F3 - RL eats the pipeline": { q:"M6 drew four tidy stages with RL as the last polish. Where does the reward signal actually live in 2026?",
     aha:"Everywhere. RLP puts RL inside pretraining (thoughts rewarded by information gain); Tongyi inserted a NEW agentic mid-training stage; the GRPO zoo debugged post-training flaw by flaw (Dr.GRPO's length-bias fix computed in the widget); TTRL keeps training at TEST TIME via majority-vote pseudo-rewards. And DeepSeek-V4 merges M7 with M8: GRPO trains specialists, on-policy distillation fuses them - RL makes the teachers, distillation makes the model. Verified as of 2026-07." },
   "F2 - Attention unchained": { q:"Track 3 said attention must compare against everything and remember everything. The 2026 flagships do neither. How?",

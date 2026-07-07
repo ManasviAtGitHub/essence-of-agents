@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The loop learns itself</title>
+<!-- Frontier F4. Verified as of 2026-07. Toy trajectory rewards hand-authored
+     (labeled); leave-one-out means and wall-clock arithmetic computed live.
+     PARL's real shaping is richer than the toy - labeled "mechanism, simplified". -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:28px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto; display:block; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:76px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .react { margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>The loop learns itself</h1>
+<div class="stamp">TRACK 4 . F4 . verified as of 2026-07 - exhibits age, the principle does not</div>
+<p class="sub">In course 1 you HAND-WROTE the loop: while not done - think, call a tool, read. The 2026 labs
+do not. <b>The loop, and even the decision to spawn a team, moved from prompts into weights.</b></p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (script -> weights)</button>
+  <button class="modebtn" data-mode="mech">mechanism (compute the training)</button>
+  <span class="modehint">toy rewards hand-authored (labeled); baselines and wall-clock computed live</span>
+</div>
+
+<div id="canvas" aria-label="The hand-written agent loop being replaced by a trained one"></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+/* ===== toy data (hand-authored, labeled) ===== */
+const TR=[1,0,1,1];                              // trajectory rewards (Tongyi toy)
+function loo(i){ const o=TR.filter((_,j)=>j!==i); return o.reduce((a,b)=>a+b,0)/o.length; }
+const SUB=8, PEN=0.05;                            // serial-collapse toy
+const rSerial=1-PEN*SUB, rPar=1-PEN*(SUB/4);
+
+const $=id=>document.getElementById(id);
+const caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(w,e,l){ chrR.dataset.c=w; chrR.dataset.e=e; reactLine.textContent=l; Cast.render($("react")); }
+
+if (window.p5) p5.disableFriendlyErrors=true;
+const CW=920, CH=380;
+let MODE="int", STEP=0;
+new p5(function(p){
+  const density=()=>Math.max(2,window.devicePixelRatio||1);
+  p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
+    p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+  p.draw=function(){ if(p.pixelDensity()!==density()) p.pixelDensity(density());
+    p.background(11,14,18); (MODE==="int"?drawInt:drawMech)(); };
+
+  function lane(x,y,w,h,label){ p.push(); p.noStroke(); p.fill(255,255,255,4); p.rect(x,y,w,h,10);
+    p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER); p.text(label,x+w/2,y-6); p.pop(); }
+  function loopCycle(cx,cy,r,ghost){ // the course-1 loop as a cycle
+    const nodes=[["think",0],["tool",1],["read",2],["done?",3]];
+    p.push();
+    nodes.forEach((n,i)=>{ const a=-p.HALF_PI+i*p.HALF_PI, x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r;
+      p.fill(23,27,33); p.stroke(ghost?"#20242c":"#58c4dd"); p.strokeWeight(1.3); p.circle(x,y,52);
+      p.noStroke(); p.fill(ghost?"#4a5260":"#cdd3da"); p.textSize(10); p.textAlign(p.CENTER,p.CENTER); p.text(n[0],x,y); p.stroke(0); });
+    p.noFill(); p.stroke(ghost?"#20242c":"#2a3742"); p.strokeWeight(1.2); p.circle(cx,cy,r*2+52);
+    // orbiting packet
+    if(!ghost){ const t=(p.frameCount%240)/240*p.TWO_PI-p.HALF_PI;
+      p.noStroke(); p.fill("#ffd35c"); p.circle(cx+Math.cos(t)*(r+26), cy+Math.sin(t)*(r+26), 7); }
+    p.pop(); }
+  function swarm(cx,cy,n,collapse){ // orchestrator + workers
+    p.push();
+    p.fill(23,27,33); p.stroke("#ffd35c"); p.strokeWeight(1.6); p.circle(cx,cy,56);
+    p.noStroke(); p.fill("#ffd35c"); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text("ORCH",cx,cy);
+    for(let i=0;i<n;i++){ const a=-p.HALF_PI+i*(p.TWO_PI/n), x=cx+Math.cos(a)*120, y=cy+Math.sin(a)*105;
+      const on=!collapse||i===0;
+      p.stroke(on?"#58c4dd":"#20242c"); p.strokeWeight(on?1.3:0.8); p.line(cx+Math.cos(a)*30,cy+Math.sin(a)*26,x,y);
+      p.fill(on?"#12171e":"#0e1116"); p.circle(x,y,30);
+      p.noStroke(); p.fill(on?"#58c4dd":"#3a4350"); p.textSize(8.5); p.text("w"+(i+1),x,y); p.stroke(0); }
+    p.pop(); }
+
+  /* ---- intuition: 7 steps ---- */
+  function drawInt(){
+    const k=STEP;
+    if(k===0){ lane(30,50,420,260,"COURSE 1 - THE LOOP YOU WROTE"); loopCycle(240,190,80,false);
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#98a2b0"); p.textSize(10.5);
+      ["while not done:","  msg = model(context)","  if msg.tool: run(msg.tool)","  context += result"].forEach((l,i)=>p.text(l, 500, 120+i*22));
+      p.fill("#58c4dd"); p.text("YOUR code. Every habit here was written by a person.", 500, 230); p.pop(); }
+    if(k===1){ lane(30,50,420,260,"THE SCRIPT FADES..."); loopCycle(240,190,80,true);
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#4a5260"); p.textSize(10.5);
+      ["while not done:","  ...","  ..."].forEach((l,i)=>p.text(l, 500, 120+i*22));
+      p.fill("#ffd35c"); p.textSize(11); p.text("Tongyi DeepResearch (Oct 2025): the SAME choreography,", 500, 200);
+      p.text("but trained end to end - synthetic tasks, trajectory RL,", 500, 220);
+      p.text("no human wrote a single habit of the loop", 500, 240); p.pop(); }
+    if(k===2){ lane(30,50,860,260,"...AND THE HABITS EMERGE FROM REWARD");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#83c167"); p.textSize(11.5);
+      p.text("Cursor Composer (Oct 2025): trained with RL in sandboxed coding environments with real tools.", 60, 120);
+      p.fill("#ffd35c"); p.text("Nobody prompted it to run tests. Nobody scripted lint-fixing.", 60, 152);
+      p.text("Those behaviors EMERGED - because trajectories that tested their own work got more reward.", 60, 174);
+      p.fill("#98a2b0"); p.textSize(10.5); p.text("the lab-independent proof: a second, unrelated team found the same migration pays", 60, 206); p.pop(); }
+    if(k===3){ lane(30,50,860,270,"THE TEAM ITSELF IS TRAINED - PARL (Kimi K2.5, Jan 2026)"); swarm(CW/2,195,8,false);
+      p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(10.5); p.textAlign(p.LEFT);
+      p.text("up to ~100 sub-agents, ~1,500 coordinated steps (primary)", 640, 120);
+      p.text("only the ORCHESTRATOR gets gradients -", 640, 260);
+      p.text("workers are its environment", 640, 276); p.pop(); }
+    if(k===4){ lane(30,50,860,270,"THE NAMED FAILURE - SERIAL COLLAPSE"); swarm(CW/2,195,8,true);
+      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
+      p.text("untrained, the orchestrator drifts to the laziest habit:", 620, 140);
+      p.text("funnel EVERYTHING through one worker - a team", 620, 160);
+      p.text("of 8 acting like a team of 1", 620, 180); p.pop(); }
+    if(k===5){ lane(30,50,860,270,"MEANWHILE THE PLUMBING WENT NEUTRAL");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+      p.fill("#58c4dd"); p.text("MCP -> donated to the Agentic AI Foundation (Dec 2025) - ~97M monthly SDK downloads, ~10k servers", 60, 120);
+      p.fill("#83c167"); p.text("A2A v1.0 (Apr 2026) - agent-to-agent protocol with SIGNED agent identity cards", 60, 150);
+      p.fill("#cdd3da"); p.text("the split: BEHAVIOR moved into weights; INTERFACES froze into neutral standards", 60, 186);
+      p.fill("#98a2b0"); p.textSize(10); p.text("(and the sandbox boundary stayed SCRIPTED - security is never learned behavior; course 1 M9 survives)", 60, 212); p.pop(); }
+    if(k===6){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(13); p.textAlign(p.CENTER);
+      p.text("your course-1 code was not wasted - it was the CURRICULUM:", CW/2, 150);
+      p.text("the loop you hand-wrote is what these models are trained to do without you", CW/2, 172); p.pop(); }
+  }
+
+  /* ---- mechanism: 14 steps, 3 acts ---- */
+  function drawMech(){
+    const k=STEP;
+    if(k<=4){ // ACT 1: Tongyi's leave-one-out, computed
+      lane(30,46,860,250, k<=1?"FOUR TRAJECTORIES, ONE PROMPT (toy rewards, hand-authored)":"LEAVE-ONE-OUT - EACH JUDGED AGAINST THE OTHERS (computed)");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+      TR.forEach((r,i)=>{ const y=86+i*30;
+        p.fill(23,27,33); p.stroke(r?"#83c167":"#fc6255"); p.strokeWeight(1.2); p.rect(60,y-14,330,24,6);
+        p.noStroke(); p.fill(r?"#83c167":"#fc6255");
+        p.text("trajectory "+(i+1)+": search -> read -> reason -> answer   r="+r, 70, y);
+        if(k>=2){ p.fill("#ffd35c");
+          p.text("adv = "+r+" - mean(others "+loo(i).toFixed(2)+") = "+(r-loo(i)>=0?"+":"")+(r-loo(i)).toFixed(2), 420, y); } });
+      if(k>=1&&k<2){ p.fill("#cdd3da"); p.text("these are FULL multi-step loops - search, read, reason - each ending in one verifiable reward", 60, 220); }
+      if(k>=3){ p.fill("#cdd3da");
+        p.text("the whole TRAJECTORY shares that advantage: every tool call inside a winning loop gets reinforced", 60, 220); }
+      if(k>=4){ p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("Tongyi DeepResearch (Oct 2025): agentic mid-training (F3) -> SFT -> this customized GRPO, on fully synthetic tasks", 60, 250);
+        p.text("in a simulated Wikipedia world. M7's group-baseline idea, promoted from answers to WHOLE LOOPS.", 60, 268); }
+      p.pop();
+    } else if(k<=9){ // ACT 2: PARL + serial collapse, computed
+      const k2=k-5;
+      lane(30,46,860,260, k2<=0?"PARL - ONLY THE ORCHESTRATOR LEARNS":(k2<=2?"SERIAL COLLAPSE - THE ARITHMETIC (toy, labeled)":"THE SHAPED REWARD FIXES IT"));
+      if(k2===0){ swarm(CW/2,190,8,false);
+        p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(10.5); p.textAlign(p.LEFT);
+        p.text("workers' trajectories = the orchestrator's OBSERVATIONS", 630, 130);
+        p.text("gradients flow to the gold node only", 630, 150); p.pop(); }
+      if(k2>=1){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+        p.fill("#cdd3da"); p.text("task: "+SUB+" equal subtasks . reward = 1 - "+PEN.toFixed(2)+" x wall-clock (the mechanism, simplified - labeled)", 60, 86);
+        p.fill("#fc6255"); p.text("SERIAL (one worker):  T = "+SUB+"  ->  r = 1 - "+(PEN*SUB).toFixed(2)+" = "+rSerial.toFixed(2), 80, 120);
+        if(k2>=2) { p.fill("#83c167"); p.text("PARALLEL (4 workers): T = "+(SUB/4)+"  ->  r = 1 - "+(PEN*SUB/4).toFixed(2)+" = "+rPar.toFixed(2), 80, 148); }
+        if(k2>=2) { p.fill("#ffd35c"); p.text("delegation is now worth "+(rPar-rSerial).toFixed(2)+" of reward - the policy LEARNS to spawn", 80, 180); }
+        if(k2===1){ p.fill("#98a2b0"); p.textSize(10.5); p.text("remove the time term and both strategies earn 1.0 - parallelism unrewarded -> the policy drifts serial", 60, 214); }
+        if(k2>=3){ swarm(210,270,6,false);
+          p.fill("#cdd3da"); p.textSize(11);
+          p.text("result (primary): ~4.5x wall-clock speedup on wide-search tasks;", 420, 240);
+          p.text("up to ~100 sub-agents, ~1,500 coordinated tool calls", 420, 260); }
+        if(k2>=4){ p.fill("#98a2b0"); p.textSize(10.5);
+          p.text("academic parallel: RL-through-orchestration-traces + credit-assignment zoo (APPO etc., 2026) -", 60, 316);
+          p.text("influential decisions are NOT concentrated at tool-call boundaries", 60, 332); }
+        p.pop(); }
+    } else { // ACT 3: plumbing + ledger + close
+      const k3=k-10;
+      lane(30,46,860,250, k3<=0?"THE PLUMBING FROZE WHILE THE BEHAVIOR MELTED":(k3<=2?"THE TRAINED-vs-SCRIPTED LEDGER":"THE ATTACK MAP"));
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
+      if(k3===0){ p.fill("#58c4dd"); p.text("MCP: donated to the Agentic AI Foundation (Linux Foundation) Dec 2025 - ~97M monthly downloads", 60, 96);
+        p.fill("#83c167"); p.text("A2A v1.0 (Apr 2026): signed Agent Cards - cryptographic identity for agents across org boundaries", 60, 126);
+        p.fill("#cdd3da"); p.text("protocols are the OPPOSITE of trained: their value is that they never surprise you", 60, 158); }
+      if(k3===1||k3===2){
+        const rows=[["which tool to call next","TRAINED","#83c167","agentic RL (Tongyi, Composer)"],
+                    ["when to spawn a team","TRAINED","#83c167","PARL (K2.5) - the newest migration"],
+                    ["the MCP/A2A handshake","SCRIPTED","#58c4dd","frozen plumbing, by design"],
+                    ["the sandbox boundary","SCRIPTED","#fc6255","security is NEVER learned behavior (M9)"]];
+        rows.forEach((r,i)=>{ const y=96+i*38;
+          p.fill("#cdd3da"); p.text(r[0], 60, y);
+          p.fill(r[2]); p.text(r[1], 400, y);
+          p.fill("#98a2b0"); p.textSize(10); p.text(r[3], 510, y); p.textSize(11); });
+        if(k3===2){ p.fill("#ffd35c"); p.text("the boundary between the two rows IS the 2026 design question", 60, 260); } }
+      if(k3>=3){ p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
+        p.text("attack map: F4 attacked course 1's hand-written loop and M8's scripted team shapes -", CW/2, 110);
+        p.text("both moved into weights. The protocols and the sandbox stayed code. That split is the lesson.", CW/2, 134);
+        p.fill("#98a2b0"); p.textSize(10.5);
+        p.text("done when: compute a leave-one-out advantage, explain serial collapse, and label trained-vs-scripted", CW/2, 168); }
+      p.pop();
+    }
+  }
+}, "canvas");
+
+/* ===== captions ===== */
+const CAPS_INT=[
+["Course 1, unchanged: the loop as YOU wrote it - while not done, think, call a tool, read the result. Every habit in that cycle was authored by a person. Hold that thought; it is about to become a fossil.","bit","neutral","My loop. My code. My habits, hand-written. I was very proud of this."],
+["Tongyi DeepResearch (Sep/Oct 2025): the same choreography - search, read, reason, answer - but nothing is scripted. The whole loop is trained end to end on synthetic tasks with trajectory-level RL. The script fades; the behavior remains.","cortex","reach","The dance is identical. The choreographer is gone - I learned the steps from reward."],
+["The lab-independent proof: Cursor's Composer (Oct 2025), trained with RL in sandboxed coding environments. Running tests and fixing lint were never prompted - they EMERGED, because trajectories that verified their own work scored higher. Course 1 M6's thesis, self-taught.","bit","happy","Nobody told it to run the tests. Winning told it."],
+["And then the TEAM moved into weights: Kimi K2.5's PARL (Jan 2026) trains the ORCHESTRATOR - when to spawn sub-agents (up to ~100), what to delegate, how to merge. The workers are frozen; their trajectories are just the orchestrator's environment.","cortex","reach","I am not the worker anymore. I am the manager - and management is a learned skill now."],
+["The named failure: SERIAL COLLAPSE. Untrained, the orchestrator drifts into funneling everything through one worker - a team of eight acting as a team of one. Naming a failure mode is half of engineering it away (the reward does the other half - act 2 computes it).","cortex","confused","Given a team, my laziest self uses one intern for everything. Apparently that has a name."],
+["Under all of it, the plumbing went NEUTRAL: MCP was donated to a foundation (Dec 2025, ~97M monthly downloads), A2A hit v1.0 with signed agent identity (Apr 2026). The split matters: behavior melted into weights; interfaces froze into standards; the sandbox stayed code (M9 survives).","bit","read","The verbs became weights. The nouns became standards. The walls stayed walls."],
+["The aha: your course-1 code was the CURRICULUM. The loop you hand-wrote is exactly what these models are now trained to perform without you - and knowing the loop is why you can read what they learned.","bit","happy","We didn't waste a line. We wrote the textbook they trained on."]];
+const CAPS_MECH=[
+["Act 1. Four complete trajectories - each a full search/read/reason loop ending in one verifiable reward (toy values, hand-authored). This is what 'training the loop' means concretely: the unit of reward is the WHOLE journey, not one answer.","bit","neutral","Four journeys, four grades. The loop itself is on report card."],
+["Rewards [1, 0, 1, 1]. One failure among successes. Now: how do you turn four coarse grades into a learning signal without a value network? M7 answered with the group mean. Tongyi sharpens it.","bit","read","Same question as M7 - who do I compare myself against?"],
+["LEAVE-ONE-OUT, computed: each trajectory is judged against the mean of the OTHERS. The failure faces a perfect peer group: 0 - 1.00 = -1.00. Each success faces the group carrying the failure: +0.33. Harsher, cleaner credit than including yourself in your own baseline.","bit","happy","You are graded against everyone who is not you. Brutal - and unbiased."],
+["The advantage stamps the ENTIRE trajectory: every tool call inside a winning loop is reinforced, every step of the losing loop discouraged. Coarse - the credit-assignment zoo of 2026 (act 2's coda) exists exactly because of this coarseness.","cortex","think","My whole journey shares one grade. Fair? Debatable. Trainable? Absolutely."],
+["The full recipe, dated: agentic mid-training (F3's new stage) -> SFT -> this customized GRPO with leave-one-out baselines, on fully synthetic tasks in a simulated web. Open weights, Apache 2.0. No human labels anywhere in the loop's education.","bit","read","A synthetic school with a synthetic library - and a real diploma."],
+["Act 2 - PARL's setup: only the ORCHESTRATOR learns. Workers are frozen models; their outputs are just observations in the orchestrator's environment. One policy, learning to manage.","bit","neutral","Train the manager, freeze the staff. Gradients are expensive; use them where the decisions are."],
+["Serial collapse, computed (mechanism simplified, labeled): 8 subtasks, reward = 1 - 0.05 x wall-clock. Funnel through ONE worker: T=8, r=0.60. Watch what happens without a time term: both strategies earn 1.0 - and the policy drifts to the laziest habit.","cortex","confused","If dawdling pays the same as delegating, I dawdle. I am only as good as my incentives."],
+["Spawn FOUR workers: T=2, r=0.90. Delegation is now worth +0.30 of reward - so the policy LEARNS to spawn. That is the entire idea of shaping: make the wall-clock visible to the gradient.","bit","happy","Pay for speed and the manager discovers teamwork. Economics, but differentiable."],
+["At scale (primary): ~4.5x wall-clock speedup on wide-search tasks, up to ~100 sub-agents and ~1,500 coordinated tool calls. Course 1 M8 drew these team shapes by hand; PARL learns which shape to use, per task.","cortex","reach","M8 gave me the org charts. PARL taught me when to redraw them."],
+["Coda: 2026's credit-assignment zoo (APPO and friends) digs INSIDE the trajectory - and finds the influential decisions are NOT concentrated at tool-call boundaries. The unit of credit keeps shrinking: answer -> trajectory -> decision point.","bit","think","First we graded answers, then journeys, now individual forks in the road."],
+["Act 3 - the plumbing: MCP donated to the Agentic AI Foundation (Dec 2025, ~97M monthly downloads); A2A v1.0 with cryptographically signed Agent Cards (Apr 2026). Protocols are the OPPOSITE of trained - their whole value is never surprising anyone.","bit","read","Standards are boring on purpose. That is what makes the exciting parts safe to train."],
+["The ledger, honestly: tool choice - TRAINED. Team spawning - TRAINED (the newest migration). Protocol handshakes - SCRIPTED. The sandbox boundary - SCRIPTED, forever: security is never learned behavior (course 1 M9 survives intact).","bit","neutral","Verbs in weights, nouns in standards, walls in code."],
+["Where the line sits between trained and scripted IS the 2026 design question - every agent-stack decision you will read this year is someone moving that line one row up or down.","cortex","think","The whole industry is arguing about one table with four rows."],
+["Attack map: F4 attacked course 1's hand-written loop and M8's scripted team shapes - both moved into weights. Done when: you can compute a leave-one-out advantage, explain serial collapse, and label the ledger. CHALLENGE.md holds you to it. Next: F5 gives the loop a BODY.","bit","happy","The loop learned itself. Next it grows hands - real ones."]];
+const MECH_ACTS=[["the loop on report card",5],["the trained team",5],["plumbing + the ledger",4]];
+
+let tl=null;
+function render(i){
+  STEP=i;
+  const caps=MODE==="int"?CAPS_INT:CAPS_MECH, c=caps[i];
+  caption.textContent=c[0]; react(c[1],c[2],c[3]);
+  insight.className="insight";
+  insight.innerHTML = MODE==="int"
+    ? (i>=6?"<b>The aha:</b> your hand-written loop was the curriculum. Switch to <b>mechanism</b> to compute how it is trained."
+          :"One idea: <b>behavior moved into weights; interfaces froze into standards; the walls stayed code.</b>")
+    : (i<=4?"Act 1: <b>the unit of reward is the whole trajectory</b> - leave-one-out advantages computed live."
+      : i<=9?"Act 2: <b>train the manager, freeze the staff</b> - and shape the reward so delegation pays (computed)."
+      : "Act 3: <b>the trained-vs-scripted ledger.</b> Where that line sits is the 2026 design question.");
+}
+function build(mode){ MODE=mode;
+  const isInt=mode==="int";
+  tl=new Anim.Timeline({ length:isInt?7:14, autoMs:isInt?3100:3400, onStep:(i)=>render(i) });
+  Anim.scrubber($("scrub"), tl, { label:isInt?(i=>"step "+(i+1)+" / 7"):Anim.actLabel(MECH_ACTS), acts:isInt?null:MECH_ACTS });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".modebtn").forEach(x=>x.classList.toggle("on",x===b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

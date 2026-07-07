@@ -29,6 +29,7 @@ const TARGETS = [
   ["frontier f1 patch-stream", "frontier/module-f1-tokens/widgets/patch-stream/index.html", ['.modebtn[data-mode="mech"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["frontier f2 three-escapes", "frontier/module-f2-attention/widgets/three-escapes/index.html", ['.modebtn[data-mode="mech"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["frontier f3 reward-everywhere", "frontier/module-f3-rl/widgets/reward-everywhere/index.html", ['.modebtn[data-mode="mech"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
+  ["frontier f4 trained-loop", "frontier/module-f4-agents/widgets/trained-loop/index.html", ['.modebtn[data-mode="mech"]', '.scrub-btn[data-a="next"]', '.scrub-btn[data-a="next"]']],
   ["about", "agentic-course/about.html"],
   ["production-hub", "production/index.html"],
   ["prod-stage (offline)", "production/web/index.html"],
