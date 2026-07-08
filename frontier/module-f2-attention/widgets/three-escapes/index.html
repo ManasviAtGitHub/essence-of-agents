@@ -108,6 +108,7 @@ function drawReads(){
 /* ============ p5 stage ============ */
 if (window.p5) p5.disableFriendlyErrors=true;
 const CW=920, CH=380;
+const ease = t => t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
 let MODE="int", STEP=0;
 new p5(function(p){
   const density=()=>Math.max(2,window.devicePixelRatio||1);
@@ -134,45 +135,82 @@ new p5(function(p){
     if(S){ p.text("[ "+S[0][0]+"  "+S[0][1]+" ]",x+60,y+30); p.text("[ "+S[1][0]+"  "+S[1][1]+" ]",x+60,y+54); }
     p.pop(); }
 
-  /* ---- intuition: 7 steps ---- */
+  /* ---- intuition: 7 steps, ONE persistent scene with choreography ---- */
+  let lastStep=-1, stepStart=0;
+  function prog(delay,dur){ return ease(p.constrain((p.frameCount-stepStart-(delay||0))/(dur||40),0,1)); }
+  function beam(x1,y1,x2,y2,col,a){ p.push(); p.stroke(col[0],col[1],col[2],a); p.strokeWeight(1.4); p.noFill();
+    p.bezier(x1,y1,x1,(y1+y2)/2-30,x2,(y1+y2)/2-30,x2,y2); p.pop(); }
+  function meter(reads,stored,storedLabel){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(10);
+    p.fill("#98a2b0"); p.text("READS",40,330); p.text("STORED",40,352);
+    p.fill("#58c4dd"); p.rect(100,322,reads*22,10,3); p.fill("#cdd3da"); p.text(reads,110+reads*22,331);
+    p.fill("#ffd35c"); p.rect(100,344,(storedLabel?1:stored)*22,10,3); p.fill("#cdd3da"); p.text(storedLabel||stored,110+(storedLabel?1:stored)*22,353); p.pop(); }
   function drawInt(){
     const k=STEP;
-    if(k===0){ lane(30,60,860,90,"THE TWO BILLS (tracks 3, M2 + M3)"); tokRow(90,null,false);
-      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
-      p.text("bill 1: the NEW token compares against ALL 8 (n^2 as n grows)", 60, 190);
-      p.text("bill 2: all 8 K,V stay in memory forever (the KV wagon train)", 60, 212); p.pop(); }
-    if(k===1||k===2){ lane(30,60,860,90,"ESCAPE 1 - SPARSE: learn WHERE to look"); tokRow(90,(k===2?TOPIDX:null),k===2);
-      p.push(); p.noStroke(); p.textAlign(p.LEFT);
-      p.fill("#ffd35c"); p.textSize(11);
-      p.text(k===1?"a cheap INDEXER sweeps the row like a spotlight - scoring every past token, fast and rough"
-                  :"...then exact attention reads ONLY the top-3. The rest never get touched this step.", 60, 190);
-      p.fill("#98a2b0"); p.textSize(10);
-      p.text("NSA (Feb 2025) -> DSA lightning indexer (Sep 2025) -> V4 compression (Jun 2026); GLM-5 and MiniMax M3 adopted the family", 60, 212); p.pop();
-      if(k===1){ const t=(p.frameCount%160)/160; p.push(); p.noFill(); p.stroke(255,211,92,150); p.strokeWeight(2);
-        p.rect(56+t*730,86,92,34,8); p.pop(); } }
-    if(k===3){ lane(30,60,860,120,"ESCAPE 2 - LINEAR: stop keeping the list");
-      backpack(120,110,stateAfter(3));
-      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#83c167"); p.textSize(11);
-      p.text("every passing token is FOLDED into a fixed-size state - a backpack, not a wagon train", 290, 140);
-      p.text("memory at 1M tokens = memory at 10 tokens", 290, 160);
-      p.fill("#98a2b0"); p.textSize(10);
-      p.text("Gated DeltaNet (Sep 2025) -> Kimi KDA (Oct 2025: 75% KV cut, ~6x decode at 1M) -> Qwen3.5 flagship (Feb 2026)", 290, 186); p.pop(); }
-    if(k===4){ lane(30,60,860,120,"THE DISSENT - MiniMax M2 (Oct 2025)");
-      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#fc6255"); p.textSize(12);
-      p.text("the linear-attention PIONEER went BACK to full attention.", 60, 110);
-      p.fill("#cdd3da"); p.textSize(11);
-      p.text("hybrids matched benchmarks at small scale - then degraded on MULTI-HOP REASONING when scaled.", 60, 134);
-      p.text("the field's best-documented negative result. their next model (M3, Jun 2026) chose SPARSE, not linear.", 60, 154);
-      p.pop(); }
-    if(k===5){ lane(30,60,860,150,"THE ARGUMENT, HONESTLY");
-      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
-      p.fill("#ffd35c"); p.text("SPARSE: exact attention, fewer reads - but the indexer is a new organ with its own cost (GLM-5.2 added IndexShare for exactly this)", 60, 100);
-      p.fill("#83c167"); p.text("LINEAR: O(1) memory forever - but a fixed state must FORGET; reasoning risk documented at scale", 60, 130);
-      p.fill("#fc6255"); p.text("FULL: pays the whole bill - and is the only design with no documented capability regression", 60, 160);
-      p.fill("#98a2b0"); p.textSize(10); p.text("no winner is declared here because the field has not declared one (rule 12)", 60, 190); p.pop(); }
+    if(k!==lastStep){ lastStep=k; stepStart=p.frameCount; }
+    const NEWX=790, NEWY=120, chipY=120, chipX=i=>56+i*88;
+    lane(30,66,860,250,["THE TWO BILLS (M2 + M3)","THE INDEXER SWEEPS","EXACT ATTENTION READS 3","INTO THE BACKPACK","THE DISSENT - MiniMax M2 (Oct 2025)","THREE RECEIPTS","THE AHA"][k]);
+    // NEW token (always)
+    if(k<=4){ p.push(); p.noStroke(); p.fill("#58c4dd"); p.rect(NEWX,chipY,70,28,7);
+      p.fill("#04222a"); p.textSize(11); p.textAlign(p.CENTER,p.CENTER); p.text("NEW",NEWX+35,chipY+14); p.pop(); }
+    // the 8 past tokens
+    if(k<=4){ TOKS.forEach((t,i)=>{
+        let x=chipX(i), y=chipY, a=255, gold=false;
+        if(k===2||k===4){ const on=TOPIDX.indexOf(i)>=0; gold=on&&k===2;
+          if(!on&&k===2){ y+=14*prog(0,30); a=255-190*prog(0,30); } }
+        if(k===3){ const pr=prog(i*10,36); x=p.lerp(x,470,pr); y=p.lerp(y,236,pr); a=255*(1-pr);
+          if(pr>=1) return; }
+        p.push(); p.fill(gold?"#2a2410":"#171b21"); p.stroke(gold?255:60,gold?211:70,gold?92:86,a); p.strokeWeight(gold?1.6:1);
+        p.rect(x,y,80,28,7); p.noStroke(); p.fill(gold?255:150,gold?211:160,gold?92:176,a);
+        p.textSize(10.5); p.textAlign(p.CENTER,p.CENTER); p.text(t,x+40,y+14); p.pop();
+        if(k===1){ const sw=prog(0,110)*8; if(i<sw){ p.push(); p.noStroke(); p.fill("#ffd35c"); p.textSize(9.5);
+          p.textAlign(p.CENTER); p.text("u="+ISCORE[i].toFixed(2),x+40,y+44); p.pop(); } }
+        if(k===2&&TOPIDX.indexOf(i)>=0){ p.push(); p.noStroke(); p.fill("#ffd35c"); p.textSize(9.5);
+          p.textAlign(p.CENTER); p.text("u="+ISCORE[i].toFixed(2),x+40,y+44); p.pop(); } }); }
+    // spotlight sweep (k=1)
+    if(k===1){ const t=prog(0,110); p.push(); p.noFill(); p.stroke(255,211,92,180); p.strokeWeight(2);
+      p.rect(50+t*700,chipY-6,94,40,8); p.pop(); }
+    // beams: full=8 (k=0), sparse=3 (k=2)
+    if(k===0){ TOKS.forEach((t,i)=>beam(chipX(i)+40,chipY+30,NEWX+20,chipY+30,[88,196,221],90)); }
+    if(k===2){ TOPIDX.forEach(i=>beam(chipX(i)+40,chipY+30,NEWX+20,chipY+30,[255,211,92],200)); }
+    // KV wagon train (k=0..2): 8 stored cars
+    if(k<=2){ p.push(); for(let i=0;i<8;i++){ p.fill(23,27,33); p.stroke("#5a4a1a"); p.rect(chipX(i)+10,196,60,20,4);
+        p.noStroke(); p.fill("#c8a94a"); p.textSize(8.5); p.textAlign(p.CENTER,p.CENTER); p.text("K,V",chipX(i)+40,206); p.stroke(0);}
+      p.noStroke(); p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.LEFT); p.text("the wagon train: ALL 8 stored (M3)",56,238); p.pop(); }
+    // backpack (k=3): tokens fold in, ONE beam
+    if(k===3){ const done=prog(80,40);
+      backpack(430,206,stateAfter(3),"the state S (fixed 2x2)");
+      if(done>0){ beam(490,206,NEWX+20,chipY+30,[131,193,103],200*done); }
+      p.push(); p.noStroke(); p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.CENTER);
+      p.text("wagon train: GONE",490,318); p.pop(); }
+    // dissent (k=4): a 3-hop chain breaks on the backpack design
+    if(k===4){ const hops=["Marie","bought","Paris"];
+      hops.forEach((h,i)=>{ const x=180+i*200;
+        p.push(); p.fill(23,27,33); p.stroke(i===2?"#fc6255":"#58c4dd"); p.circle(x,250,44);
+        p.noStroke(); p.fill(i===2?"#fc6255":"#cdd3da"); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text(h,x,250); p.pop();
+        if(i<2){ const ok=i===0||prog(30,30)<0.5;
+          p.push(); p.stroke(ok?"#58c4dd":"#fc6255"); p.strokeWeight(1.6);
+          if(!ok){ p.drawingContext.setLineDash([5,5]); } p.line(x+24,250,x+176,250); p.drawingContext.setLineDash([]); p.pop(); } });
+      if(prog(30,30)>=0.5){ p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(16); p.textAlign(p.CENTER);
+        p.text("X",480,254); p.textSize(10); p.text("hop 2 lost - multi-hop degraded at scale",480,296); p.pop(); } }
+    // receipts (k=5): three cards, bars only
+    if(k===5){ const cards=[["FULL",8,"8","no documented regression","#fc6255"],
+                            ["SPARSE",3,"8","new organ: the indexer","#ffd35c"],
+                            ["LINEAR",1,"1 state","must forget; reasoning risk","#83c167"]];
+      cards.forEach((c,i)=>{ const x=70+i*290, pr=prog(i*12,30);
+        p.push(); p.drawingContext.globalAlpha=pr;
+        p.fill(23,27,33); p.stroke(c[4]); p.strokeWeight(1.4); p.rect(x,100,250,150,10);
+        p.noStroke(); p.fill(c[4]); p.textSize(12); p.textAlign(p.CENTER); p.text(c[0],x+125,124);
+        p.textAlign(p.LEFT); p.textSize(9.5); p.fill("#98a2b0"); p.text("reads",x+20,156); p.text("stored",x+20,186);
+        p.fill("#58c4dd"); p.rect(x+70,148,c[1]*18,10,3);
+        p.fill("#ffd35c"); p.rect(x+70,178,(c[2]==="8"?8:1)*18,10,3);
+        p.fill("#cdd3da"); p.text(c[1],x+78+c[1]*18,157); p.text(c[2],x+78+(c[2]==="8"?8:1)*18,187);
+        p.fill("#fc6255"); p.textSize(9); p.text(c[3],x+20,222);
+        p.drawingContext.globalAlpha=1; p.pop(); }); }
     if(k===6){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(13); p.textAlign(p.CENTER);
-      p.text("the n^2 wall and the KV bill were never laws - they were choices,", CW/2, 150);
-      p.text("and 2026 split three ways on them", CW/2, 172); p.pop(); }
+      p.text("n^2 and the KV bill were choices, not laws -", CW/2, 160);
+      p.text("2026 split three ways on them", CW/2, 184); p.pop(); }
+    // live meter
+    if(k===0) meter(8,8); if(k===2) meter(3,8); if(k===3) meter(1,0,"1 state");
   }
 
   /* ---- mechanism: 16 steps, 3 acts ---- */
