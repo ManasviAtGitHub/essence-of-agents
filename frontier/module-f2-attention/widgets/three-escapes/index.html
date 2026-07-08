@@ -145,9 +145,10 @@ new p5(function(p){
   function drawInt(){
     const k=STEP;
     question(k===4?Q2:Q1);
-    if(k===0){ // FULL: whole page flashes for EVERY output word
-      const wi=Math.min(Math.floor((p.frameCount-stepStart)/50), ANS.length);
-      const flash=(p.frameCount-stepStart)%50<16 && wi<ANS.length ? 60 : 0;
+    if(k===0){ // FULL: whole page flashes for EVERY output word (loops forever)
+      const cyc=(p.frameCount-stepStart)%(ANS.length*50+90);
+      const wi=Math.min(Math.floor(cyc/50), ANS.length);
+      const flash=cyc%50<16 && wi<ANS.length ? 60 : 0;
       page({flash:flash});
       answerRow(wi,120);
       meterBar("page reads PER WORD written", NWORDS, NWORDS, "words re-read, every time", 170, "#fc6255");
@@ -166,8 +167,9 @@ new p5(function(p){
       meterBar("page reads PER WORD written", TOPWORDS, NWORDS, "of 56 - only the gold lines", 170, "#ffd35c");
       stampEx("this move = DSA . Sep 25 (top-2048 of 131,072)", 620, 230);
     }
-    if(k===3){ // LINEAR: read once -> notes; overwrites
-      const ln=Math.min(Math.floor((p.frameCount-stepStart)/38), 8);
+    if(k===3){ // LINEAR: read once -> notes; overwrites (loops with a hold)
+      const cyc=(p.frameCount-stepStart)%(8*38+150);
+      const ln=Math.min(Math.floor(cyc/38), 8);
       const slots=[null,null,null,null]; let flash=null;
       for(let i=0;i<ln;i++){ if(i<4) slots[i]=NOTES[i];
         else { const ov=OVER[i-4]; slots[ov[1]]=ov[2]; if(i===ln-1) flash=ov[1]; } }
@@ -183,11 +185,11 @@ new p5(function(p){
       answerRow(0,300,true);
       stampEx("MiniMax M2 went BACK to full . Oct 25", 620, 340);
     }
-    if(k===5){ // receipts: three mini-pages
+    if(k===5||k===6){ // receipts: three mini-pages (stay on stage for the aha)
       const cols=[["FULL",56,"#fc6255","every line, every word","no regression - full price"],
                   ["SPARSE",21,"#ffd35c","3 gold lines","needs an indexer"],
                   ["LINEAR",4,"#83c167","notebook only","forgets - can break"]];
-      cols.forEach((c,i)=>{ const x=60+i*292, pr=prog(i*10,26);
+      cols.forEach((c,i)=>{ const x=60+i*292, pr=(k===6?0.5:prog(i*10,26));
         p.push(); p.drawingContext.globalAlpha=pr;
         p.fill(15,18,23); p.stroke(c[2]); p.rect(x,70,255,220,10); p.noStroke();
         p.fill(c[2]); p.textSize(12); p.textAlign(p.CENTER); p.text(c[0],x+127,94);
@@ -200,9 +202,9 @@ new p5(function(p){
         p.fill("#98a2b0"); p.text(c[4],x+18,289);
         p.drawingContext.globalAlpha=1; p.pop(); });
     }
-    if(k===6){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(13); p.textAlign(p.CENTER);
-      p.text("same page, same question - three prices, three risks.", CW/2, 170);
-      p.text("2026 split exactly this way: full (M2) . sparse (DeepSeek) . linear (Qwen3.5)", CW/2, 196); p.pop(); }
+    if(k===6){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
+      p.text("same page, same question - three prices, three risks.", CW/2, 330);
+      p.text("2026 split exactly this way: full (M2) . sparse (DeepSeek) . linear (Qwen3.5)", CW/2, 352); p.pop(); }
   }
 
   /* ---- MECHANISM: 12 steps, 3 acts - the same page, numbers visible ---- */
