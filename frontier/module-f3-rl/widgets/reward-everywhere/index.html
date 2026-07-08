@@ -155,14 +155,20 @@ new p5(function(p){
         p.text("answer Y: 200 tokens -> per-token penalty = -0.4 / 200 = -0.002", 80, 140);
         p.fill("#ffd35c"); p.text("the long wrong answer is punished 10x LESS per token -> models learn to RAMBLE", 60, 170);
         p.fill("#83c167"); p.text("Dr.GRPO (Mar 2025): remove the length division - wrong costs the same at any length", 60, 196); p.pop(); }
-      if(k===3){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(10.5);
-        const rows=[["DAPO (Mar 2025)","entropy collapse","clip-higher (asymmetric) + drop zero-gradient groups"],
-                    ["GSPO (Jul 2025, Qwen)","token-ratio noise destabilizes MoE RL","importance ratio at the SEQUENCE level"],
-                    ["VAPO (Apr 2025)","critic-free methods plateau on long CoT","bring the VALUE MODEL back (PPO returns)"],
-                    ["CISPO (Jun 2025)","clipping kills rare 'fork' tokens (wait, however)","clip the weight, keep the gradient"]];
-        rows.forEach((r,i)=>{ const y=92+i*44;
-          p.fill("#ffd35c"); p.text(r[0], 60, y); p.fill("#fc6255"); p.text("flaw: "+r[1], 240, y);
-          p.fill("#83c167"); p.text("fix: "+r[2], 240, y+16); });
+      if(k===3){ p.push(); p.textAlign(p.CENTER,p.CENTER);
+        p.fill(23,27,33); p.stroke("#ffd35c"); p.strokeWeight(1.6); p.rect(70,150,120,48,9);
+        p.noStroke(); p.fill("#ffd35c"); p.textSize(12); p.text("GRPO",130,166);
+        p.fill("#98a2b0"); p.textSize(9); p.text("the parent",130,184);
+        const zoo=[["DAPO . Mar 25","entropy collapse","clip-higher"],
+                   ["GSPO . Jul 25","MoE RL unstable","sequence-level ratio"],
+                   ["VAPO . Apr 25","long-CoT plateau","the critic returns"],
+                   ["CISPO . Jun 25","fork tokens clipped","clip weight, keep grad"]];
+        zoo.forEach((z,i)=>{ const x=320+(i%2)*300, y=86+Math.floor(i/2)*112;
+          p.stroke("#3a4350"); p.strokeWeight(1.2); p.line(190,174,x,y+32);
+          p.fill(23,27,33); p.stroke("#58c4dd"); p.rect(x,y,255,66,9); p.noStroke();
+          p.fill("#58c4dd"); p.textSize(11); p.text(z[0], x+127, y+15);
+          p.fill("#fc6255"); p.textSize(9.5); p.text(z[1], x+127, y+34);
+          p.fill("#83c167"); p.text("-> "+z[2], x+127, y+51); p.stroke(0); });
         p.pop(); }
       if(k===4){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
         p.fill("#cdd3da"); p.text("and the meta-result: ScaleRL (Meta, Oct 2025) - RL compute follows PREDICTABLE", 60, 100);

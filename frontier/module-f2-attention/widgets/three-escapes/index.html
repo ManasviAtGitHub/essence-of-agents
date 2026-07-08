@@ -192,11 +192,15 @@ new p5(function(p){
         p.text("sort -> keep top-"+TOPK+": tokens "+TOPIDX.map(i=>'"'+TOKS[i]+'"').join(", ")+" . exact attention now reads 3 entries, not 8", 60, 180); }
       if(k>=3){ p.fill("#cdd3da"); p.textSize(11);
         p.text("at scale (primary): DSA keeps top-2048 of 131,072 -> the attention step reads ~1.6% of the context", 60, 210); }
-      if(k>=4){ p.fill("#98a2b0"); p.textSize(10.5);
-        p.text("lineage: NSA (Feb 2025, trainable 3-branch sparsity, ACL best paper) -> DSA lightning indexer (V3.2, Sep 2025, FP8, distilled from dense)", 60, 236);
-        p.text("-> V4 CSA+HCA (Jun 2026): compression joins - ~27% of V3.2 FLOPs, ~10% of its KV . adopted: GLM-5, MiniMax M3 (MSA)", 60, 254); }
+      if(k>=4){ const TLINE=[["NSA","Feb 25","trainable"],["DSA","Sep 25","FP8 indexer"],["GLM-5","Feb 26","adopts DSA"],["V4","Jun 26","27% FLOPs . 10% KV"],["MSA","Jun 26","MiniMax joins"]];
+        p.stroke("#3a4350"); p.strokeWeight(1.4); p.line(90,246,850,246);
+        TLINE.forEach((d,i)=>{ const x=120+i*178;
+          p.noStroke(); p.fill(i===3?"#ffd35c":"#58c4dd"); p.circle(x,246,9);
+          p.textAlign(p.CENTER); p.textSize(10.5); p.fill("#cdd3da"); p.text(d[0],x,228);
+          p.fill("#98a2b0"); p.textSize(8.5); p.text(d[1],x,262); p.fill(i===3?"#ffd35c":"#5b6470"); p.text(d[2],x,276); });
+        p.textAlign(p.LEFT); }
       if(k>=5){ p.fill("#fc6255"); p.textSize(11);
-        p.text("the new bottleneck is the INDEXER itself (it still touches everything, cheaply) - GLM-5.2's IndexShare reuses indices across layers, 2.9x fewer FLOPs at 1M", 60, 284); }
+        p.text("new bottleneck: the indexer itself -> IndexShare reuses indices across layers (2.9x fewer FLOPs)", 60, 300); }
       p.pop();
     } else if(k<=10){ // ACT 2: linear, computed
       const t=Math.min(k-6,3);
