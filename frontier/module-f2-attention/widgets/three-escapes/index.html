@@ -177,7 +177,7 @@ new p5(function(p){
       const ln=Math.min(Math.floor(cyc/38), 8);
       const slots=[null,null,null,null]; let flash=null;
       for(let i=0;i<ln;i++){ if(i<4) slots[i]=NOTES[i];
-        else { const ov=OVER[i-4]; slots[ov[1]]=ov[2]; if(i===ln-1) flash=ov[1]; } }
+        else { const ov=OVER.find(o=>o[0]===i); if(ov){ slots[ov[1]]=ov[2]; if(i===ln-1) flash=ov[1]; } } }
       page({cursor:ln<8?ln:null, grey:ln>=8});
       notebook(640,110,slots,flash);
       if(ln>=8){ p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(9.5); p.textAlign(p.LEFT);
