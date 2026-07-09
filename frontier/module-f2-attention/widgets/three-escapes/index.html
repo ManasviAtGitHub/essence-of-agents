@@ -145,6 +145,27 @@ new p5(function(p){
   function stampEx(txt,x,y){ p.push(); p.noStroke(); p.fill(23,27,33); p.stroke("#5b6470");
     p.rect(x,y,p.textWidth(txt)+18,20,10); p.noStroke(); p.fill("#98a2b0"); p.textSize(9.5);
     p.textAlign(p.LEFT); p.text(txt,x+9,y+13); p.pop(); }
+  /* 3b1b-style vector panel: axes + arrows; optional projection of vec a onto vec b
+     (the shaded gold segment IS the dot product's geometry) */
+  function vecPanel(x,y,s,vecs,proj,title){ p.push();
+    p.fill(15,18,23); p.stroke("#2a2f38"); p.rect(x,y,s,s,8);
+    const cx=x+16, cy=y+s-16, sc=(s-32);
+    p.stroke("#1b2028"); for(let g=1;g<=4;g++){ const t=g*sc/4;
+      p.line(x+16,cy-t,x+s-16,cy-t); p.line(cx+t,y+16,cx+t,y+s-16); }
+    p.stroke("#3a4350"); p.line(cx,cy,x+s-8,cy); p.line(cx,cy,cx,y+8);
+    function arrow(v,col,w,lab){ const ex=cx+v[0]*sc, ey=cy-v[1]*sc;
+      p.stroke(col); p.strokeWeight(w||2); p.line(cx,cy,ex,ey);
+      const a=Math.atan2(cy-ey,ex-cx); p.noStroke(); p.fill(col);
+      p.triangle(ex,ey, ex-8*Math.cos(a-0.4), ey+8*Math.sin(a-0.4), ex-8*Math.cos(a+0.4), ey+8*Math.sin(a+0.4));
+      if(lab){ p.textSize(9); p.textAlign(p.LEFT); p.text(lab, ex+4, ey-4); } p.stroke(0); }
+    if(proj){ const A=vecs[proj.a].v, B=vecs[proj.b].v;
+      const t=(A[0]*B[0]+A[1]*B[1])/(B[0]*B[0]+B[1]*B[1]), P=[t*B[0],t*B[1]];
+      const px=cx+P[0]*sc, py=cy-P[1]*sc, ax=cx+A[0]*sc, ay=cy-A[1]*sc;
+      p.stroke("#5b6470"); p.strokeWeight(1); p.drawingContext.setLineDash([3,3]); p.line(ax,ay,px,py); p.drawingContext.setLineDash([]);
+      p.stroke("#ffd35c"); p.strokeWeight(4); p.line(cx,cy,px,py); }
+    vecs.forEach(o=>arrow(o.v,o.col,o.w,o.label));
+    if(title){ p.noStroke(); p.fill("#98a2b0"); p.textSize(8.5); p.textAlign(p.LEFT); p.text(title,x+8,y+11); }
+    p.pop(); }
 
   /* ---- INTUITION: 7 steps, all on the page ---- */
   function drawInt(){
@@ -217,30 +238,42 @@ new p5(function(p){
     const k=STEP;
     if(k<=4){ // ACT 1: the indexer, opened
       question(Q1);
-      if(k===0){ // the keys, visible on the page + their origin
-        page({margins:null});
+      if(k===0){ // the keys, AS VECTORS - every line is an arrow
+        page({margins:null, w:430, lh:22, y:86});
         p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(8.5); p.fill("#5b6470");
-        LINES.forEach((_,i)=> p.text("k*=["+IKEY[i].join(",")+"]", 470, 86+i*26+9));
-        p.fill("#58c4dd"); p.textSize(11); p.text("the question's index query:", 640, 110);
-        p.textSize(13); p.text("q* = ["+IQ.join(", ")+"]", 640, 134);
-        p.fill("#98a2b0"); p.textSize(9.5);
-        p.text("keys are LEARNED (DSA distills them", 640, 164);
-        p.text("from dense attention); ours are toy,", 640, 178);
-        p.text("hand-authored - labeled", 640, 192); p.pop(); }
-      if(k===1){ // ONE score expanded fully - high vs low
-        page({gold:[3], dim:[5], margins:{3:U[3],5:U[5]}});
+        LINES.forEach((_,i)=> p.text("["+IKEY[i].join(",")+"]", 400, 86+i*22+9)); p.pop();
+        vecPanel(560,86,190,
+          IKEY.map((v,i)=>({v:v,col:TOP3.indexOf(i)>=0?"#ffd35c":"#3d4450",w:TOP3.indexOf(i)>=0?2:1.2,label:TOP3.indexOf(i)>=0?"L"+i:null}))
+            .concat([{v:IQ,col:"#58c4dd",w:2.6,label:"q*"}]),
+          null, "every line's key, as an ARROW");
+        p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#58c4dd"); p.textSize(10.5);
+        p.text("the question is an arrow too: q*", 770, 110);
+        p.fill("#cdd3da"); p.text("relevant lines POINT", 770, 140);
+        p.text("the same way as q*", 770, 156);
+        p.fill("#98a2b0"); p.textSize(9);
+        p.text("keys are LEARNED (DSA", 770, 190);
+        p.text("distills them); ours toy,", 770, 204);
+        p.text("labeled", 770, 218); p.pop(); }
+      if(k===1){ // ONE score opened - arithmetic AND geometry (projection)
+        page({gold:[3], dim:[5], margins:{3:U[3],5:U[5]}, w:430, lh:22, y:86});
         p.push(); p.noStroke(); p.textAlign(p.LEFT);
-        p.fill("#ffd35c"); p.textSize(11.5);
-        p.text("line 3 (the purchase):", 620, 100);
-        p.text("u3 = 0.9x0.8 + 0.6x0.8", 620, 122);
-        p.text("   = 0.72 + 0.48 = "+U[3].toFixed(2), 620, 144);
+        p.fill("#ffd35c"); p.textSize(10.5);
+        p.text("u3 = 0.9x0.8 + 0.6x0.8 = "+U[3].toFixed(2), 560, 100);
         p.fill("#5b6470");
-        p.text("line 5 (the wind):", 620, 180);
-        p.text("u5 = 0.9x0.1 + 0.6x0.05", 620, 202);
-        p.text("   = 0.09 + 0.03 = "+U[5].toFixed(2), 620, 224);
-        p.fill("#58c4dd"); p.textSize(10.5);
-        p.text("a dot product - the indexer IS a", 620, 262);
-        p.text("tiny attention (no softmax: it only ranks)", 620, 278); p.pop(); }
+        p.text("u5 = 0.9x0.1 + 0.6x0.05 = "+U[5].toFixed(2), 560, 122);
+        p.pop();
+        vecPanel(560,140,190,
+          [{v:IKEY[3],col:"#ffd35c",w:2.4,label:"k3"},{v:IKEY[5],col:"#3d4450",w:1.4,label:"k5"},{v:IQ,col:"#58c4dd",w:2.6,label:"q*"}],
+          {a:0,b:2}, "the score IS the shadow: k3 projected onto q*");
+        p.push(); p.noStroke(); p.textAlign(p.LEFT);
+        p.fill("#ffd35c"); p.textSize(10.5);
+        p.text("k3 points WITH q* -> long", 770, 170);
+        p.text("gold shadow = big score", 770, 186);
+        p.fill("#5b6470"); p.text("k5 barely points along q*", 770, 216);
+        p.text("-> tiny shadow, tiny score", 770, 232);
+        p.fill("#58c4dd"); p.textSize(10);
+        p.text("the indexer IS a tiny", 770, 268);
+        p.text("attention: rank by alignment", 770, 284); p.pop(); }
       if(k===2){ const seen=Math.floor(prog(0,100)*8);
         page({margins:U.map((u,i)=>i<seen?u:null), cursor:Math.min(seen,7)});
         p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#ffd35c"); p.textSize(10.5);
@@ -293,9 +326,18 @@ new p5(function(p){
         page({grey:true, y:86, lh:22, w:430});
         p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#83c167"); p.textSize(11);
         p.text("read with q = ["+LQ.join(",")+"]:", 560, 100);
-        p.text("h1 = 1x"+S[0][0]+" + 2x"+S[1][0]+" = "+h[0], 580, 126);
-        p.text("h2 = 1x"+S[0][1]+" + 2x"+S[1][1]+" = "+h[1], 580, 148);
-        p.fill("#cdd3da"); p.textSize(10); p.text("one multiplication - the page is gone", 560, 178); p.pop(); }
+        p.text("h1 = 1x"+S[0][0]+" + 2x"+S[1][0]+" = "+h[0], 580, 122);
+        p.text("h2 = 1x"+S[0][1]+" + 2x"+S[1][1]+" = "+h[1], 580, 144);
+        p.pop();
+        vecPanel(560,164,180,
+          [{v:[LQ[0]/2.4,LQ[1]/2.4],col:"#58c4dd",w:2.4,label:"q [1,2]"},
+           {v:[h[0]/9,h[1]/9],col:"#83c167",w:2.6,label:"h [7,7]"}],
+          null, "S is a LENS: question-arrow in, answer-arrow out");
+        p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(10);
+        p.text("the matrix TURNED the", 760, 200);
+        p.text("arrow - that is what", 760, 216);
+        p.text("matrices do (arrows", 760, 232);
+        p.text("scaled for display)", 760, 248); p.pop(); }
       if(k2===4){ // WHY notebooks forget: addition is lossy - the open secret
         const S=stateAfter(3);
         p.push(); p.noStroke(); p.textAlign(p.LEFT);
@@ -355,15 +397,15 @@ const CAPS_INT=[
 ["Three receipts: same page, three highlight patterns, three prices, three risks.","bit","neutral","Pick your bill."],
 ["The aha: n^2 and the KV bill were choices. 2026 split exactly this way.","bit","happy","The rules are being renegotiated."]];
 const CAPS_MECH=[
-["Every line's index KEY, visible on the page - and their origin: learned (DSA distills them from dense attention). Ours are toy, labeled.","bit","neutral","Nothing hidden: keys on the page, query on the right."],
-["ONE score, fully opened: line 3 earns 1.20, line 5 earns 0.12 - every multiplication on screen. The indexer IS a tiny attention.","bit","read","The scout is a miniature of the army."],
+["Every line's key drawn AS AN ARROW - relevant lines point the same way as the question's arrow q*. Ranking is alignment.","bit","neutral","Keys are arrows. Relevance is direction."],
+["ONE score, opened both ways: the arithmetic (0.72 + 0.48 = 1.20) AND the geometry - the score IS the gold shadow k3 casts onto q*. Line 5 casts almost none.","bit","read","The dot product is a shadow. Long shadow, high rank."],
 ["Same arithmetic, all 8 lines, stamped live as the skim passes.","bit","read","Eight dot products. You could do them."],
 ["Top-3 kept: 21 words of 56. At scale: 2,048 of 131,072 (~1.6%).","cortex","happy","Same me, new glasses."],
 ["The lineage, dated - and the catch: the indexer itself becomes the bottleneck (IndexShare fixes the fix).","bit","read","Then the scout needed a scout."],
 ["The reveal: the notebook's words were the METAPHOR. The machine is a fixed matrix S - notes get smeared into numbers.","bit","reach","Time to open the notebook's real pages."],
 ["One fold, every cell: line 1's k x v^T lands as four multiplications. Then the line is discarded.","bit","read","The line leaves; four numbers remain."],
 ["Lines 2 and 3 fold in - cells ADD. Values change; size never does.","cortex","happy","A million lines? Still four cells."],
-["Reading: h = q x S, expanded - one multiplication, and the page is gone.","cortex","reach","My whole past in one multiply."],
+["Reading, opened both ways: the arithmetic (h = q x S) AND the geometry - S is a LENS that turns the question-arrow into an answer-arrow.","cortex","reach","I point a question at my past; it points back."],
 ["WHY notebooks forget, mechanically: S00 = 3, but whose 3? Line 1 gave 2, line 3 gave 1 - the sum remembers neither. Addition is lossy; gating chooses what it sacrifices.","bit","think","Forgetting is not a bug. It is a plus sign."],
 ["Scale-up, honestly: the 2x2 toy IS linear attention; real states are ~128x128 per head. The arithmetic you checked is the whole idea.","bit","happy","You just audited a flagship's memory."],
 ["Reads vs storage, drawn: two different bills. Sparse cuts reads; linear deletes the cache.","bit","neutral","Different bills - never conflate them."],
