@@ -97,7 +97,12 @@ new p5(function(p){
     p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
   p.draw=function(){ if(p.pixelDensity()!==density()) p.pixelDensity(density());
     const key=MODE+STEP; if(key!==lastKey){ lastKey=key; stepStart=p.frameCount; }
-    p.background(11,14,18); (MODE==="int"?drawInt:drawMech)(); };
+    p.background(11,14,18);
+    try { (MODE==="int"?drawInt:drawMech)(); }
+    catch(e){ // never die silently: paint the error so it can be reported
+      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(12); p.textAlign(p.LEFT);
+      p.text("stage error at "+MODE+" step "+(STEP+1)+": "+String(e).slice(0,90), 40, 60);
+      p.text("(please report this line)", 40, 84); p.pop(); } };
 
   /* the page: opts { dim:[], gold:[], grey, flash, cursor, margins:'u'|null, x,y,w,lh } */
   function page(o){
