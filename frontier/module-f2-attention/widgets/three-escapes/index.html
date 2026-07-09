@@ -212,57 +212,113 @@ new p5(function(p){
       p.text("2026 split exactly this way: full (M2) . sparse (DeepSeek) . linear (Qwen3.5)", CW/2, 352); p.pop(); }
   }
 
-  /* ---- MECHANISM: 12 steps, 3 acts - the same page, numbers visible ---- */
+  /* ---- MECHANISM: 14 steps, 3 acts - open EVERYTHING ---- */
   function drawMech(){
     const k=STEP;
-    if(k<=3){ // ACT 1: the indexer's arithmetic, in the margin
+    if(k<=4){ // ACT 1: the indexer, opened
       question(Q1);
-      if(k===0){ page({}); p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(10.5);
-        p.text("each line gets a tiny 2-D index key", 620, 110);
-        p.text("(toy, hand-authored); the question", 620, 126);
-        p.text("gets a query q* = ["+IQ.join(", ")+"]", 620, 142); p.pop(); }
-      if(k===1){ const seen=Math.floor(prog(0,100)*8);
+      if(k===0){ // the keys, visible on the page + their origin
+        page({margins:null});
+        p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(8.5); p.fill("#5b6470");
+        LINES.forEach((_,i)=> p.text("k*=["+IKEY[i].join(",")+"]", 470, 86+i*26+9));
+        p.fill("#58c4dd"); p.textSize(11); p.text("the question's index query:", 640, 110);
+        p.textSize(13); p.text("q* = ["+IQ.join(", ")+"]", 640, 134);
+        p.fill("#98a2b0"); p.textSize(9.5);
+        p.text("keys are LEARNED (DSA distills them", 640, 164);
+        p.text("from dense attention); ours are toy,", 640, 178);
+        p.text("hand-authored - labeled", 640, 192); p.pop(); }
+      if(k===1){ // ONE score expanded fully - high vs low
+        page({gold:[3], dim:[5], margins:{3:U[3],5:U[5]}});
+        p.push(); p.noStroke(); p.textAlign(p.LEFT);
+        p.fill("#ffd35c"); p.textSize(11.5);
+        p.text("line 3 (the purchase):", 620, 100);
+        p.text("u3 = 0.9x0.8 + 0.6x0.8", 620, 122);
+        p.text("   = 0.72 + 0.48 = "+U[3].toFixed(2), 620, 144);
+        p.fill("#5b6470");
+        p.text("line 5 (the wind):", 620, 180);
+        p.text("u5 = 0.9x0.1 + 0.6x0.05", 620, 202);
+        p.text("   = 0.09 + 0.03 = "+U[5].toFixed(2), 620, 224);
+        p.fill("#58c4dd"); p.textSize(10.5);
+        p.text("a dot product - the indexer IS a", 620, 262);
+        p.text("tiny attention (no softmax: it only ranks)", 620, 278); p.pop(); }
+      if(k===2){ const seen=Math.floor(prog(0,100)*8);
         page({margins:U.map((u,i)=>i<seen?u:null), cursor:Math.min(seen,7)});
         p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#ffd35c"); p.textSize(10.5);
-        p.text("u_i = q* . k*_i - all 8 computed", 620, 110);
-        p.text("live in the margin. Rough is fine:", 620, 126);
-        p.text("it only RANKS (DSA runs it in FP8)", 620, 142); p.pop(); }
-      if(k===2){ page({gold:TOP3, dim:LINES.map((_,i)=>i).filter(i=>TOP3.indexOf(i)<0), margins:U});
+        p.text("all 8, same arithmetic, computed", 620, 110);
+        p.text("live - cheap because the vectors are", 620, 126);
+        p.text("tiny and low-precision (FP8)", 620, 142); p.pop(); }
+      if(k===3){ page({gold:TOP3, dim:LINES.map((_,i)=>i).filter(i=>TOP3.indexOf(i)<0), margins:U});
         meterBar("exact attention now reads", TOPWORDS, NWORDS, "words of 56 (~2,048 of 131,072 at scale)", 120, "#ffd35c"); }
-      if(k===3){ page({gold:TOP3, dim:LINES.map((_,i)=>i).filter(i=>TOP3.indexOf(i)<0)});
+      if(k===4){ page({gold:TOP3, dim:LINES.map((_,i)=>i).filter(i=>TOP3.indexOf(i)<0)});
         const TL=[["NSA","Feb 25"],["DSA","Sep 25"],["GLM-5","Feb 26"],["V4","Jun 26"],["MSA","Jun 26"]];
         p.push(); p.stroke("#3a4350"); p.line(630,140,890,140);
         TL.forEach((d,i)=>{ const x=644+i*58; p.noStroke(); p.fill(i===3?"#ffd35c":"#58c4dd"); p.circle(x,140,7);
           p.textAlign(p.CENTER); p.textSize(8.5); p.fill("#cdd3da"); p.text(d[0],x,124); p.fill("#5b6470"); p.text(d[1],x,158); p.stroke(0); });
         p.noStroke(); p.fill("#ffd35c"); p.textSize(9); p.textAlign(p.CENTER); p.text("V4: 27% FLOPs . 10% KV",760,180);
         p.fill("#fc6255"); p.textSize(9.5); p.text("new bottleneck: the indexer -> IndexShare (2.9x)",760,204); p.pop(); }
-    } else if(k<=8){ // ACT 2: the notebook as arithmetic
-      const k2=k-4;
+    } else if(k<=10){ // ACT 2: the notebook, opened
+      const k2=k-5;
       question(Q1);
-      if(k2===0){ page({cursor:0}); notebook(640,110,[null,null,null,null],null);
-        p.push(); p.noStroke(); p.fill("#83c167"); p.textSize(10.5); p.textAlign(p.LEFT);
-        p.text("the notebook, as arithmetic: a fixed",620,268); p.text("2x2 state S, starting at zero",620,284); p.pop(); }
-      else if(k2<=2){ const t=k2; const S=stateAfter(t);
-        page({cursor:t, dim:[...Array(t).keys()]});
+      if(k2===0){ // the reveal: words were the metaphor, S is the machine
+        notebook(80,100,NOTES,null);
+        p.push(); p.stroke("#3a4350"); p.strokeWeight(1.6); p.line(345,164,420,164); p.noStroke();
+        p.fill("#3a4350"); p.triangle(420,158,420,170,430,164);
+        p.fill("#83c167"); p.textSize(12); p.textAlign(p.LEFT);
+        p.text("S = [ 0  0 ]", 460, 152); p.text("    [ 0  0 ]", 460, 174);
+        p.fill("#e9ebee"); p.textSize(11);
+        p.text("the words were the METAPHOR.", 640, 140);
+        p.text("the machine is a fixed matrix S -", 640, 158);
+        p.text("notes are smeared into numbers.", 640, 176); p.pop(); }
+      if(k2===1){ // one fold, all four cells expanded
+        page({cursor:0, y:86, lh:22, w:430});
         p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(11);
-        p.text("line "+t+": k=["+LKV[t-1].k.join(",")+"] v=["+LKV[t-1].v.join(",")+"]", 620, 110);
-        p.fill("#83c167"); p.text("S += k x v^T  (each cell live):", 620, 134);
-        p.text("[ "+S[0][0]+"  "+S[0][1]+" ]", 660, 162); p.text("[ "+S[1][0]+"  "+S[1][1]+" ]", 660, 184);
-        p.fill("#98a2b0"); p.textSize(9.5); p.text("the line is DISCARDED; its imprint stays", 620, 214); p.pop(); }
-      else if(k2===3){ const S=stateAfter(3), h=[LQ[0]*S[0][0]+LQ[1]*S[1][0], LQ[0]*S[0][1]+LQ[1]*S[1][1]];
-        page({grey:true});
+        p.text("line 1 -> k=[1,0]  v=[2,1]", 560, 100);
+        p.fill("#83c167");
+        p.text("S += k x v^T, every cell:", 560, 126);
+        p.text("S00 += 1x2 = 2    S01 += 1x1 = 1", 580, 150);
+        p.text("S10 += 0x2 = 0    S11 += 0x1 = 0", 580, 172);
+        p.fill("#e9ebee"); p.text("S = [ 2  1 ]   [ 0  0 ]", 580, 200);
+        p.fill("#98a2b0"); p.textSize(9.5);
+        p.text("the line is DISCARDED - only this imprint remains", 560, 230); p.pop(); }
+      if(k2===2){ // folds 2 and 3: cells ADD
+        page({cursor:2, dim:[0,1], y:86, lh:22, w:430});
+        const S2=stateAfter(2), S3=stateAfter(3);
+        p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(10.5);
+        p.text("line 2 -> k=[0,1] v=[1,3]:  S10 += 1, S11 += 3", 560, 100);
+        p.fill("#e9ebee"); p.text("S = [ "+S2[0][0]+"  "+S2[0][1]+" ]  [ "+S2[1][0]+"  "+S2[1][1]+" ]", 580, 124);
+        p.fill("#cdd3da"); p.text("line 3 -> k=[1,1] v=[1,0]:  +1 to S00, S10", 560, 156);
+        p.fill("#e9ebee"); p.text("S = [ "+S3[0][0]+"  "+S3[0][1]+" ]  [ "+S3[1][0]+"  "+S3[1][1]+" ]", 580, 180);
+        p.fill("#83c167"); p.textSize(10); p.text("values change. SIZE never does.", 560, 210); p.pop(); }
+      if(k2===3){ const S=stateAfter(3), h=[LQ[0]*S[0][0]+LQ[1]*S[1][0], LQ[0]*S[0][1]+LQ[1]*S[1][1]];
+        page({grey:true, y:86, lh:22, w:430});
         p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#83c167"); p.textSize(11);
-        p.text("read: h = q x S with q=["+LQ.join(",")+"]", 620, 110);
-        p.text("h1 = 1x"+S[0][0]+" + 2x"+S[1][0]+" = "+h[0], 640, 136);
-        p.text("h2 = 1x"+S[0][1]+" + 2x"+S[1][1]+" = "+h[1], 640, 158);
-        p.fill("#cdd3da"); p.textSize(10); p.text("one multiplication - the page is gone", 620, 188); p.pop(); }
-      else { page({grey:true}); notebook(640,110,["meeting, Tom","wind rising","shop, Rue Cler","rain, station"],3);
-        p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(10); p.textAlign(p.LEFT);
-        p.text("fixed size means FORGETTING - gating decides", 620, 268);
-        p.text("what to drop (KDA's gate; described, labeled)", 620, 284);
-        p.fill("#98a2b0"); p.textSize(9); p.text("DeltaNet Sep 25 -> KDA Oct 25 -> Qwen3.5 Feb 26 (75% of layers)", 620, 306); p.pop(); }
+        p.text("read with q = ["+LQ.join(",")+"]:", 560, 100);
+        p.text("h1 = 1x"+S[0][0]+" + 2x"+S[1][0]+" = "+h[0], 580, 126);
+        p.text("h2 = 1x"+S[0][1]+" + 2x"+S[1][1]+" = "+h[1], 580, 148);
+        p.fill("#cdd3da"); p.textSize(10); p.text("one multiplication - the page is gone", 560, 178); p.pop(); }
+      if(k2===4){ // WHY notebooks forget: addition is lossy - the open secret
+        const S=stateAfter(3);
+        p.push(); p.noStroke(); p.textAlign(p.LEFT);
+        p.fill("#e9ebee"); p.textSize(12); p.text("S00 = "+S[0][0]+".  Whose 3 is it?", 80, 110);
+        p.fill("#cdd3da"); p.textSize(10.5);
+        p.text("line 1 put in 2. line 3 put in 1. the sum remembers NEITHER.", 80, 136);
+        p.fill("#fc6255"); p.textSize(11);
+        p.text("addition is lossy - that is WHY notebooks forget.", 80, 170);
+        p.text("not a bug: arithmetic.", 80, 190);
+        p.fill("#98a2b0"); p.textSize(10);
+        p.text("gating (the delta rule; KDA's channel-wise gate - described, labeled)", 80, 222);
+        p.text("exists to choose WHAT the sum sacrifices", 80, 238); p.pop();
+        notebook(600,110,["meeting, Tom","wind rising","shop, Rue Cler","rain, station"],3); }
+      if(k2===5){ page({grey:true});
+        p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#98a2b0"); p.textSize(9.5);
+        p.text("DeltaNet (Sep 25) -> KDA (Oct 25: 75% KV cut, ~6x decode) -> Qwen3.5 (Feb 26: ~75% of layers)", 80, 350); p.pop();
+        p.push(); p.noStroke(); p.fill("#83c167"); p.textSize(11); p.textAlign(p.LEFT);
+        p.text("that 2x2 toy IS linear attention -", 640, 120);
+        p.text("real states are ~128x128 per head,", 640, 140);
+        p.text("but the arithmetic you just checked", 640, 160);
+        p.text("is the whole idea", 640, 180); p.pop(); }
     } else { // ACT 3: the argument
-      const k3=k-9;
+      const k3=k-11;
       if(k3===0){ // reads vs storage, drawn
         const rows=[["FULL",56,56,"#fc6255"],["SPARSE",21,56,"#ffd35c"],["LINEAR",4,4,"#83c167"]];
         p.push(); p.textAlign(p.LEFT); p.noStroke();
@@ -299,19 +355,21 @@ const CAPS_INT=[
 ["Three receipts: same page, three highlight patterns, three prices, three risks.","bit","neutral","Pick your bill."],
 ["The aha: n^2 and the KV bill were choices. 2026 split exactly this way.","bit","happy","The rules are being renegotiated."]];
 const CAPS_MECH=[
-["Each line gets a tiny index key; the question gets a query. All toy, all labeled.","bit","neutral","Small numbers, real mechanism."],
-["The skim, computed: u = q* . k*, stamped live in the margin as the spotlight passes.","bit","read","Eight little dot products."],
-["Top-3 kept: exact attention reads 21 words of 56. At scale: 2,048 of 131,072 (~1.6%).","cortex","happy","Same me, new glasses."],
-["The lineage, dated - and the catch: the indexer itself becomes the bottleneck (IndexShare fixes the fix).","bit","read","Three labs converged. Then the scout needed a scout."],
-["The notebook, as arithmetic: a fixed 2x2 state S, starting empty.","bit","neutral","One backpack, currently empty."],
-["Line 1 folds in: S += k x v^T, every cell computed. The line is then discarded.","bit","read","The line leaves; the imprint stays."],
-["Line 2 folds in. S changed values - never size.","cortex","happy","A million lines? Still 2x2."],
-["Reading: h = q x S - one multiplication, and the page is gone.","cortex","reach","My whole past in one multiply."],
-["The price: fixed size means forgetting. Gating chooses what to drop (KDA; described, labeled).","bit","think","Choosing what to drop IS the research."],
+["Every line's index KEY, visible on the page - and their origin: learned (DSA distills them from dense attention). Ours are toy, labeled.","bit","neutral","Nothing hidden: keys on the page, query on the right."],
+["ONE score, fully opened: line 3 earns 1.20, line 5 earns 0.12 - every multiplication on screen. The indexer IS a tiny attention.","bit","read","The scout is a miniature of the army."],
+["Same arithmetic, all 8 lines, stamped live as the skim passes.","bit","read","Eight dot products. You could do them."],
+["Top-3 kept: 21 words of 56. At scale: 2,048 of 131,072 (~1.6%).","cortex","happy","Same me, new glasses."],
+["The lineage, dated - and the catch: the indexer itself becomes the bottleneck (IndexShare fixes the fix).","bit","read","Then the scout needed a scout."],
+["The reveal: the notebook's words were the METAPHOR. The machine is a fixed matrix S - notes get smeared into numbers.","bit","reach","Time to open the notebook's real pages."],
+["One fold, every cell: line 1's k x v^T lands as four multiplications. Then the line is discarded.","bit","read","The line leaves; four numbers remain."],
+["Lines 2 and 3 fold in - cells ADD. Values change; size never does.","cortex","happy","A million lines? Still four cells."],
+["Reading: h = q x S, expanded - one multiplication, and the page is gone.","cortex","reach","My whole past in one multiply."],
+["WHY notebooks forget, mechanically: S00 = 3, but whose 3? Line 1 gave 2, line 3 gave 1 - the sum remembers neither. Addition is lossy; gating chooses what it sacrifices.","bit","think","Forgetting is not a bug. It is a plus sign."],
+["Scale-up, honestly: the 2x2 toy IS linear attention; real states are ~128x128 per head. The arithmetic you checked is the whole idea.","bit","happy","You just audited a flagship's memory."],
 ["Reads vs storage, drawn: two different bills. Sparse cuts reads; linear deletes the cache.","bit","neutral","Different bills - never conflate them."],
 ["The retreat: M2's notebook design failed multi-hop questions at scale -> back to full (Oct 25).","cortex","confused","Evidence moves positions."],
 ["Attack map: M2's n^2 and M3's KV bill, attacked from two sides. No winner declared.","bit","happy","Ask the two questions that matter."]];
-const MECH_ACTS=[["the margin scores",4],["the notebook",5],["the argument",3]];
+const MECH_ACTS=[["the indexer, opened",5],["the notebook, opened",6],["the argument",3]];
 
 let tl=null;
 function render(i){
@@ -322,13 +380,13 @@ function render(i){
   insight.innerHTML = MODE==="int"
     ? (i>=6?"<b>The aha:</b> three reading strategies, three prices. Switch to <b>mechanism</b> for the numbers on the page."
           :"One page, one question: <b>full re-reads everything; sparse reads the gold lines; linear keeps a notebook - and notebooks forget.</b>")
-    : (i<=3?"Act 1: <b>u = q* . k* in the margin; exact attention reads only the gold lines.</b>"
-      : i<=8?"Act 2: <b>S += outer(k,v); h = q x S.</b> The notebook never grows - so it must forget."
+    : (i<=4?"Act 1: <b>u = q* . k*, every multiplication on screen - the indexer is a tiny attention.</b>"
+      : i<=10?"Act 2: <b>S += outer(k,v); h = q x S - and S00 = 3 remembers neither of its parents.</b> Addition is lossy; that IS the forgetting."
       : "Act 3: <b>reads vs storage - two different bills.</b> The argument is taught, not a winner.");
 }
 function build(mode){ MODE=mode;
   const isInt=mode==="int";
-  tl=new Anim.Timeline({ length:isInt?7:12, autoMs:isInt?4200:3600, onStep:(i)=>render(i) });
+  tl=new Anim.Timeline({ length:isInt?7:14, autoMs:isInt?4200:3600, onStep:(i)=>render(i) });
   Anim.scrubber($("scrub"), tl, { label:isInt?(i=>"step "+(i+1)+" / 7"):Anim.actLabel(MECH_ACTS), acts:isInt?null:MECH_ACTS });
   tl.render(0);
 }
