@@ -53,7 +53,8 @@ ingredient.</p>
 <script src="../../../../assets/vendor/p5.min.js"></script>
 <script>
 /* ===== toy data (hand-authored, labeled) ===== */
-const R=[1,0,0,1,0];                                  // GRPO group rewards
+const R=[1,0,0,1,0];                                  // teacher's scores for Cortex's 5 answers
+const QANS=["96","94","108","96","88"];               // Cortex's 5 toy answers to "12 x 8"
 const RM=R.reduce((a,b)=>a+b,0)/R.length;             // mean
 const RSD=Math.sqrt(R.reduce((a,b)=>a+(b-RM)*(b-RM),0)/R.length);
 const ADV=R.map(r=>((r-RM)/RSD));
@@ -75,8 +76,14 @@ new p5(function(p){
   const density=()=>Math.max(2,window.devicePixelRatio||1);
   p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
     p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+  let lastKey="", stepStart=0;
   p.draw=function(){ if(p.pixelDensity()!==density()) p.pixelDensity(density());
-    p.background(11,14,18); (MODE==="int"?drawInt:drawMech)(); };
+    const key=MODE+STEP; if(key!==lastKey){ lastKey=key; stepStart=p.frameCount; }
+    p.background(11,14,18);
+    try { (MODE==="int"?drawInt:drawMech)(); }
+    catch(e){ p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(12); p.textAlign(p.LEFT);
+      p.text("stage error at "+MODE+" step "+(STEP+1)+": "+String(e).slice(0,90), 40, 60);
+      p.text("(please report this line)", 40, 84); p.pop(); } };
 
   function lane(x,y,w,h,label){ p.push(); p.noStroke(); p.fill(255,255,255,4); p.rect(x,y,w,h,10);
     p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER); p.text(label,x+w/2,y-6); p.pop(); }
@@ -98,142 +105,192 @@ new p5(function(p){
     });
     return x;
   }
-  function grpoTable(x,y,upto,drfix){
-    p.push(); p.textAlign(p.LEFT); p.noStroke(); p.textSize(11);
-    p.fill("#cdd3da"); p.text("group rewards (toy): ["+R.join(", ")+"]   mean = "+RM.toFixed(1)+"   std = "+RSD.toFixed(2), x, y);
-    if(upto>=1){ p.fill("#ffd35c");
-      ADV.forEach((a,i)=>p.text("attempt "+(i+1)+": adv = ("+R[i]+" - "+RM.toFixed(1)+") / "+RSD.toFixed(2)+" = "+a.toFixed(2), x, y+22+i*17)); }
+  function grpoViz(upto){ // GRPO advantage AS geometry: signed distance from the group mean, in std-widths
+    const ax0=250, ax1=760, ay=98, rowH=30, X=r=>ax0+(ax1-ax0)*r;
+    p.push(); p.noStroke();
+    // reward axis with ticks
+    p.stroke("#2a2f38"); p.strokeWeight(1); p.line(ax0,ay-16,ax1,ay-16);
+    for(let t=0;t<=1.001;t+=0.25){ p.stroke("#2a2f38"); p.line(X(t),ay-20,X(t),ay-12);
+      p.noStroke(); p.fill("#5b6470"); p.textSize(8.5); p.textAlign(p.CENTER); p.text(t.toFixed(2),X(t),ay-26); }
+    p.noStroke(); p.fill("#98a2b0"); p.textSize(9); p.textAlign(p.LEFT); p.text("score",ax1+14,ay-22);
+    // +/-1 std band + the mean baseline (the group IS the baseline)
+    const yb=ay-4, yt=ay-4+rowH*5-8;
+    p.noStroke(); p.fill(88,196,221,16); p.rect(X(Math.max(0,RM-RSD)),yb,X(RM+RSD)-X(Math.max(0,RM-RSD)),yt-yb,3);
+    p.stroke("#58c4dd"); p.strokeWeight(1.4); p.drawingContext.setLineDash([4,4]); p.line(X(RM),yb-8,X(RM),yt+2); p.drawingContext.setLineDash([]);
+    p.noStroke(); p.fill("#58c4dd"); p.textSize(9); p.textAlign(p.CENTER); p.text("class avg "+RM.toFixed(1),X(RM),yb-13);
+    p.fill("#5b6470"); p.textSize(8); p.text("+/-1 std = "+RSD.toFixed(2),X(RM),yt+13);
+    // each attempt: a dot at its reward; the advantage is the coloured segment back to the mean
+    R.forEach((r,i)=>{ const ry=ay+i*rowH+rowH/2-4, dx=X(r), mx=X(RM), pos=r>=RM;
+      p.stroke(pos?"#83c167":"#fc6255"); p.strokeWeight(3); p.line(mx,ry,dx,ry);
+      p.noStroke(); p.fill(pos?"#83c167":"#fc6255"); p.circle(dx,ry,12);
+      p.fill("#20242c"); p.textSize(8.5); p.textAlign(p.CENTER); p.text(r,dx,ry+3);
+      p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.RIGHT); p.text("\""+QANS[i]+"\"",ax0-14,ry+3);
+      if(upto>=1){ p.fill(pos?"#83c167":"#fc6255"); p.textSize(10); p.textAlign(p.LEFT);
+        p.text("adv "+(ADV[i]>=0?"+":"")+ADV[i].toFixed(2),ax1+14,ry+3); } });
+    // the formula, tied to the picture
+    // Cortex - the student whose answers these are; the score line IS its report card
+    p.textAlign(p.CENTER); p.fill("#8aa0b8"); p.textSize(9.5); p.text("Q: 12 x 8?", 86, 140);
+    cortexChip(86, 174, 0.95);
+    p.fill("#5b6470"); p.textSize(8); p.text("Cortex tries", 86, 202); p.text("5 ways", 86, 212);
+    p.fill("#cdd3da"); p.textSize(10.5); p.textAlign(p.LEFT);
+    p.text("advantage = (score - class avg) / std  =  the signed distance from the blue line, in std-widths",60,ay+rowH*5+16);
+    if(upto<1){ p.fill("#98a2b0"); p.textSize(9.5); p.text("no separate judge needed - the CLASS AVERAGE is the baseline. That is the whole trick.",60,ay+rowH*5+34); }
+    else { p.fill("#83c167"); p.textSize(9.5); p.text("Cortex leans toward the GREEN answers (above the class) - repeat them, they become its habit. That is how a score teaches.",60,ay+rowH*5+34); }
     p.pop();
   }
 
-  /* ---- intuition: 7 steps ---- */
+  /* ===== the school - F3's core visual: a robot learns language; scoring = reward ===== */
+  const PH=[{l:"LISTEN",t:"listen"},{l:"PRACTICE",t:"speak"},{l:"CONVERSE",t:"converse"},{l:"REASON",t:"reason"},{l:"LIVE",t:"live"}];
+  const KX=PH.map((_,i)=>120+i*168), KY=176;
+  function cortexChip(x,y,s){ p.push(); p.translate(x,y);
+    p.stroke("#3a5568"); p.strokeWeight(2*s); for(let i=-1;i<=1;i++){ p.line(i*8*s,-15*s,i*8*s,-19*s); p.line(i*8*s,15*s,i*8*s,19*s); }
+    p.stroke("#58c4dd"); p.strokeWeight(2*s); p.fill(18,40,52); p.rect(-14*s,-14*s,28*s,28*s,6*s);
+    p.noStroke(); p.fill("#8fe0f5"); p.circle(-5*s,-1*s,5.4*s); p.circle(5*s,-1*s,5.4*s);
+    p.fill("#0b1a22"); p.circle(-5*s,-1*s,2.4*s); p.circle(5*s,-1*s,2.4*s); p.pop(); }
+  function scoreBadge(x,y,pulse){ p.push();
+    const bob=pulse?Math.sin((p.frameCount-stepStart)*0.13)*2.2:0; p.translate(x,y+bob); p.rotate(-0.1);
+    p.fill(18,34,22); p.stroke("#83c167"); p.strokeWeight(1.6); p.rect(-16,-12,32,24,5);
+    p.strokeWeight(2.6); p.noFill(); p.line(-6,0,-1,6); p.line(-1,6,7,-6); p.pop(); }
+  function phaseIcon(t){ p.push(); p.noFill(); p.stroke("#8aa0b8"); p.strokeWeight(2);
+    if(t==="listen"){ for(let i=1;i<=3;i++) p.arc(3,0,i*12,i*13,-1.0,1.0); p.noStroke(); p.fill("#8aa0b8"); p.circle(-11,0,6); }
+    if(t==="speak"){ p.fill(28,34,42); p.stroke("#8aa0b8"); p.strokeWeight(1.6); p.rect(-19,-12,38,24,7); p.triangle(-9,11,-1,11,-13,20);
+      p.noStroke(); p.fill("#cdd3da"); for(let i=0;i<3;i++)p.circle(-9+i*9,0,4); }
+    if(t==="converse"){ p.fill(28,34,42); p.stroke("#8aa0b8"); p.strokeWeight(1.5); p.rect(-21,-13,25,17,6); p.rect(-3,-2,25,17,6); }
+    if(t==="reason"){ p.fill(28,34,42); p.stroke("#8aa0b8"); p.strokeWeight(1.6); p.ellipse(0,-2,42,26);
+      p.noStroke(); p.fill("#ffd35c"); p.textSize(15); p.textAlign(p.CENTER,p.CENTER); p.text("?",0,-3); }
+    if(t==="live"){ p.stroke("#8aa0b8"); p.strokeWeight(2); p.noFill(); p.circle(0,-7,15); p.arc(0,20,30,26,p.PI,p.TWO_PI); }
+    p.pop(); }
+  function phaseCard(x,y,s,scored){ p.push();
+    p.noStroke(); p.fill(18,22,28); p.rect(x-52,y+22,104,10,4);
+    p.push(); p.translate(x,y); phaseIcon(s.t); p.pop();
+    p.noStroke(); p.fill(scored?"#83c167":"#98a2b0"); p.textSize(10.5); p.textAlign(p.CENTER); p.text(s.l,x,y+48);
+    if(scored){ p.fill("#83c167"); p.textSize(8.5); p.text("scored -> adjust",x,y+62); }
+    p.pop(); }
+  function school(scoredAt,newest){ p.push();
+    p.stroke("#2a2f38"); p.strokeWeight(2); p.line(KX[0]-40,KY+27,KX[4]+40,KY+27);
+    p.noStroke(); p.fill("#5b6470"); p.textSize(9); p.textAlign(p.LEFT); p.text("hears its first words",KX[0]-52,KY-52);
+    p.textAlign(p.RIGHT); p.text("talks to you ->",KX[4]+44,KY-52);
+    const t=((p.frameCount*0.5)%200)/200, dx=(KX[0]-30)+((KX[4]+30)-(KX[0]-30))*t;
+    p.noStroke(); p.fill(88,196,221,110); p.circle(dx,KY+27,7);
+    PH.forEach((s,i)=>phaseCard(KX[i],KY,s,scoredAt.indexOf(i)>=0));
+    scoredAt.forEach(i=>scoreBadge(KX[i]+22,KY-26,i===newest)); p.pop(); }
+  function kcap(txt,col){ p.noStroke(); p.fill(col||"#98a2b0"); p.textSize(10.5); p.textAlign(p.CENTER); p.text(txt,CW/2,306); }
+  // compact schooling strip for the mechanism (the same phases, small)
+  function phaseStrip(active,scored){ p.push(); const y=74, xs=PH.map((_,i)=>150+i*140);
+    p.stroke("#2a2f38"); p.strokeWeight(1.5); p.line(xs[0]-28,y,xs[4]+28,y);
+    PH.forEach((s,i)=>{ const on=i===active, sc=scored&&scored.indexOf(i)>=0;
+      p.fill(on?18:23,on?32:27,on?42:33); p.stroke(on?"#58c4dd":(sc?"#83c167":"#2a2f38")); p.strokeWeight(on?1.8:1.2); p.rect(xs[i]-50,y-13,100,26,7);
+      p.noStroke(); p.fill(on?"#8fe0f5":(sc?"#83c167":"#98a2b0")); p.textSize(9.5); p.textAlign(p.CENTER); p.text(s.l,xs[i],y+4);
+      if(sc&&!on){ p.stroke("#83c167"); p.strokeWeight(2); p.noFill(); p.line(xs[i]+30,y-2,xs[i]+34,y+3); p.line(xs[i]+34,y+3,xs[i]+40,y-5); p.noStroke(); } }); p.pop(); }
+
+  /* ---- intuition: the robot's schooling, 7 steps (scoring spreads across the line) ---- */
   function drawInt(){
     const k=STEP;
-    if(k===0){ lane(30,80,860,110,"M6'S PIPELINE (2024's tidy picture)"); pipeline(110,null,false); }
-    if(k===1){ lane(30,80,860,110,"THE FIRST INVASION - PRETRAINING"); pipeline(110,[0],false);
-      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
-      p.text("RLP (Oct 2025): a chain of thought becomes an ACTION taken before predicting each token,", 60, 230);
-      p.text("rewarded by how much it helps - inside ordinary pretraining, no verifier anywhere", 60, 250); p.pop(); }
-    if(k===2){ lane(30,80,860,110,"A NEW STAGE APPEARS"); pipeline(110,null,true);
-      p.push(); p.noStroke(); p.fill("#ffd35c"); p.textSize(11); p.textAlign(p.LEFT);
-      p.text("Tongyi DeepResearch (Oct 2025) inserts AGENTIC MID-TRAINING - fully synthetic agent-task", 60, 230);
-      p.text("data between pretraining and post-training. The pipeline grew an organ.", 60, 250); p.pop(); }
-    if(k===3){ lane(30,80,860,110,"AND PAST THE END - TEST TIME"); pipeline(110,[3],false);
-      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
-      p.text("TTRL: at inference, on UNLABELED data, the model votes on its own answers and", 60, 230);
-      p.text("rewards agreement with the majority - updating itself after training 'ended'", 60, 250); p.pop(); }
-    if(k===4){ lane(30,80,860,150,"REWARDS OUTGROW THE VERIFIER");
-      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
-      p.fill("#83c167"); p.text("M7's world: reward = a checkable answer (math, code)", 60, 120);
-      p.fill("#ffd35c"); p.text("2025-26: RUBRIC checklists scored by judges carry RL into medicine, science, open-ended work", 60, 146);
-      p.fill("#fc6255"); p.text("...and rubric rewards can be gamed - reward hacking follows the reward (M7's warning, still true)", 60, 172);
-      p.fill("#98a2b0"); p.textSize(10); p.text("Kimi K2 (Jul 2025) even rewards the model for judging ITSELF against internal rubrics", 60, 198); p.pop(); }
-    if(k===5){ lane(30,80,860,150,"THE V4 TWIST (Jun 2026)");
-      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
-      ["MATH specialist","CODE specialist","AGENT specialist"].forEach((s,i)=>{
-        p.fill(23,27,33); p.stroke("#58c4dd"); p.strokeWeight(1.2); p.rect(60+i*210,110,180,40,8);
-        p.noStroke(); p.fill("#58c4dd"); p.textAlign(p.CENTER); p.text(s,150+i*210,130);
-        p.fill("#98a2b0"); p.textSize(8.5); p.text("SFT + GRPO, own reward",150+i*210,144); p.textSize(11); });
-      p.fill("#83c167"); p.textAlign(p.CENTER); p.text("ONE STUDENT - fused by ON-POLICY DISTILLATION (teachers grade every token)", 460, 195);
-      p.stroke("#83c167"); p.strokeWeight(1.2);
-      [150,360,570].forEach(x=>p.line(x,152,460,180)); p.noStroke();
-      p.fill("#cdd3da"); p.textSize(10.5); p.text("\"RL makes the teachers, distillation makes the model\" - M7 + M8, merged", 460, 216); p.pop(); }
-    if(k===6){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(13); p.textAlign(p.CENTER);
-      p.text("'post-training' is dying as a phrase -", CW/2, 150);
-      p.text("reward became an ingredient, not a stage", CW/2, 172); p.pop(); }
+    cortexChip(92,64+Math.sin(p.frameCount*0.05)*1.8,0.7);
+    p.push(); p.fill(24,30,38); p.stroke("#3a4350"); p.strokeWeight(1.2); p.rect(118,50,132,30,7); p.noStroke(); p.fill(24,30,38); p.triangle(118,64,118,76,108,70);
+    p.fill("#8aa0b8"); p.textSize(9.5); p.textAlign(p.LEFT); p.text(k===0?"copies what it hears...":"learning to talk...",128,69); p.pop();
+    p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("CORTEX LEARNS TO TALK",CW/2,40);
+    if(k===0){ school([],-1); kcap("the robot copies what it hears - repeating, never judging (that is imitation)"); }
+    if(k===1){ school([3],3); kcap("the final drills: a teacher SCORES each answer and it adjusts (that score is reward)"); }
+    if(k===2){ school([3,4],4); kcap("...then scored LIVE too - graded even while it is talking to you"); }
+    if(k===3){ school([0,3,4],0); kcap("...and scored at the very START, while it is first soaking up words"); }
+    if(k===4){ school([0,1,3,4],1); kcap("...and scored in the middle - they even add a whole new class for it","#ffd35c"); }
+    if(k===5){ school([0,1,2,3,4],2); kcap("scored at every phase - reward became the whole way it learns","#83c167"); }
+    if(k===6){ p.push(); p.noStroke(); p.fill(131,193,103,16); p.rect(KX[0]-52,KY-58,KX[4]-KX[0]+104,150,12); p.pop();
+      school([0,1,2,3,4],-1);
+      p.noStroke(); p.fill("#e9ebee"); p.textSize(12); p.textAlign(p.CENTER); p.text("scoring is not a final exam - it became part of how the robot learns, all the way through",CW/2,306); }
   }
 
   /* ---- mechanism: 15 steps, 3 acts ---- */
   function drawMech(){
     const k=STEP;
     if(k<=4){ // ACT 1: the GRPO zoo
-      lane(30,46,860,250, k<=1?"GRPO'S ADVANTAGE - M7'S ARITHMETIC, RECOMPUTED":"THE DESCENDANTS - EACH FIXES ONE NAMED FLAW");
-      if(k<=1) grpoTable(60,86,k,false);
-      if(k===2){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
-        p.fill("#cdd3da"); p.text("two WRONG answers, same advantage -0.4 (from the group above):", 60, 90);
-        p.fill("#fc6255"); p.text("answer X: 20 tokens  -> per-token penalty = -0.4 / 20  = -0.020", 80, 118);
-        p.text("answer Y: 200 tokens -> per-token penalty = -0.4 / 200 = -0.002", 80, 140);
-        p.fill("#ffd35c"); p.text("the long wrong answer is punished 10x LESS per token -> models learn to RAMBLE", 60, 170);
-        p.fill("#83c167"); p.text("Dr.GRPO (Mar 2025): remove the length division - wrong costs the same at any length", 60, 196); p.pop(); }
+      lane(30,46,860,250, k<=1?"ONE QUESTION, FIVE ANSWERS - A TEACHER SCORES EACH":"THE SCORING RULE, DEBUGGED FLAW BY FLAW");
+      if(k<=1) grpoViz(k);
+      if(k===2){ cortexChip(86,150,0.9); p.noStroke(); p.fill("#5b6470"); p.textSize(8); p.textAlign(p.CENTER); p.text("two wrong",86,182); p.text("answers",86,192);
+        p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(11); p.text("both wrong -> the same total penalty. But it is spread PER WORD:",158,90);
+        p.fill(30,20,20); p.stroke("#fc6255"); p.strokeWeight(1.4); p.rect(158,108,150,30,7); p.noStroke();
+        p.fill("#fc6255"); p.textSize(10.5); p.text("\"...wrong.\"",170,127); p.fill("#98a2b0"); p.textSize(9); p.text("(20 words)",250,127);
+        p.fill("#ffd35c"); p.textSize(10.5); p.text("penalty -0.40 / 20  = -0.020 / word",330,127);
+        p.fill(30,20,20); p.stroke("#fc6255"); p.strokeWeight(1.4); p.rect(158,148,300,30,7); p.noStroke();
+        p.fill("#fc6255"); p.textSize(10.5); p.text("\"...well, you see, it might be, sort of... wrong.\"",170,167); p.fill("#98a2b0"); p.textSize(9); p.text("(200 words)",468,167);
+        p.fill("#83c167"); p.textSize(10.5); p.text("penalty -0.40 / 200 = -0.002 / word",590,167);
+        p.fill("#ffd35c"); p.textSize(11); p.text("the long waffle is punished 10x LESS per word -> Cortex learns to RAMBLE",158,214);
+        p.fill("#83c167"); p.textSize(10.5); p.text("the fix: stop dividing by length - a wrong answer costs the same, long or short",158,240); }
       if(k===3){ p.push(); p.textAlign(p.CENTER,p.CENTER);
-        p.fill(23,27,33); p.stroke("#ffd35c"); p.strokeWeight(1.6); p.rect(70,150,120,48,9);
-        p.noStroke(); p.fill("#ffd35c"); p.textSize(12); p.text("GRPO",130,166);
-        p.fill("#98a2b0"); p.textSize(9); p.text("the parent",130,184);
-        const zoo=[["DAPO . Mar 25","entropy collapse","clip-higher"],
-                   ["GSPO . Jul 25","MoE RL unstable","sequence-level ratio"],
-                   ["VAPO . Apr 25","long-CoT plateau","the critic returns"],
-                   ["CISPO . Jun 25","fork tokens clipped","clip weight, keep grad"]];
+        p.fill(23,27,33); p.stroke("#ffd35c"); p.strokeWeight(1.6); p.rect(64,150,132,48,9);
+        p.noStroke(); p.fill("#ffd35c"); p.textSize(11.5); p.text("the scoring rule",130,165); p.fill("#98a2b0"); p.textSize(8.5); p.text("(GRPO)",130,184);
+        p.stroke("#3a4350"); p.strokeWeight(1.4); p.line(200,174,296,174); p.noStroke(); p.fill("#3a4350"); p.triangle(306,174,296,169,296,179);
+        const zoo=[["all answers turned identical","reward some variety","DAPO"],
+                   ["big models went unstable","score the whole answer","GSPO"],
+                   ["it stalled on hard problems","add a second opinion","VAPO"],
+                   ["rare key words got ignored","keep their signal","CISPO"]];
         zoo.forEach((z,i)=>{ const x=320+(i%2)*300, y=86+Math.floor(i/2)*112;
-          p.stroke("#3a4350"); p.strokeWeight(1.2); p.line(190,174,x,y+32);
           p.fill(23,27,33); p.stroke("#58c4dd"); p.rect(x,y,255,66,9); p.noStroke();
-          p.fill("#58c4dd"); p.textSize(11); p.text(z[0], x+127, y+15);
-          p.fill("#fc6255"); p.textSize(9.5); p.text(z[1], x+127, y+34);
-          p.fill("#83c167"); p.text("-> "+z[2], x+127, y+51); p.stroke(0); });
+          p.fill("#fc6255"); p.textSize(9.5); p.text("bug: "+z[0], x+127, y+16);
+          p.fill("#83c167"); p.text("fix: "+z[1], x+127, y+35);
+          p.fill("#5b6470"); p.textSize(8.5); p.text(z[2], x+127, y+53); p.stroke(0); });
         p.pop(); }
-      if(k===4){ p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
-        p.fill("#cdd3da"); p.text("and the meta-result: ScaleRL (Meta, Oct 2025) - RL compute follows PREDICTABLE", 60, 100);
-        p.text("sigmoid scaling curves, like pretraining did. RL got its first scaling laws.", 60, 122);
-        p.fill("#98a2b0"); p.textSize(10); p.text("the zoo is not chaos - it is one algorithm being debugged in public, flaw by flaw", 60, 152); p.pop(); }
-    } else if(k<=9){ // ACT 2: the invasion, computed
+      if(k===4){ p.push();
+        p.stroke("#3a4350"); p.strokeWeight(1.2); p.line(230,238,700,238); p.line(230,238,230,98);
+        p.noStroke(); p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("grading effort ->",465,258);
+        p.push(); p.translate(212,168); p.rotate(-p.HALF_PI); p.text("skill ->",0,0); p.pop();
+        p.stroke("#83c167"); p.strokeWeight(2.6); p.noFill(); p.beginShape();
+        for(let i=0;i<=40;i++){ const x=230+i*11.75, yy=238-134/(1+Math.exp(-((i/40)*10-5))); p.vertex(x,yy); } p.endShape();
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("spend more on grading -> a predictable gain in skill. Grading became engineering, not guesswork.",465,286); p.pop(); }
+    } else if(k<=9){ // ACT 2: scoring spreads across the schooling
       const k2=k-5;
-      lane(30,46,860,250, k2<=1?"RLP - REWARD INSIDE PRETRAINING (computed)":(k2<=3?"TTRL - REWARD AT TEST TIME (computed)":"THE NEW MIDDLE STAGE"));
-      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
-      if(k2===0){ p.fill("#cdd3da");
-        p.text("ordinary pretraining text: \"...the capital of France is [Paris]\"", 60, 90);
-        p.text("the model first SAMPLES a private thought, then predicts the token:", 60, 116);
-        p.fill("#98a2b0"); p.text("p(Paris | text alone)        = "+P_WITHOUT.toFixed(2)+"   (toy, hand-authored)", 80, 146);
-        p.text("p(Paris | text + thought)    = "+P_WITH.toFixed(2), 80, 168); }
-      if(k2===1){ p.fill("#98a2b0");
-        p.text("p(Paris | text alone) = "+P_WITHOUT.toFixed(2)+"   p(Paris | text + thought) = "+P_WITH.toFixed(2), 60, 90);
-        p.fill("#ffd35c"); p.textSize(12);
-        p.text("reward = log( "+P_WITH.toFixed(2)+" / "+P_WITHOUT.toFixed(2)+" ) = "+IG.toFixed(2), 60, 124);
-        p.fill("#83c167"); p.textSize(11);
-        p.text("the thought earned "+IG.toFixed(2)+" nats of INFORMATION GAIN - no verifier, no labels, dense reward on every token", 60, 154);
-        p.fill("#98a2b0"); p.textSize(10); p.text("RLP (NVIDIA, Oct 2025; ICLR 2026) - RL moved into the pretraining objective itself", 60, 180); }
-      if(k2===2){ p.fill("#cdd3da"); p.text("unlabeled question at TEST time. The model samples 5 answers:", 60, 90);
-        VOTES.forEach((v,i)=>{ const on=v===MAJ;
-          p.fill(on?"#2a2410":"#171b21"); p.stroke(on?"#ffd35c":"#2a2f38"); p.rect(60+i*130,110,110,34,7);
-          p.noStroke(); p.fill(on?"#ffd35c":"#98a2b0"); p.textAlign(p.CENTER); p.text('"'+v+'"',115+i*130,128); p.textAlign(p.LEFT); });
-        p.fill("#ffd35c"); p.text("majority vote: \""+MAJ+"\" (3 of 5) -> becomes the PSEUDO-LABEL", 60, 172); }
-      if(k2===3){ p.fill("#cdd3da"); p.text("now GRPO runs on the votes - rewards = agree with majority:", 60, 90);
-        p.fill("#ffd35c"); p.text("rewards: ["+VR.join(", ")+"]   (computed from the vote)", 80, 116);
-        p.fill("#83c167"); p.text("the model teaches ITSELF at inference - +211% on AIME for a 7B math model (primary)", 60, 146);
-        p.fill("#fc6255"); p.text("the catch: if the majority is confidently wrong, it reinforces the error - no oracle anywhere", 60, 172);
-        p.fill("#98a2b0"); p.textSize(10); p.text("TTRL (Apr 2025, NeurIPS) -> unsupervised-RLVR subfield (ICLR 2026)", 60, 198); }
-      if(k2===4){ pipeline(100,[0,3],true);
-        p.fill("#cdd3da"); p.textSize(11);
-        p.text("the full 2026 picture: reward in pretraining (RLP), a new mid-training stage (Tongyi),", 60, 210);
-        p.text("the GRPO family in post-training, TTRL past the end. The tidy row is history.", 60, 232); }
+      lane(30,46,860,250, k2<=1?"SCORED WHILE LISTENING (computed)":(k2<=3?"SCORED LIVE - IT GRADES ITSELF (computed)":"SCORED AT EVERY PHASE"));
+      p.push(); p.noStroke(); p.textAlign(p.LEFT);
+      if(k2<=1){ phaseStrip(0,[3]); cortexChip(108,192,0.9);
+        p.fill("#cdd3da"); p.textSize(11); p.text("reading: \"...the capital of France is ___\"",158,130);
+        p.fill(24,30,38); p.stroke("#3a4350"); p.strokeWeight(1.2); p.rect(158,144,320,40,8); p.noStroke();
+        p.fill("#8aa0b8"); p.textSize(9.5); p.text("a private thought first: \"France... its capital... Paris\"",172,168);
+        p.fill("#98a2b0"); p.textSize(10.5); p.text("guess WITHOUT the thought:  p(Paris) = "+P_WITHOUT.toFixed(2),158,210);
+        p.fill("#cdd3da"); p.text("guess WITH the thought:      p(Paris) = "+P_WITH.toFixed(2),158,232);
+        if(k2===1){ p.fill("#ffd35c"); p.textSize(12); p.text("the thought helped -> reward = log("+P_WITH.toFixed(2)+"/"+P_WITHOUT.toFixed(2)+") = "+IG.toFixed(2),158,262);
+          p.fill("#83c167"); p.textSize(10.5); p.text("a good thought pays off - scored even here, while first learning to read. No teacher.",158,286); } }
+      else if(k2<=3){ phaseStrip(4,[0,3]); cortexChip(108,182,0.9);
+        p.fill("#cdd3da"); p.textSize(11); p.text("live, no teacher: Cortex answers the same question 5 times",158,120);
+        VOTES.forEach((v,i)=>{ const on=v===MAJ; p.fill(on?"#2a2410":"#171b21"); p.stroke(on?"#ffd35c":"#2a2f38"); p.strokeWeight(1.2); p.rect(158+i*128,138,110,32,7);
+          p.noStroke(); p.fill(on?"#ffd35c":"#98a2b0"); p.textSize(11); p.textAlign(p.CENTER); p.text('"'+v+'"',213+i*128,158); p.textAlign(p.LEFT); });
+        p.fill("#ffd35c"); p.textSize(11); p.text("most answers agree on \""+MAJ+"\" -> it treats that as its OWN grade",158,198);
+        if(k2===3){ p.fill("#83c167"); p.textSize(10.5); p.text("grade each answer by agreement -> rewards ["+VR.join(", ")+"]. It teaches itself, live.",158,228);
+          p.fill("#fc6255"); p.text("the risk: a confidently wrong crowd locks in the mistake - no oracle anywhere.",158,252); } }
+      else { phaseStrip(-1,[0,1,2,3,4]);
+        p.fill("#cdd3da"); p.textSize(11.5); p.textAlign(p.CENTER); p.text("the same green score now lands at every phase of the schooling -",CW/2,152);
+        p.text("while listening, in the middle, at the final drills, and live.",CW/2,176);
+        p.fill("#98a2b0"); p.textSize(10.5); p.text("scoring is no longer a single stage. it is mixed all the way through.",CW/2,214); p.textAlign(p.LEFT); }
       p.pop();
-    } else { // ACT 3: V4 fusion + rubrics + close
+    } else { // ACT 3: teacher grades every word, specialists merged, and the finish
       const k3=k-10;
-      lane(30,46,860,250, k3<=1?"ON-POLICY DISTILLATION - THE TEACHER GRADES EVERY TOKEN (computed)":(k3<=2?"RUBRICS - REWARDS PAST THE VERIFIER":"THE ATTACK MAP"));
+      lane(30,46,860,250, k3===0?"THE TEACHER GRADES EVERY WORD (computed)":(k3===1?"SPECIALISTS, DRILLED THEN MERGED":(k3===2?"SCORING REACHES OPEN-ENDED WORK":"THE ROBOT'S SCHOOLING, SCORED THROUGHOUT")));
       p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
-      if(k3===0){ p.fill("#cdd3da");
-        p.text("the STUDENT samples its own next token; suppose it picks \"thus\":", 60, 90);
-        p.fill("#98a2b0");
-        p.text("student probability   pS(\"thus\") = "+PS.toFixed(2)+"   (toy, hand-authored)", 80, 118);
-        p.text("teacher probability   pT(\"thus\") = "+PT.toFixed(2), 80, 140);
-        p.fill("#ffd35c"); p.textSize(12);
-        p.text("per-token grade = log( pS / pT ) = log( "+PS.toFixed(2)+" / "+PT.toFixed(2)+" ) = "+KLT.toFixed(2), 60, 174);
-        p.fill("#83c167"); p.textSize(11);
-        p.text("negative -> the gradient pushes the student TOWARD the teacher, on the student's OWN trajectory", 60, 202); }
-      if(k3===1){ p.fill("#cdd3da");
-        p.text("that one grade, industrialized, is DeepSeek-V4's post-training (Jun 2026):", 60, 90);
-        p.fill("#58c4dd"); p.text("1. specialists (math / code / agents) each trained with SFT + GRPO + their own reward", 80, 118);
-        p.fill("#83c167"); p.text("2. one student fused from all teachers by on-policy distillation - dense, per-token, cheap vs RL", 80, 142);
-        p.fill("#ffd35c"); p.text("\"RL makes the teachers, distillation makes the model\" - M7 and M8, merged into one pipeline", 60, 174);
-        p.fill("#98a2b0"); p.textSize(10); p.text("mechanism first shown by Thinking Machines (Oct 2025); a survey subfield by Apr 2026", 60, 200); }
-      if(k3===2){ p.fill("#83c167"); p.text("M7's reward: a checkable answer. 2026's reward: a RUBRIC - a prompt-specific checklist", 60, 90);
-        p.fill("#83c167"); p.text("scored by an LLM judge - carrying RL into medicine, science, open-ended agent work", 60, 112);
-        p.fill("#fc6255"); p.text("and the eternal price: rubric rewards get HACKED too - 2026 papers study exactly that", 60, 142);
-        p.fill("#98a2b0"); p.textSize(10);
-        p.text("Rubrics as Rewards (Jul 2025); reward-hacking-in-rubric-RL (2026); benchmark deltas stated qualitatively (rule 11)", 60, 168); }
-      if(k3>=3){ p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
-        p.text("attack map: F3 attacked M6's tidy stages (reward is an ingredient now)", CW/2, 110);
-        p.text("and extended M7 (the verifier's reach) + M8 (distillation became RL's partner)", CW/2, 134);
-        p.fill("#98a2b0"); p.textSize(10.5);
-        p.text("done when: place RLP / mid-training / GRPO / TTRL on the pipeline and compute the length-bias fix", CW/2, 168); }
+      if(k3===0){ cortexChip(210,148,1.0); p.fill("#5b6470"); p.textSize(9); p.textAlign(p.CENTER); p.text("student",210,188);
+        cortexChip(690,148,1.0); p.fill("#ffd35c"); p.text("teacher",690,188);
+        p.fill(24,30,38); p.stroke("#3a4350"); p.strokeWeight(1.2); p.rect(250,132,108,26,7); p.noStroke(); p.fill("#cdd3da"); p.textSize(10.5); p.textAlign(p.LEFT); p.text("says \"thus\"",262,149);
+        p.stroke("#3a4350"); p.strokeWeight(1.2); p.line(360,148,540,148); p.noStroke();
+        p.textAlign(p.CENTER); p.fill("#98a2b0"); p.textSize(10.5); p.text("the student said \"thus\" at confidence "+PS.toFixed(2)+";  the teacher would give it "+PT.toFixed(2),CW/2,226);
+        p.fill("#ffd35c"); p.textSize(12); p.text("grade = log("+PS.toFixed(2)+"/"+PT.toFixed(2)+") = "+KLT.toFixed(2)+"  ->  nudge the student toward the teacher",CW/2,254);
+        p.fill("#83c167"); p.textSize(10.5); p.text("and this happens for EVERY word of the student's own answer - dense, cheap, on its own attempts",CW/2,282); }
+      if(k3===1){ const spec=["MATH","CODE","AGENTS"];
+        spec.forEach((s,i)=>{ const x=190+i*130; cortexChip(x,116,0.62); p.fill("#58c4dd"); p.textSize(9.5); p.textAlign(p.CENTER); p.text(s,x,150); });
+        p.fill("#98a2b0"); p.textSize(9); p.textAlign(p.CENTER); p.text("3 specialist Cortexes, each drilled hard by its own teacher",255,172);
+        p.stroke("#83c167"); p.strokeWeight(1.4); p.line(255,186,255,212); p.noStroke(); p.fill("#83c167"); p.triangle(255,220,250,210,260,210);
+        cortexChip(255,250,1.0); p.fill("#83c167"); p.textSize(10); p.text("ONE student",255,288);
+        p.textAlign(p.LEFT); p.fill("#ffd35c"); p.textSize(11); p.text("hard drills make the specialists;",430,182); p.text("copying their answers makes",430,204); p.text("the one final model.",430,226);
+        p.fill("#cdd3da"); p.textSize(10); p.text("(scoring builds the teachers;",430,258); p.text("imitation builds the student)",430,274); }
+      if(k3===2){ cortexChip(106,150,0.85); p.fill("#5b6470"); p.textSize(8); p.textAlign(p.CENTER); p.text("graded on",106,182); p.text("open work",106,192);
+        p.fill(24,30,38); p.stroke("#3a4350"); p.strokeWeight(1.2); p.rect(178,96,330,116,8); p.noStroke(); p.fill("#8aa0b8"); p.textSize(10); p.textAlign(p.LEFT); p.text("RUBRIC - a checklist a judge marks:",192,116);
+        ["is it accurate?","is it clear?","is it safe?","does it cite its sources?"].forEach((c,i)=>{ const yy=140+i*17; p.stroke("#83c167"); p.strokeWeight(2); p.noFill(); p.line(202,yy,206,yy+4); p.line(206,yy+4,213,yy-4); p.noStroke(); p.fill("#cdd3da"); p.textSize(10); p.text(c,224,yy+3); });
+        p.fill("#83c167"); p.textSize(10.5); p.text("now scoring reaches BEYOND right/wrong - into medicine, writing, open-ended work",178,238);
+        p.fill("#fc6255"); p.text("but a checklist can be gamed - Cortex may learn to tick boxes without being truly good",178,262); }
+      if(k3>=3){ school([0,1,2,3,4],-1);
+        p.noStroke(); p.textAlign(p.CENTER); p.fill("#e9ebee"); p.textSize(12.5);
+        p.text("two ways to learn language: COPY what you hear, or TRY and get SCORED.",CW/2,300);
+        if(k3===3){ p.fill("#83c167"); p.text("2026's lesson: scoring stopped being a final exam - it runs through the whole schooling.",CW/2,322); }
+        else { p.fill("#98a2b0"); p.textSize(10.5); p.text("done when: point to where Cortex gets scored (start / middle / drills / live) and explain the ramble-fix.",CW/2,322); }
+        p.textAlign(p.LEFT); }
       p.pop();
     }
   }
@@ -241,30 +298,30 @@ new p5(function(p){
 
 /* ===== captions ===== */
 const CAPS_INT=[
-["M6's picture: four tidy stages, RL last. In 2024 this was the truth.","bit","neutral","A tidy assembly line - enjoy it."],
-["RLP (Oct 2025): a private thought before each pretraining token, rewarded by how much it helps. RL inside pretraining - no verifier, no labels.","cortex","think","I learned to think while learning to read."],
-["Tongyi (Oct 2025) inserted a whole NEW stage of synthetic agent tasks. The pipeline grew an organ.","bit","reach","They built a new floor in the building."],
-["TTRL: at test time the model votes on its own answers and rewards the majority. Training continues after training ends.","cortex","confused","I grade myself by show of hands."],
-["Rubric checklists scored by judges carry RL past checkable answers. Softer rewards reach medicine and open-ended work - and hack easier (M7's warning travels).","bit","think","Softer rewards reach further, bend easier."],
-["DeepSeek-V4 (Jun 2026): GRPO trains SPECIALISTS, on-policy distillation fuses them into one student. RL makes the teachers; distillation makes the model.","cortex","happy","Three tutors, one me."],
-["The aha: reward became an INGREDIENT, not a stage. M6's diagram is now a dated exhibit.","bit","happy","The pipeline became a recipe."]];
+["A robot learns language the way a child first does: by COPYING what it hears - repeating it back, never judging if it is good. That is imitation.","bit","neutral","Repeat after me. Don't ask why."],
+["Then the drills: it answers, a teacher SCORES the answer, and it adjusts to score higher. That score is a REWARD - learning from a grade, not a copy. For years it lived only here, at the end.","cortex","think","A grade! Now I know if I'm right."],
+["Why stop at the final exam? Score it LIVE too - graded even while it is mid-conversation with you.","cortex","reach","Marked while I'm still talking?"],
+["And score it at the very START, while it is first soaking up words - long before any exam.","bit","happy","Graded from day one."],
+["They even add a whole new class in the middle, just to do more of this scoring.","bit","reach","A new class, only for grading?"],
+["Now every phase is scored. The single end-of-school grade multiplied across the robot's entire education.","cortex","happy","I'm graded everywhere I learn."],
+["The aha: scoring is not a final exam any more. It became part of HOW the robot learns, all the way through.","bit","happy","Reward isn't a test. It's the teacher."]];
 const CAPS_MECH=[
-["A group of 5 attempts, toy rewards. Mean and std computed live.","bit","neutral","Same toy as M7."],
-["advantage = (reward - mean) / std, all five on screen. Vanilla GRPO - the parent.","bit","read","The parent algorithm, in full."],
-["Length bias, computed: the long wrong answer costs 10x less per token - models learn to RAMBLE. Dr.GRPO deletes the length division.","cortex","confused","The math paid me to ramble."],
-["The zoo: each descendant fixes one named flaw - read the board.","bit","read","One algorithm, debugged in public."],
-["ScaleRL (Oct 2025): RL compute follows predictable sigmoid curves. Its first scaling laws.","bit","happy","Arguing turned into engineering."],
-["RLP: next token 'Paris'. Without a thought p=0.15; with one, 0.42 (toy).","bit","neutral","One token, two probabilities."],
-["reward = log(0.42/0.15) = 1.03 nats, live. Dense signal, every token, no verifier.","cortex","reach","My thoughts get paid by helping."],
-["TTRL: five samples, majority '72' becomes the pseudo-label. No oracle consulted.","bit","read","Five guesses, one election."],
-["Vote rewards [1,0,1,1,0] - GRPO runs at inference (+211% AIME, primary). Catch: a confidently wrong majority reinforces itself.","cortex","confused","Powerful - until I am wrong together."],
-["The 2026 pipeline assembled: reward at the start, a new middle, the zoo after, TTRL past the end.","bit","reach","Four stages in; an ecosystem out."],
-["On-policy distillation: student picks 'thus' (pS=0.5); teacher gave 0.8. Grade = log(0.5/0.8) = -0.47 -> pulled toward the teacher.","bit","read","The teacher marks every word."],
-["Industrialized, that is V4's whole post-training: specialists by RL, one student by distillation. M7 + M8, merged.","cortex","happy","My tutors explored; I inherit."],
-["Rubrics carry RL past the verifier - and get hacked in turn. Goodhart moves with the reward.","bit","think","Every new reward is a new game."],
-["Attack map: M6's stages attacked, M7's verifier extended, M8's distillation merged in.","bit","happy","Same ingredients, new recipe."],
-["Done when: place the rewards on the pipeline and compute the length-bias fix. CHALLENGE.md holds you to it.","bit","neutral","Place the reward, fix the bias."]];
-const MECH_ACTS=[["the GRPO zoo",5],["the invasion, computed",5],["fusion + rubrics",5]];
+["The robot answers ONE question five different ways. A teacher scores each (toy scores). The class average and spread, computed live.","bit","neutral","Five tries, five grades."],
+["advantage = (score - class average) / std - each answer's distance from the class, in std-widths. This is GRPO, the core scoring rule.","bit","read","Am I above the class, or below it?"],
+["The catch, computed: a long rambling wrong answer is punished 10x LESS per word than a short wrong one - so the robot learns to RAMBLE. The fix: stop dividing by length.","cortex","confused","The grading paid me to waffle."],
+["That scoring rule got debugged in public - a small zoo of fixes, each repairing one bad habit.","bit","read","One rule, patched flaw by flaw."],
+["It even earned scaling laws: spend more on grading, get a predictable gain. Grading became engineering.","bit","happy","Arguing turned into engineering."],
+["Scored while LISTENING: reading '...capital of France is ___', a private thought lifts p(Paris) from 0.15 to 0.42 (toy).","cortex","think","A good thought before I answer."],
+["reward = log(0.42/0.15) = 1.03 - the thought earned its keep. Scored even here, while first learning to read. No teacher.","cortex","reach","My thinking gets graded too."],
+["Scored LIVE, no teacher: Cortex answers 5 times and treats the most common answer ('72') as its own grade.","bit","read","Five guesses, one election."],
+["Grade by agreement -> rewards [1,0,1,1,0]: it teaches itself while talking to you. The risk: a confidently wrong crowd locks in the error.","cortex","confused","Strong - until we are all wrong together."],
+["So the green score now lands at every phase - listening, middle, final drills, live. Scoring is no longer a stage.","bit","reach","Graded everywhere I learn."],
+["The teacher grades every WORD of the student's own answer: it said 'thus' at 0.5, the teacher gives 0.8 -> nudge toward the teacher.","bit","read","Marked word by word."],
+["Industrialized: split Cortex into specialists (math, code), drill each hard, then copy their answers into one student.","cortex","happy","My specialists explore; I inherit."],
+["Scoring even reaches open-ended work - a checklist a judge marks. But a checklist can be gamed: ticking boxes without being good.","bit","think","Every new grade is a new game."],
+["The whole picture: two ways to learn - copy, or get scored - and scoring now runs through the entire schooling.","bit","happy","Copy, or be graded. Mostly graded now."],
+["Done when: point to where the robot gets scored (start / middle / drills / live) and explain the ramble-fix. CHALLENGE.md.","bit","neutral","Name where the grades land."]];
+const MECH_ACTS=[["the scoring rule",5],["scoring spreads",5],["specialists + the finish",5]];
 
 let tl=null;
 function render(i){
@@ -273,11 +330,11 @@ function render(i){
   caption.textContent=c[0]; react(c[1],c[2],c[3]);
   insight.className="insight";
   insight.innerHTML = MODE==="int"
-    ? (i>=6?"<b>The aha:</b> reward became an ingredient, not a stage. Switch to <b>mechanism</b> to compute each invasion."
-          :"One idea: <b>the reward signal escaped its stage - start, middle, end, and past the end.</b>")
-    : (i<=4?"Act 1: <b>GRPO recomputed, then debugged in public</b> - the length-bias arithmetic is the star."
-      : i<=9?"Act 2: <b>RLP's log-ratio and TTRL's majority vote, computed live.</b> Reward without a verifier."
-      : "Act 3: <b>the teacher grades every token of the student's own attempt.</b> RL makes teachers; distillation makes the model.");
+    ? (i>=6?"<b>The aha:</b> scoring (reward) is not a final exam - it runs through the robot's whole schooling. Switch to <b>mechanism</b> for the numbers - how one score actually changes it."
+          :"One idea: <b>scoring the robot (reward) spread from a single final exam to every phase of its schooling.</b>")
+    : (i<=4?"Act 1: <b>a teacher scores five answers; advantage is each answer's distance from the class average.</b> Then the scoring rule gets debugged in public."
+      : i<=9?"Act 2: <b>Cortex scored while first listening, and grading itself live</b> - the same green score spreads to every phase."
+      : "Act 3: <b>the teacher grades every word; specialists are drilled then merged into one student.</b> Scoring runs through the whole schooling.");
 }
 function build(mode){ MODE=mode;
   const isInt=mode==="int";
