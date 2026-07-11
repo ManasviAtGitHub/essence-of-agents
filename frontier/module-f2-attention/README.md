@@ -36,7 +36,7 @@ redesigned; the first frontier change to that layer in a decade.
 `widgets/three-escapes/index.html` - two passes:
 - **intuition (7 steps):** the two bills return; the spotlight (sparse); the
   backpack (linear); the retreat (dissent); the open argument.
-- **mechanism (16 steps, 3 acts):** act 1 computes SPARSE on a toy context -
+- **mechanism (14 steps, 3 acts):** act 1 computes SPARSE on a toy context -
   a 2-D indexer scores 8 past tokens live, top-3 selected, exact attention
   reads 3 not 8; the lineage dated; the indexer's own cost as the new
   bottleneck (IndexShare). Act 2 computes LINEAR - a 2x2 state updated by

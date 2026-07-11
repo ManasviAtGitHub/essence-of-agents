@@ -369,7 +369,8 @@ new p5(function(p){
           p.fill("#98a2b0"); p.textSize(9); p.text("reads/word",60,y+18); p.text("stored",60,y+44);
           p.fill("#58c4dd"); p.rect(150,y+10,10+600*(r[1]/56),10,3); p.fill("#cdd3da"); p.text(r[1],160+600*(r[1]/56),y+19);
           p.fill("#ffd35c"); p.rect(150,y+36,10+600*(r[2]/56),10,3); p.fill("#cdd3da"); p.text(r[2]===4?"4 notes":r[2],160+600*(r[2]/56),y+45); });
-        p.fill("#98a2b0"); p.textSize(9.5); p.text("READS and STORAGE are different bills: sparse cuts reads (cache stays until V4 compression); linear deletes the cache itself",60,352); p.pop(); }
+        p.fill("#98a2b0"); p.textSize(9.5); p.text("READS and STORAGE are different bills: sparse cuts reads (cache stays until V4 compression); linear deletes the cache itself",60,352);
+        p.fill("#5b6470"); p.textSize(9); p.text("bonus, a different layer entirely: mHC (Dec 25) redesigned the residual stream itself - first change to it in a decade, shipped in V4",60,374); p.pop(); }
       if(k3===1){ page({grey:true});
         answerRow(0,300,true);
         p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
@@ -377,12 +378,55 @@ new p5(function(p){
         p.text("BACK to full attention - multi-hop", 620, 128);
         p.text("reasoning degraded at scale.", 620, 146);
         p.fill("#98a2b0"); p.textSize(9.5); p.text("their M3 (Jun 26) then chose SPARSE", 620, 172); p.pop(); }
-      if(k3===2){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
-        p.text("attack map: M2's n^2 (read less / read a state) and M3's KV bill (shrink it / delete it)", CW/2, 140);
-        p.fill("#98a2b0"); p.textSize(10.5);
-        p.text("no winner declared - the field has not declared one (rule 12)", CW/2, 166);
-        p.text("done when: given a design, state its reads, its storage, and its documented risk", CW/2, 200);
-        p.pop(); stampEx("bonus: mHC (Dec 25) redesigned the residual stream itself - shipped in V4", 220, 240); }
+      if(k3===2){ // THE ATTACK MAP, drawn - the track's primitive, finally rendered (was three lines of prose)
+        const ox=150, oy=300, pw=420, ph=196, top=oy-ph;
+        const PX=r=>ox+pw*(r/56), PY=s=>oy-ph*(s/56);
+        const D=[{n:"FULL",r:56,s:56,c:"#fc6255",risk:"the n^2 wall itself"},
+                 {n:"SPARSE",r:21,s:56,c:"#ffd35c",risk:"indexer can mis-rank"},
+                 {n:"LINEAR",r:4,s:4,c:"#83c167",risk:"forgets -> multi-hop breaks"}];
+        p.push();
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.LEFT);
+        p.text("THE ATTACK MAP", ox, 60); p.fill("#5b6470"); p.textSize(9.5);
+        p.text("- two bills, three answers", ox+118, 60);
+        // axes: reads (M2's bill) across, storage (M3's bill) up
+        p.stroke("#3a4350"); p.strokeWeight(1.4);
+        p.line(ox,oy,ox+pw+14,oy); p.line(ox,oy,ox,top-14);
+        p.noStroke(); p.fill("#3a4350");
+        p.triangle(ox+pw+14,oy,ox+pw+5,oy-5,ox+pw+5,oy+5);
+        p.triangle(ox,top-14,ox-5,top-5,ox+5,top-5);
+        p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.LEFT);
+        p.text("READS / new token  (M2's n^2 bill) ->", ox+2, oy+22);
+        p.push(); p.translate(ox-30,(oy+top)/2); p.rotate(-p.HALF_PI); p.textAlign(p.CENTER,p.CENTER);
+        p.text("STORAGE  (M3's KV bill) ->", 0, 0); p.pop();
+        // the two escapes, drawn as dashed attack arrows leaving FULL
+        const fx=PX(56),fy=PY(56),sx=PX(21),sy=PY(56),lx=PX(4),ly=PY(4);
+        function atk(x1,y1,x2,y2,c,lab){ p.stroke(c); p.strokeWeight(1.3);
+          p.drawingContext.setLineDash([4,4]); p.line(x1,y1,x2,y2); p.drawingContext.setLineDash([]);
+          const a=Math.atan2(y2-y1,x2-x1); p.noStroke(); p.fill(c);
+          p.triangle(x2,y2,x2-9*Math.cos(a-0.4),y2-9*Math.sin(a-0.4),x2-9*Math.cos(a+0.4),y2-9*Math.sin(a+0.4));
+          p.textSize(9); p.textAlign(p.CENTER); p.text(lab,(x1+x2)/2,(y1+y2)/2-6); }
+        atk(fx-16,fy,sx+18,sy,"#ffd35c","read less");
+        atk(fx-4,fy+52,223,272,"#83c167","delete the cache");
+        // the three designs, placed - their positions ARE the two-bill answer
+        D.forEach(d=>{ const x=PX(d.r), y=PY(d.s);
+          p.noStroke(); p.fill(d.c); p.circle(x,y,13);
+          p.fill(d.c); p.textSize(11.5); p.textAlign(p.CENTER); p.text(d.n,x,y-13);
+          p.fill("#98a2b0"); p.textSize(8.5);
+          if(d.n==="LINEAR"){ p.textAlign(p.LEFT); p.text(d.risk,x+16,y+4); }
+          else p.text(d.risk,x,y+24); });
+        p.fill("#fc6255"); p.textSize(8.5); p.textAlign(p.CENTER); p.text("<- MiniMax M2 came back", fx-4, fy+40);
+        // the done-when made actionable: the two questions ARE the two axes
+        const rx=636; p.textAlign(p.LEFT);
+        p.fill("#58c4dd"); p.textSize(10.5); p.text("READ ANY 2026 DESIGN", rx, 118);
+        p.fill("#e9ebee"); p.textSize(11); p.text("in two questions:", rx, 138);
+        p.fill("#cdd3da"); p.textSize(10.5);
+        p.text("1. how much does it READ?", rx, 166);
+        p.text("2. what does it STORE?", rx, 186);
+        p.fill("#98a2b0"); p.textSize(9.5);
+        p.text("its answer is a point here -", rx, 214);
+        p.text("no winner declared, the", rx, 230);
+        p.text("field has not (rule 12).", rx, 246);
+        p.pop(); }
     }
   }
 }, "canvas");
