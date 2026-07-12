@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The loop gets a body</title>
+<!-- Frontier F5. Verified as of 2026-07. Toy wave/DCT coefficients + Hz numbers
+     hand-authored (labeled); token counts illustrative. Rule 12: the two-speed
+     argument (actions-as-tokens vs continuous control) is taught, not a winner. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:28px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto; display:block; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:76px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .react { margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>The loop gets a body</h1>
+<div class="stamp">TRACK 4 . F5 . verified as of 2026-07 - exhibits age, the principle does not</div>
+<p class="sub">In course 1, Cortex's tools were functions. Now the tool is a <b>motor</b> and the observation
+is a <b>camera</b>. The chip you have followed slots into a robot - and its output tokens become movements.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (Cortex gets a body)</button>
+  <button class="modebtn" data-mode="mech">mechanism (frame -> motor, computed)</button>
+  <span class="modehint">toy wave + Hz numbers hand-authored (labeled); token counts illustrative</span>
+</div>
+
+<div id="canvas" aria-label="Cortex embodied in a robot; actions become tokens"></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+/* ===== toy data (hand-authored, labeled) ===== */
+const DCTC=[0.92,0.55,0.24,0.07,0.03];   // toy DCT coefficients of one motion
+const KEPT=3;                            // keep the big ones, drop the tiny
+const TOK1S=6;                           // tokens for a 1-second motion (toy, illustrative)
+const HZT=7, HZM=200;                    // Cortex thinks ~7Hz; smooth motion needs ~200Hz
+const wf=t=>Math.sin(t*6.5)*0.8+Math.sin(t*15)*0.22;   // the motion curve
+
+const $=id=>document.getElementById(id);
+const caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(w,e,l){ chrR.dataset.c=w; chrR.dataset.e=e; reactLine.textContent=l; Cast.render($("react")); }
+
+if (window.p5) p5.disableFriendlyErrors=true;
+const CW=920, CH=380;
+let MODE="int", STEP=0;
+new p5(function(p){
+  const density=()=>Math.max(2,window.devicePixelRatio||1);
+  let lastKey="", stepStart=0;
+  p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
+    p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+  p.draw=function(){ if(p.pixelDensity()!==density()) p.pixelDensity(density());
+    const key=MODE+STEP; if(key!==lastKey){ lastKey=key; stepStart=p.frameCount; }
+    p.background(11,14,18);
+    try { (MODE==="int"?drawInt:drawMech)(); }
+    catch(e){ p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(12); p.textAlign(p.LEFT);
+      p.text("stage error at "+MODE+" step "+(STEP+1)+": "+String(e).slice(0,90), 40, 60);
+      p.text("(please report this line)", 40, 84); p.pop(); } };
+
+  function lane(x,y,w,h,label){ p.push(); p.noStroke(); p.fill(255,255,255,4); p.rect(x,y,w,h,10);
+    p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER); p.text(label,x+w/2,y-6); p.pop(); }
+  function cortexChip(x,y,s,tint){ p.push(); p.translate(x,y); const c=tint||"#58c4dd", e=tint?"#dfe4ea":"#8fe0f5";
+    p.stroke("#3a5568"); p.strokeWeight(2*s); for(let i=-1;i<=1;i++){ p.line(i*8*s,-15*s,i*8*s,-19*s); p.line(i*8*s,15*s,i*8*s,19*s); }
+    p.stroke(c); p.strokeWeight(2*s); p.fill(18,40,52); p.rect(-14*s,-14*s,28*s,28*s,6*s);
+    p.noStroke(); p.fill(e); p.circle(-5*s,-1*s,5.4*s); p.circle(5*s,-1*s,5.4*s);
+    p.fill("#0b1a22"); p.circle(-5*s,-1*s,2.4*s); p.circle(5*s,-1*s,2.4*s); p.pop(); }
+  function camera(x,y,s){ p.push(); p.translate(x,y); p.stroke("#8aa0b8"); p.strokeWeight(1.6*s); p.fill(24,30,38);
+    p.rect(-13*s,-9*s,26*s,18*s,3*s); p.fill(20,26,34); p.stroke("#8aa0b8"); p.circle(0,0,12*s); p.fill("#8fe0f5"); p.noStroke(); p.circle(0,0,4*s); p.pop(); }
+  function arm(x,y,s,a){ p.push(); p.translate(x,y); p.stroke("#58c4dd"); p.strokeWeight(3*s); p.noFill();
+    const e1x=Math.cos(a)*20*s, e1y=Math.sin(a)*20*s; p.line(0,0,e1x,e1y);
+    const e2x=e1x+Math.cos(a+0.7)*16*s, e2y=e1y+Math.sin(a+0.7)*16*s; p.line(e1x,e1y,e2x,e2y);
+    p.strokeWeight(2*s); p.line(e2x,e2y,e2x+5*s,e2y-5*s); p.line(e2x,e2y,e2x+5*s,e2y+5*s); p.pop(); }
+  function robot(x,y,s,armA){ p.push(); p.translate(x,y);
+    p.fill(20,30,40); p.stroke("#3a5568"); p.strokeWeight(2*s); p.rect(-24*s,-2*s,48*s,40*s,8*s);
+    p.fill(30,36,44); p.noStroke(); p.rect(-18*s,36*s,36*s,7*s,3*s);
+    arm(24*s,6*s,s,armA===undefined?-0.5:armA);
+    cortexChip(0,-20*s,0.72*s);
+    p.pop(); }
+  /* the embodied loop: see -> think -> move -> observe, Cortex-robot at the hub */
+  function embodiedLoop(cx,cy,r){ p.push();
+    const T=180, tt=((p.frameCount-stepStart)%T)/T, ang=-p.HALF_PI+tt*p.TWO_PI;
+    const near=na=>{ let d=Math.abs(((ang-na+Math.PI*3)%(Math.PI*2))-Math.PI); return 1-p.constrain(d/0.7,0,1); };
+    p.noFill(); p.stroke("#2a3742"); p.strokeWeight(1.2); p.circle(cx,cy,r*2+52);
+    const nodes=["see","think","move","observe"];
+    nodes.forEach((n,i)=>{ const na=-p.HALF_PI+i*p.HALF_PI, x=cx+Math.cos(na)*r, y=cy+Math.sin(na)*r, nr=near(na);
+      if(nr>0.05){ p.noStroke(); p.fill(88,196,221,50*nr); p.circle(x,y,54+nr*14); }
+      p.fill(23,27,33); p.stroke(nr>0.3?"#8fe0f5":"#58c4dd"); p.strokeWeight(nr>0.3?2:1.3); p.circle(x,y,44);
+      p.noStroke(); p.fill(nr>0.3?"#e9ebee":"#cdd3da"); p.textSize(9); p.textAlign(p.CENTER,p.CENTER); p.text(n,x,y-6);
+      if(i===0) camera(x,y+9,0.7); if(i===2) arm(x-5,y+6,0.6,-0.6+near(na)*0.9); });
+    cortexChip(cx,cy,0.8);
+    const bx=cx+Math.cos(ang)*r, by=cy+Math.sin(ang)*r; p.noStroke(); p.fill("#ffd35c"); p.circle(bx,by,8);
+    p.pop(); }
+  /* a motion becomes tokens: wave -> DCT bars -> BPE chips (M1's grammar, reused) */
+  function waveTokens(upto,showN){ p.push();
+    const py=170;
+    // panel A: the wave
+    p.noStroke(); p.fill("#5b6470"); p.textSize(9); p.textAlign(p.CENTER); p.text("one motion (a wave)",150,py-58);
+    p.stroke(upto>=0?"#8fe0f5":"#3a4350"); p.strokeWeight(2.2); p.noFill(); p.beginShape();
+    for(let i=0;i<=90;i++){ const t=i/90; p.vertex(70+t*160, py-wf(t*3)*26); } p.endShape();
+    p.stroke("#3a4350"); p.strokeWeight(1.4); arrowR(245,py,285,py);
+    // panel B: DCT coefficients
+    p.noStroke(); p.fill(upto>=1?"#98a2b0":"#3a4350"); p.textSize(9); p.textAlign(p.CENTER); p.text("compress (DCT)",370,py-58);
+    if(upto>=1){ DCTC.forEach((c,i)=>{ const x=310+i*26, h=c*80, kept=i<KEPT;
+      p.fill(kept?"#83c167":"#3a4350"); p.rect(x,py+34-h,16,h,2); });
+      p.fill("#5b6470"); p.textSize(8); p.text("keep the big "+KEPT+", drop the rest",370,py+52); }
+    p.stroke("#3a4350"); p.strokeWeight(1.4); arrowR(452,py,492,py);
+    // panel C: BPE token chips
+    p.noStroke(); p.fill(upto>=2?"#98a2b0":"#3a4350"); p.textSize(9); p.textAlign(p.CENTER); p.text("tokenize (BPE)",640,py-58);
+    if(upto>=2){ for(let i=0;i<KEPT;i++){ const x=560+i*70;
+      p.fill(24,30,38); p.stroke("#ffd35c"); p.strokeWeight(1.2); p.rect(x,py-12,58,26,6);
+      p.noStroke(); p.fill("#ffd35c"); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text("act #"+(i+1),x+29,py+1); }
+      if(showN){ p.fill("#83c167"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); p.text("a 1-second motion = ~"+TOK1S+" tokens",640,py+52); } }
+    p.pop(); }
+  function arrowR(x1,y,x2,yy){ p.line(x1,y,x2,yy); p.noStroke(); p.fill("#3a4350"); p.triangle(x2+8,yy,x2,yy-5,x2,yy+5); p.stroke("#3a4350"); }
+  /* the growing menu: words, image, audio, ACTIONS */
+  function menuBar(upto){ p.push(); p.textAlign(p.LEFT);
+    const items=[["words","#58c4dd"],["image patches","#83c167"],["audio frames","#ffd35c"],["ACTIONS","#fc6255"]];
+    items.forEach((it,i)=>{ if(i>upto) return; const y=110+i*40;
+      p.noStroke(); p.fill(it[1]); p.textSize(11); p.text(it[0],120,y+4);
+      for(let j=0;j<8;j++){ p.fill(i===3?"#fc6255":"#2a3540"); p.rect(260+j*46,y-9,38,20,4);
+        p.noStroke(); p.fill(i===3?"#0b0e12":"#5b6470"); p.textSize(8.5); p.textAlign(p.CENTER,p.CENTER); p.text("tok",279+j*46,y+1); p.textAlign(p.LEFT); } });
+    p.pop(); }
+  /* two clocks: Cortex thinks slow (tokens), a continuous policy moves fast */
+  function twoClocks(){ p.push();
+    const t=(p.frameCount-stepStart);
+    function clock(cx,label,hz,col,fast){ p.push();
+      p.noFill(); p.stroke(col); p.strokeWeight(2); p.circle(cx,175,96);
+      const a=-p.HALF_PI + (t*0.02*(fast?12:1))%p.TWO_PI;
+      p.stroke(col); p.strokeWeight(fast?2:3); p.line(cx,175,cx+Math.cos(a)*38,175+Math.sin(a)*38);
+      if(fast){ for(let k=1;k<=3;k++){ const a2=a-k*0.4; p.stroke(col+"55"); p.strokeWeight(1.4); p.line(cx,175,cx+Math.cos(a2)*38,175+Math.sin(a2)*38); } }
+      p.noStroke(); p.fill(col); p.textSize(11); p.textAlign(p.CENTER); p.text(hz+" Hz",cx,240);
+      p.fill("#cdd3da"); p.textSize(10.5); p.text(label,cx,258); p.pop(); }
+    clock(270,"Cortex thinks (tokens)",HZT,"#58c4dd",false);
+    clock(650,"a policy MOVES (continuous)",HZM,"#83c167",true);
+    p.pop(); }
+  /* a camera frame entering as tokens (F1's trick), compact */
+  function frameTokens(x,y){ p.push();
+    p.fill(15,18,23); p.stroke("#2a2f38"); p.rect(x,y,84,84,6);
+    for(let r=0;r<3;r++)for(let c=0;c<3;c++){ p.fill(30+((r+c)%2)*24,40,52); p.stroke("#0b0e12"); p.rect(x+4+c*26,y+4+r*26,24,24,2); }
+    p.noStroke(); p.fill("#5b6470"); p.textSize(8.5); p.textAlign(p.CENTER); p.text("camera frame",x+42,y-6);
+    p.stroke("#3a4350"); p.strokeWeight(1.4); arrowR(x+92,y+42,x+128,y+42);
+    for(let i=0;i<3;i++){ p.fill(24,30,38); p.stroke("#83c167"); p.strokeWeight(1.2); p.rect(x+138,y+8+i*26,54,20,4);
+      p.noStroke(); p.fill("#83c167"); p.textSize(8.5); p.textAlign(p.CENTER,p.CENTER); p.text("patch tok",x+165,y+18+i*26); }
+    p.pop(); }
+
+  /* a 2-link arm's inverse kinematics: where to bend to touch (tx,ty) */
+  function ik(bx,by,L1,L2,tx,ty,elb){ let dx=tx-bx,dy=ty-by,d=Math.hypot(dx,dy);
+    d=Math.min(d,L1+L2-0.5); d=Math.max(d,Math.abs(L1-L2)+0.5);
+    const a=Math.acos(p.constrain((d*d-L1*L1-L2*L2)/(2*L1*L2),-1,1)), a2=(elb||1)*a;
+    const th1=Math.atan2(dy,dx)-Math.atan2(L2*Math.sin(a2),L1+L2*Math.cos(a2));
+    const ex=bx+L1*Math.cos(th1), ey=by+L1*Math.sin(th1);
+    return {ex,ey,hx:ex+L2*Math.cos(th1+a2),hy:ey+L2*Math.sin(th1+a2),th1,a2}; }
+  /* WATCH IT WORK: Cortex sees a cube, thinks, and its action-tokens move the arm to pick+place it */
+  function robotTask(){ p.push();
+    const BX=300,BY=286,L1=112,L2=92, REST=[300,182],CUBE0=[452,282],BOX=[158,268];
+    const T=360, t=((p.frameCount-stepStart)%T)/T, ez=x=>x<0.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
+    let tg; if(t<0.34)tg=REST; else if(t<0.52){const u=ez((t-0.34)/0.18);tg=[REST[0]+(CUBE0[0]-REST[0])*u,REST[1]+(CUBE0[1]-REST[1])*u];}
+      else if(t<0.58)tg=CUBE0; else if(t<0.80){const u=ez((t-0.58)/0.22);tg=[CUBE0[0]+(BOX[0]-CUBE0[0])*u,CUBE0[1]+(BOX[1]-CUBE0[1])*u];}
+      else if(t<0.86)tg=BOX; else {const u=ez((t-0.86)/0.14);tg=[BOX[0]+(REST[0]-BOX[0])*u,BOX[1]+(REST[1]-BOX[1])*u];}
+    const holding=t>=0.55&&t<0.83;
+    // the loop stages, lit as the task runs
+    const stages=["SEE","THINK","ACT","MOVE","OBSERVE"], stage=t<0.14?0:t<0.26?1:t<0.34?2:t<0.86?3:4;
+    stages.forEach((s,i)=>{ const x=200+i*128, on=i===stage; p.fill(on?18:23,on?32:27,on?42:33); p.stroke(on?"#58c4dd":"#2a3742"); p.strokeWeight(on?1.8:1.2); p.rect(x-44,54,88,24,6);
+      p.noStroke(); p.fill(on?"#8fe0f5":"#5b6470"); p.textSize(9); p.textAlign(p.CENTER,p.CENTER); p.text(s,x,66);
+      if(i<4){ p.stroke("#2a3742"); p.strokeWeight(1.2); p.line(x+44,66,x+84,66); p.noStroke(); } });
+    // table + target box
+    p.stroke("#2a2f38"); p.strokeWeight(2); p.line(90,306,840,306);
+    p.stroke("#5b6470"); p.strokeWeight(1.6); p.noFill(); p.line(BOX[0]-26,280,BOX[0]-26,306); p.line(BOX[0]+26,280,BOX[0]+26,306); p.line(BOX[0]-26,306,BOX[0]+26,306);
+    // the cube
+    let cube = t<0.55?[452,293] : (holding?[tg[0],tg[1]+11]:[158,293]);
+    p.noStroke(); p.fill("#fc6255"); p.rect(cube[0]-11,cube[1]-11,22,22,3);
+    // camera watching (over 'see'), and the brain
+    camera(150,120,0.9); cortexChip(BX,150,0.72);
+    if(stage===0){ p.stroke("#83c167"); p.strokeWeight(1.2); p.drawingContext.setLineDash([4,4]); p.line(168,128,cube[0]-14,cube[1]-8); p.drawingContext.setLineDash([]); }
+    // the arm (IK to the target)
+    const kk=ik(BX,BY,L1,L2,tg[0],tg[1], tg[0]>=BX?1:-1);
+    p.stroke("#2c3a48"); p.strokeWeight(6); p.line(BX,BY,BX,306);
+    p.stroke("#58c4dd"); p.strokeWeight(8); p.line(BX,BY,kk.ex,kk.ey); p.strokeWeight(6); p.line(kk.ex,kk.ey,kk.hx,kk.hy);
+    p.noStroke(); p.fill("#3a5568"); p.circle(BX,BY,12); p.circle(kk.ex,kk.ey,10);
+    const gd=Math.atan2(kk.hy-kk.ey,kk.hx-kk.ex), pp=gd+p.HALF_PI, gw=holding?5:11;
+    p.stroke("#8fe0f5"); p.strokeWeight(2.6); [1,-1].forEach(sg=>{ const fx=kk.hx+Math.cos(pp)*gw*sg, fy=kk.hy+Math.sin(pp)*gw*sg; p.line(fx,fy,fx+Math.cos(gd)*9,fy+Math.sin(gd)*9); });
+    // the movement came from tokens
+    const nd=r=>{let d=Math.round(r*57.3)%360; if(d>180)d-=360; if(d<-180)d+=360; return d;};
+    p.noStroke(); p.fill("#98a2b0"); p.textSize(10); p.textAlign(p.CENTER); p.text("action tokens -> joint angles: [ "+nd(kk.th1)+"deg, "+nd(kk.a2)+"deg ]", CW/2, 338);
+    p.pop(); }
+
+  /* ---- intuition: 7 steps (Cortex gets a body) ---- */
+  function drawInt(){
+    const k=STEP;
+    if(k===0){ p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("THE SAME CHIP - NOW WITH A BODY",CW/2,40);
+      cortexChip(190,190,1.2); p.stroke("#3a4350"); p.strokeWeight(1.4); p.drawingContext.setLineDash([5,5]); p.line(240,190,360,190); p.drawingContext.setLineDash([]);
+      p.noStroke(); p.fill("#5b6470"); p.textSize(9); p.textAlign(p.CENTER); p.text("slots into",300,178);
+      robot(470,150,1.6,-0.5+Math.sin(p.frameCount*0.04)*0.3);
+      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(12);
+      p.text("its 'read' is now a CAMERA.",620,175); p.text("its 'act' is now a MOTOR.",620,205); p.pop(); }
+    if(k===1){ p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("WATCH IT WORK - COURSE-1'S LOOP, EMBODIED",CW/2,40);
+      robotTask(); }
+    if(k===2){ p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("BUT A MOTOR DOES NOT SPEAK TOKENS",CW/2,40);
+      p.fill(24,30,38); p.stroke("#ffd35c"); p.strokeWeight(1.3); p.rect(190,175,90,30,6); p.noStroke(); p.fill("#ffd35c"); p.textSize(11); p.textAlign(p.CENTER,p.CENTER); p.text("a token",235,190);
+      p.stroke("#3a4350"); p.strokeWeight(1.6); arrowR(290,190,360,190);
+      p.noStroke(); p.fill("#fc6255"); p.textSize(28); p.textAlign(p.CENTER,p.CENTER); p.text("?",400,190);
+      arm(470,190,1.1,-0.4);
+      p.noStroke(); p.fill("#cdd3da"); p.textSize(12); p.textAlign(p.CENTER); p.text("a motor takes ANGLES, not words. how does a token become a wiggle?",CW/2,270); }
+    if(k===3){ p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("THE ANSWER: A MOTION BECOMES TOKENS",CW/2,40);
+      waveTokens(2,false);
+      p.noStroke(); p.fill("#83c167"); p.textSize(12); p.textAlign(p.CENTER); p.text("chop the motion, snap it to a codebook - it is M1's tokenizer, now on a motor.",CW/2,300); }
+    if(k===4){ p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("SO THE MENU GREW ONE MORE TIME",CW/2,40);
+      menuBar(3);
+      p.noStroke(); p.fill("#cdd3da"); p.textSize(11.5); p.textAlign(p.CENTER); p.text("one transformer, one stream: words, images, sounds - and now ACTIONS, predicted the same way.",CW/2,300); }
+    if(k===5){ p.push(); p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("HOW DOES IT LEARN THE RIGHT MOVES?",CW/2,40);
+      p.textAlign(p.LEFT); p.fill("#58c4dd"); p.textSize(12); p.text("1. IMITATION - copy human demos",90,102);
+      arm(250,180,0.95,-0.7);
+      p.push(); p.translate(283,150); p.noStroke(); p.fill(196,164,128); p.rect(-8,-3,16,12,4); p.stroke(196,164,128); p.strokeWeight(2.4); for(let i=-1;i<=1;i++)p.line(i*5,-3,i*6,-14); p.pop();
+      p.noStroke(); p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("a human guides the arm",252,214);
+      p.stroke("#3a4350"); p.strokeWeight(1.4); arrowR(332,155,370,155);
+      for(let i=0;i<3;i++){ const x=388+i*64; p.fill(24,30,38); p.stroke("#ffd35c"); p.strokeWeight(1.1); p.rect(x,143,54,24,5); p.noStroke(); p.fill("#ffd35c"); p.textSize(8.5); p.textAlign(p.CENTER,p.CENTER); p.text("act #"+(i+1),x+27,155); }
+      p.noStroke(); p.fill("#cdd3da"); p.textSize(10.5); p.textAlign(p.LEFT); p.text("saved as tokens; the robot learns to COPY them from the camera.",388,198);
+      p.fill("#83c167"); p.textSize(12); p.text("2. REWARD - then score and polish",90,252);
+      p.fill("#cdd3da"); p.textSize(10.5); p.text("it practices, gets a grade, and adjusts - smoothing the rough edges.",120,274);
+      p.fill("#98a2b0"); p.textSize(10.5); p.textAlign(p.CENTER); p.text("the same two ways F3 taught - copy, or get scored - now on MOTIONS, not words.",CW/2,308); p.pop(); }
+    if(k===6){ p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER); p.text("THE HONEST CATCH: TWO SPEEDS",CW/2,40);
+      twoClocks();
+      p.noStroke(); p.fill("#cdd3da"); p.textSize(11.5); p.textAlign(p.CENTER); p.text("tokens are SLOW. so a fast continuous policy does the smooth moving, while Cortex thinks above it.",CW/2,300); }
+    if(k===7){ robot(CW/2,150,1.7,-0.5+Math.sin(p.frameCount*0.05)*0.35);
+      p.noStroke(); p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
+      p.text("course 1's loop and the model's tokens meet in a robot - the loop is the body's mind.",CW/2,278);
+      p.fill("#83c167"); p.textSize(11); p.text("actions were tokens all along - until the fastest motion says otherwise.",CW/2,304); }
+  }
+
+  /* ---- mechanism: 14 steps, 3 acts ---- */
+  function drawMech(){
+    const k=STEP;
+    if(k<=3){ // ACT 1: one camera frame -> one motor command
+      lane(30,46,860,250, k<=0?"THE CAMERA ENTERS AS TOKENS (F1's trick)":(k===1?"CORTEX READS FRAME + GOAL, THINKS":(k===2?"CORTEX EMITS ACTION TOKENS":"FRAME -> MOTOR, LIVE (the whole trace)")));
+      if(k===0){ frameTokens(150,110);
+        p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(11);
+        p.text("exactly like F1: the frame is cut into", 470, 150); p.text("patches, each projected to a token.", 470, 172);
+        p.fill("#98a2b0"); p.textSize(10); p.text("nothing new yet - the eye is just M1's menu.", 470, 206); p.pop(); }
+      if(k===1){ frameTokens(120,96); cortexChip(470,150,1.1);
+        p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(11);
+        p.text("+ the goal, in words: \"pick up the cube\"", 540, 140); p.text("Cortex attends over patch-tokens AND", 540, 162); p.text("word-tokens together - one stream.", 540, 184); p.pop(); }
+      if(k===2){ cortexChip(220,160,1.1);
+        p.push(); p.noStroke(); p.textAlign(p.LEFT);
+        p.fill("#cdd3da"); p.textSize(11); p.text("its next tokens are not words - they come", 300, 120); p.text("from a NEW part of the menu: actions.", 300, 142);
+        for(let i=0;i<3;i++){ const x=300+i*90; p.fill(24,30,38); p.stroke("#fc6255"); p.strokeWeight(1.3); p.rect(x,168,74,26,6);
+          p.noStroke(); p.fill("#fc6255"); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text("act #"+(i+1),x+37,181); }
+        p.fill("#98a2b0"); p.textSize(10); p.textAlign(p.LEFT); p.text("same sampling loop as words (M0), new vocabulary.", 300, 228); p.pop(); }
+      if(k===3){ robotTask(); }
+    } else if(k<=8){ // ACT 2: actions become tokens (computed)
+      const k2=k-4;
+      lane(30,46,860,250, k2<=0?"A 1-SECOND MOTION IS A WAVE":(k2<=2?"COMPRESS, THEN TOKENIZE (M1's algorithm)":(k2===3?"AND BACK OUT: TOKENS -> MOTION":"THE MENU, ONE MORE TIME")));
+      if(k2===0){ waveTokens(0,false);
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("a joint's path over one second - smooth, continuous. too big to store raw.",CW/2,300); }
+      if(k2===1){ waveTokens(1,false);
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("DCT rewrites the wave as a few numbers; keep the big "+KEPT+", drop the tiny ones (FAST).",CW/2,300); }
+      if(k2===2){ waveTokens(2,true);
+        p.noStroke(); p.fill("#83c167"); p.textSize(11); p.textAlign(p.CENTER); p.text("snap each to a codebook + BPE-merge -> discrete tokens. ~"+TOK1S+" per second (toy).",CW/2,300); }
+      if(k2===3){ for(let i=0;i<KEPT;i++){ const x=140+i*70; p.fill(24,30,38); p.stroke("#ffd35c"); p.strokeWeight(1.2); p.rect(x,150,58,26,6);
+          p.noStroke(); p.fill("#ffd35c"); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text("act #"+(i+1),x+29,163); }
+        p.stroke("#3a4350"); p.strokeWeight(1.4); arrowR(362,163,402,163);
+        p.push(); p.stroke("#8fe0f5"); p.strokeWeight(2.2); p.noFill(); p.beginShape(); for(let i=0;i<=90;i++){ const t=i/90; p.vertex(430+t*150, 163-wf(t*3)*24); } p.endShape(); p.pop();
+        arm(300,240,1.1,-0.9+Math.sin(p.frameCount*0.06)*0.5);
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("prediction is reversible: the tokens rebuild the wave, and the arm follows it.",CW/2,300); }
+      if(k2===4){ menuBar(3);
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("the action-token vocabulary grows straight out of M1's menu - no new brain, a bigger table.",CW/2,300); }
+    } else { // ACT 3: two speeds + the argument
+      const k3=k-9;
+      lane(30,46,860,250, k3<=0?"CORTEX'S THINK-CLOCK: ~7 Hz":(k3===1?"SMOOTH MOTION NEEDS ~200 Hz":(k3===2?"SO: A TWO-SPEED STACK":"NO WINNER - THE LIVE ARGUMENT")));
+      if(k3===0){ twoClocks();
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("token-by-token, Cortex can decide about "+HZT+" times a second. Fine for choosing WHAT to do.",CW/2,300); }
+      if(k3===1){ twoClocks();
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("but a motor that jerks "+HZT+" times a second is not smooth. Real control wants ~"+HZM+" Hz.",CW/2,300); }
+      if(k3>=2&&k3<=2){ // the stack
+        cortexChip(CW/2,110,1.0); p.noStroke(); p.fill("#58c4dd"); p.textSize(10); p.textAlign(p.CENTER); p.text("Cortex: thinks in tokens, "+HZT+" Hz - WHAT to do",CW/2,148);
+        p.stroke("#83c167"); p.strokeWeight(1.4); p.line(CW/2,158,CW/2,186); p.noStroke(); p.fill("#83c167"); p.triangle(CW/2,194,CW/2-6,184,CW/2+6,184);
+        p.fill(20,30,22); p.stroke("#83c167"); p.strokeWeight(1.3); p.rect(CW/2-150,200,300,34,8); p.noStroke(); p.fill("#83c167"); p.textSize(10.5); p.textAlign(p.CENTER,p.CENTER); p.text("a continuous policy: MOVES, "+HZM+" Hz - HOW to move",CW/2,217);
+        p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("this is Figure Helix's design: slow tokens on top, a fast policy below.",CW/2,278); }
+      if(k3>=3){ p.push(); p.textAlign(p.CENTER); p.noStroke();
+        p.fill("#fc6255"); p.textSize(11); p.text("ACTIONS ARE TOKENS", 280, 120); p.fill("#98a2b0"); p.textSize(9.5); p.text("(pi-0.7 + FAST: one stream,", 280, 140); p.text("one model does everything)", 280, 156);
+        p.fill("#83c167"); p.textSize(11); p.text("KEEP MOTION CONTINUOUS", 640, 120); p.fill("#98a2b0"); p.textSize(9.5); p.text("(Helix: tokens can't move a", 640, 140); p.text("motor smoothly at speed)", 640, 156);
+        p.stroke("#3a4350"); p.strokeWeight(1); p.line(CW/2,110,CW/2,175); p.noStroke();
+        p.fill("#e9ebee"); p.textSize(11.5); p.text("no winner declared - the field has not (rule 12).", CW/2, 210);
+        p.fill("#98a2b0"); p.textSize(10.5); p.text("done when: trace one camera frame to one motor command, and say where tokens end and continuous control begins.", CW/2, 250); p.pop(); }
+    }
+  }
+}, "canvas");
+
+/* ===== captions ===== */
+const CAPS_INT=[
+["The same chip you have followed, now with a body. Its 'read' is a camera; its 'act' is a motor. An agent whose tools are muscles.","cortex","reach","I have hands now."],
+["Watch the loop actually run: Cortex SEES the cube, THINKS, and its action-tokens become joint angles - so the arm reaches, grasps, and drops it in the box. See -> think -> move -> observe, for real.","cortex","happy","I can see it - and I can grab it."],
+["The puzzle: 'act' now means MOVE. But a motor takes joint angles, not words. How does a token become a wiggle?","cortex","confused","Words don't turn a wrist."],
+["The answer: a smooth motion is chopped up and snapped to a codebook - it becomes TOKENS. It is M1's tokenizer, pointed at a motor.","bit","happy","Movement, spelled out in tokens."],
+["So the menu grew one more time: words, image patches, audio frames - and now ACTIONS. One transformer predicts them all the same way.","cortex","reach","Everything I do is a token."],
+["How does it learn the RIGHT moves? By COPYING - a human teleoperates the arm through the task, that motion is saved as tokens, and the robot learns to reproduce them. Pure imitation - then reward polishes it. The two ways from F3, now on motors.","bit","happy","It learned to move by copying - like it learned to talk."],
+["The honest catch: tokens are SLOW (~7 Hz). Smooth motion needs ~200 Hz - so a fast continuous policy moves while Cortex thinks above it.","bit","think","My thoughts can't keep up with my hands."],
+["The aha: course 1's loop and the model's tokens meet in a robot - the loop is the body's mind, and actions were tokens all along (until the fastest motion says otherwise).","bit","happy","The loop grew hands."]];
+const CAPS_MECH=[
+["Start where F1 ended: the camera frame is cut into patches, each projected to a token. The eye is just M1's menu.","bit","neutral","The eye is old news."],
+["Cortex attends over the patch-tokens AND the goal in words together - one stream, exactly like F1.","cortex","think","Pixels and words, side by side."],
+["Its next tokens are not words - they come from a NEW part of the menu: actions. Same sampling loop (M0), new vocabulary.","cortex","reach","A new thing to say: 'move'."],
+["Now watch the whole trace run live: one camera frame -> tokens -> Cortex -> action tokens -> joint angles - and the arm actually reaches, grasps, and places the cube. That is a VLA.","cortex","happy","One frame in, a real motion out."],
+["Zooming into an action: a joint's path over one second is a smooth wave. Continuous, and too big to store raw.","bit","read","A wiggle, in full."],
+["DCT rewrites the wave as a few numbers; keep the big three, drop the tiny ones. That compression is what FAST does.","bit","read","Most of a wave is noise."],
+["Snap each to a codebook and BPE-merge -> discrete tokens: ~6 for a second of motion (toy). M1's exact algorithm, on a motor.","cortex","happy","My arm has a vocabulary."],
+["And it is reversible: the tokens rebuild the wave, and the arm follows it back out. Prediction in, movement out.","cortex","reach","I read my own motion back."],
+["The action vocabulary grows straight out of M1's menu - not a new brain, just a bigger table of tokens.","bit","neutral","A wider menu, same diner."],
+["Cortex's think-clock: token by token it can decide about 7 times a second. Fine for choosing WHAT to do.","bit","read","Seven decisions a second."],
+["But a motor that jerks 7 times a second is not smooth. Real control wants ~200 Hz - far faster than tokens.","cortex","confused","My hand needs to be quicker than my head."],
+["So the 2026 answer (Helix): a two-speed stack - Cortex chooses WHAT in slow tokens, a continuous policy handles HOW at 200 Hz.","bit","think","Slow brain, fast reflexes."],
+["The live argument: pi-0.7 says actions ARE tokens (one model, one stream); Helix says the fastest motion cannot be. No winner.","bit","neutral","Two honest camps."],
+["Done when: you can trace one camera frame to one motor command, and say where tokens end and continuous control begins.","bit","happy","From pixel to motion, and the seam between."]];
+const MECH_ACTS=[["frame -> motor",4],["actions become tokens",5],["two speeds",5]];
+
+let tl=null;
+function render(i){
+  STEP=i;
+  const caps=MODE==="int"?CAPS_INT:CAPS_MECH, c=caps[i];
+  caption.textContent=c[0]; react(c[1],c[2],c[3]);
+  insight.className="insight";
+  insight.innerHTML = MODE==="int"
+    ? (i>=7?"<b>The aha:</b> the agent loop got a body - and actions turned out to be tokens too (mostly). Switch to <b>mechanism</b> to trace one frame to one motion."
+          :"One idea: <b>a camera is tokens in, a motor is tokens out - the same transformer, a bigger menu - until motion gets too fast for tokens.</b>")
+    : (i<=3?"Act 1: <b>one camera frame -> tokens -> Cortex -> action tokens -> the arm moves.</b> The whole VLA loop, traced."
+      : i<=8?"Act 2: <b>a motion is a wave; DCT + BPE turn it into ~6 tokens.</b> M1's tokenizer, now driving a motor - reversibly."
+      : "Act 3: <b>tokens think at 7 Hz; motion needs 200 Hz.</b> Actions-as-tokens vs continuous control - taught as an argument, not a winner.");
+}
+function build(mode){ MODE=mode;
+  const isInt=mode==="int";
+  tl=new Anim.Timeline({ length:isInt?8:14, autoMs:isInt?3600:3400, onStep:(i)=>render(i) });
+  Anim.scrubber($("scrub"), tl, { label:isInt?(i=>"step "+(i+1)+" / 8"):Anim.actLabel(MECH_ACTS), acts:isInt?null:MECH_ACTS });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".modebtn").forEach(x=>x.classList.toggle("on",x===b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

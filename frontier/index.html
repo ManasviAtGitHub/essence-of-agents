@@ -80,9 +80,14 @@ const NAV = [
   { m:"F4 - The loop learns itself", items:[
     { label:"The trained loop (script -> weights)", src:"module-f4-agents/widgets/trained-loop/index.html" },
   ]},
+  { m:"F5 - The loop gets a body", items:[
+    { label:"The embodied loop (camera -> motor)", src:"module-f5-body/widgets/embodied-loop/index.html" },
+  ]},
 ];
 
 const LESSONS = {
+  "F5 - The loop gets a body": { q:"An agent's tools were functions. What happens when the tool is a motor and the observation is a camera - and how does a token become a movement?",
+    aha:"A VLA is a VLM whose output tokens ARE actions. The camera enters as F1's patches; the goal enters as words; the next tokens come from a new part of M1's menu - ACTIONS - decoded to joint angles that move a real arm. To fit a smooth motion into tokens it is DCT-compressed (keep the big coefficients) then BPE-tokenized (pi-0.7 + FAST) - M1's exact algorithm on a motor, and reversibly. The honest counter: tokens are slow (~7-9 Hz); smooth control wants ~200 Hz, so Figure Helix splits it - slow tokens choose WHAT, a fast continuous policy handles HOW. No winner declared. Verified as of 2026-07." },
   "F4 - The loop learns itself": { q:"You hand-wrote the agent loop in course 1. The 2026 labs do not. What replaced your while loop?",
     aha:"Weights. Tongyi DeepResearch trains the whole search/read/reason loop end to end (leave-one-out advantages over full trajectories - computed in the widget); Cursor Composer's test-running EMERGED from reward; Kimi's PARL trains the ORCHESTRATOR itself (spawn up to ~100 workers; serial collapse is the named failure, reward shaping the fix). Meanwhile the plumbing froze into standards (MCP -> foundation, A2A v1.0) and the sandbox stayed code - behavior in weights, interfaces in standards, walls in code. Verified as of 2026-07." },
   "F3 - RL eats the pipeline": { q:"M6 drew four tidy stages with RL as the last polish. Where does the reward signal actually live in 2026?",
