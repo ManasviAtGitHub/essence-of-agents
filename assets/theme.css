@@ -15,6 +15,14 @@
   --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
 }
 
+/* ---- p5 widget canvas: scale responsively without distortion ----
+   Every animated widget hosts its canvas in <div id="canvas">. p5 writes an
+   inline height onto the canvas element (canvas.style.height) that a stylesheet's
+   height:auto cannot beat, so on a narrow viewport the width shrinks via max-width
+   while the height stays pinned -> the drawing squishes (circles become ellipses).
+   The !important overrides that inline height so the aspect ratio is preserved. */
+#canvas canvas { max-width:100%; height:auto !important; display:block; }
+
 /* ---- characters ---- */
 .chr svg { width:60px; height:60px; vertical-align:middle; display:block; }
 
