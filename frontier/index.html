@@ -86,9 +86,14 @@ const NAV = [
   { m:"F6 - Tokens versus worlds", items:[
     { label:"The dissent (next token vs the world)", src:"module-f6-dissent/widgets/tokens-vs-worlds/index.html" },
   ]},
+  { m:"F7 - The dated atlas", items:[
+    { label:"The dated atlas (every headline, pinned)", src:"module-f7-atlas/widgets/dated-atlas/index.html" },
+  ]},
 ];
 
 const LESSONS = {
+  "F7 - The dated atlas": { q:"You have met about fifty 2026 headlines across F1-F6. How do they relate - and when a new one drops next week, where does it go?",
+    aha:"Every headline attacks a principle you already own. The atlas pins each exhibit (name, month, source) to the principle it attacks and the lane it sits in, then lets you filter. Pick 'predict the next token' and watch it hit from Foundation (diffusion, world models, JEPA) AND the Body lane (world-action robots) - and DEFENDED from Tokens (the autoregressive image generator that beats diffusion at its own game). Pick a lane to walk one chapter. A timeline rail plots the shown pins across 2025->2026; UNVERIFIED items are flagged, counter-exhibits marked. The page ages; the columns it sorts into do not. Verified as of 2026-07." },
   "F6 - Tokens versus worlds": { q:"Reading, talking, looping, moving - Cortex did all of it by predicting the next token. In 2026, roughly two billion dollars of new labs bet that foundation is wrong. What do they predict instead?",
     aha:"Three escapes from 'predict the next token, left to right.' DIFFUSION denoises the whole sentence in parallel - still tokens, just not one at a time (LLaDA converted from an AR model; Mercury >1000 tok/s). WORLD MODELS predict the next FRAME of a world you can steer - the 'token' becomes a frame (Genie -> a consumer product; Cosmos unifies sim+reason+act). JEPA predicts in REPRESENTATION space and generates nothing - the loss lives in latent space (V-JEPA plans robot moves there; LeCun's ~$2B bet). The honest counter: this same year images, audio and actions all BECAME tokens, the best image generator is autoregressive, and most diffusion LLMs are converted from token models. So next-token prediction is not physics - it is a bet, currently winning, now seriously contested. A new character, Somni, predicts the world where Cortex predicts the word. Verified as of 2026-07." },
   "F5 - The loop gets a body": { q:"An agent's tools were functions. What happens when the tool is a motor and the observation is a camera - and how does a token become a movement?",

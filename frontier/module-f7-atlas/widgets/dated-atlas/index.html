@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The dated atlas</title>
+<!-- Frontier F7 - the atlas. A pure reference: every dated exhibit in this track
+     (F1-F6) plus the tail the modules skip, each pinned to the principle it attacks
+     and stamped with the month it landed. Filterable by principle and by lane; click
+     any pin for detail. Verified as of 2026-07. Dates/labels are the labs' own claims,
+     narrative color (rule 11); items thinly sourced are flagged UNVERIFIED (rule 10). -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:980px; margin:32px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; margin-bottom:6px; }
+  .sub { color:var(--dim); margin:0 0 14px; font-size:14px; }
+  .sub b { color:var(--ink); }
+
+  .guide { display:flex; gap:12px; align-items:center; border:1px solid var(--line); border-left:3px solid var(--gold);
+           border-radius:10px; background:var(--panel); padding:8px 12px; margin-bottom:14px; }
+  .guide .chr svg { width:44px; height:44px; flex:none; }
+  .guide .line { font-size:13.5px; color:#d8dde3; }
+
+  /* timeline rail */
+  .rail { border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:10px 8px 4px; margin-bottom:14px; }
+  .rail svg { width:100%; height:auto; display:block; }
+  .rail .rlab { font:9px var(--mono); fill:var(--faint); }
+  .rail .rtick { stroke:#232a33; stroke-width:1; }
+  .rail .rdot { cursor:pointer; }
+
+  .filters { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+  .frow { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .frow .fl { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); min-width:64px; }
+  .chip { font:11.5px var(--mono); border:1px solid var(--line); background:var(--panel); color:var(--dim);
+          border-radius:999px; padding:4px 11px; cursor:pointer; }
+  .chip.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .chip .sw { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:baseline; }
+
+  .count { font:11px var(--mono); color:var(--faint); margin:4px 0 8px; }
+  .count b { color:var(--dim); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(224px, 1fr)); gap:9px; }
+  .card { border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:9px 11px; cursor:pointer;
+          transition:border-color .15s, transform .1s; position:relative; }
+  .card:hover { border-color:var(--blue); transform:translateY(-1px); }
+  .card.sel { border-color:var(--gold); background:#12140c; }
+  .card .cn { font:12.5px var(--mono); color:var(--ink); font-weight:600; padding-right:52px; }
+  .card .cd { position:absolute; top:9px; right:11px; font:9.5px var(--mono); color:var(--faint); }
+  .card .co { font:11px var(--mono); color:var(--dim); margin:4px 0 7px; line-height:1.45; }
+  .card .tags { display:flex; gap:5px; flex-wrap:wrap; align-items:center; }
+  .tag { font:9px var(--mono); border-radius:999px; padding:1px 7px; border:1px solid var(--line); color:var(--faint); }
+  .tag.lane { color:#04222a; border:0; }
+  .tag.att { border:1px solid var(--line); color:var(--dim); }
+  .tag.unv { background:#3a1518; border-color:#fc6255; color:#fc6255; }
+  .tag.rev { background:#2a2410; border-color:var(--gold); color:var(--gold); }
+
+  .detail { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:14px 16px; margin-top:14px; }
+  .detail[hidden] { display:none; }
+  .detail h2 { font:15px var(--mono); color:var(--gold); margin:0 0 3px; display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .detail h2 .hd { font:11px var(--mono); color:var(--faint); font-weight:400; }
+  .detail .drow { display:flex; gap:10px; margin:5px 0; font-size:13.5px; flex-wrap:wrap; }
+  .detail .dk { font:10.5px var(--mono); text-transform:uppercase; letter-spacing:.05em; color:var(--faint); min-width:100px; }
+  .detail .dv { color:#dfe4ea; flex:1; min-width:200px; }
+  .detail .dv b { color:var(--ink); }
+  .foot { color:var(--faint); font-size:12px; margin-top:16px; line-height:1.5; }
+</style>
+</head>
+<body>
+<h1>The dated atlas</h1>
+<div class="stamp">TRACK 4 . F7 . verified as of 2026-07 - the exhibits age, the map does not</div>
+<p class="sub">The whole frontier on one dated map. Every 2026 headline from this track - <b>plus the tail the
+modules skipped</b> - as a pin: what it is, the month it landed, and the <b>principle it attacks</b>.
+Filter by a principle to watch one belief get hit from every side, or by lane to walk a chapter.</p>
+
+<div class="guide"><span class="chr" id="guideChr" data-c="cortex" data-e="read"></span><span class="line" id="guideLine"></span></div>
+
+<div class="rail"><svg id="rail" viewBox="0 0 940 124" preserveAspectRatio="xMidYMid meet" aria-label="timeline of exhibits, 2025 to 2026"></svg></div>
+
+<div class="filters">
+  <div class="frow"><span class="fl">attacks</span><div id="prChips"></div></div>
+  <div class="frow"><span class="fl">lane</span><div id="laneChips"></div></div>
+</div>
+
+<div class="count" id="count"></div>
+<div class="grid" id="grid"></div>
+<div class="detail" id="detail" hidden></div>
+
+<p class="foot">Every pin is a dated exhibit; the modules (F1-F6) own the mechanisms, this page only places them.
+Dates, sizes and $ are the labs' own claims - narrative color, not measured here (rule 11). Items marked
+<span class="tag unv" style="font-size:9px">UNVERIFIED</span> are thinly sourced; <span class="tag rev" style="font-size:9px">counter</span>
+exhibits defend the principle others attack (rule 12). Verified as of 2026-07 - refresh the pins next year; the columns will not move.</p>
+
+<script src="../../../../assets/cast.js"></script>
+<script>
+/* the principles you already own - what each exhibit attacks (or, if a counter, defends) */
+const PR = {
+  text:  "the model only reads & writes text",
+  attn:  "attention must compare against & remember everything",
+  stage: "training is a fixed row of stages",
+  loop:  "you hand-write the agent's loop",
+  tool:  "an agent acts through software & senses text",
+  token: "predict the next token, left to right",
+  stack: "the surrounding stack is ad-hoc plumbing",
+};
+/* lanes = the six chapters + the tail; color carries through card tag and timeline dot */
+const LANE = {
+  tok:  { l:"Tokens (F1)",     c:"#58c4dd" },
+  att:  { l:"Attention (F2)",  c:"#83c167" },
+  rl:   { l:"Training (F3)",   c:"#ffd35c" },
+  agt:  { l:"Agents (F4)",     c:"#c07cfc" },
+  body: { l:"Body (F5)",       c:"#e08a4a" },
+  fnd:  { l:"Foundation (F6)", c:"#b6a6ff" },
+  plmb: { l:"Plumbing (tail)", c:"#7f9cb3" },
+};
+const mo = (y, m) => y * 100 + m;   // sortable YYYYMM; timeline maps Jan-2025..Jul-2026
+
+/* the pins. ord = when it landed; pr = principle attacked; rev = a counter (defends the principle) */
+const PINS = [
+  // --- Tokens (F1): the model only reads text ---
+  { n:"Qwen3.5", d:"Feb 2026", ord:mo(2026,2), lane:"tok", pr:"text", src:"Alibaba / Qwen",
+    one:"flagship model natively vision-language - 'VLM' as a separate class dissolves into the base model." },
+  { n:"Qwen3-VL / InternVL3", d:"Oct 2025", ord:mo(2025,10), lane:"tok", pr:"text", src:"Qwen / OpenGVLab",
+    one:"the patches -> projector -> LLM recipe at its ceiling: native resolution, GUI control." },
+  { n:"Qwen3.5-Omni", d:"Mar 2026", ord:mo(2026,3), lane:"tok", pr:"text", src:"Alibaba / Qwen",
+    one:"speech IN and OUT as codebook tokens - audio joins the token stream in both directions." },
+  { n:"Nano Banana Pro", d:"Nov 2025", ord:mo(2025,11), lane:"tok", pr:"token", rev:true, src:"Google",
+    one:"the consensus-best image generator is AUTOREGRESSIVE (~1,290 image tokens) - tokens beat diffusion at its own game." },
+  // --- Attention (F2): compare & remember everything ---
+  { n:"NSA", d:"Feb 2025", ord:mo(2025,2), lane:"att", pr:"attn", src:"DeepSeek (ACL best paper)",
+    one:"native sparse attention: a cheap learned indexer picks which past tokens exact attention actually reads." },
+  { n:"DeepSeek Sparse Attn (V3.2)", d:"Sep 2025", ord:mo(2025,9), lane:"att", pr:"attn", src:"DeepSeek",
+    one:"the 'lightning indexer' ranks every past token; attention reads only the top-k - reads collapse, storage survives." },
+  { n:"DeepSeek V4 (CSA + HCA)", d:"2026", ord:mo(2026,6), lane:"att", pr:"attn", src:"DeepSeek",
+    one:"two-tier KV compression at 1.6T / 49B active - about 10% of V3.2's KV." },
+  { n:"MiniMax M3 (MSA)", d:"Jun 2026", ord:mo(2026,6), lane:"att", pr:"attn", src:"MiniMax",
+    one:"sparse attention held at a 1M-token context; ~1/20 the compute at that length." },
+  { n:"Gated DeltaNet", d:"Sep 2025", ord:mo(2025,9), lane:"att", pr:"attn", src:"Qwen3-Next",
+    one:"linear attention: a fixed-size state folded forward - the growing KV cache abolished, not shrunk." },
+  { n:"Kimi Linear / KDA", d:"Oct 2025", ord:mo(2025,10), lane:"att", pr:"attn", src:"Moonshot",
+    one:"the linear lineage's fast decoder - a small fixed state that must learn what to forget." },
+  { n:"Qwen3.5: 75% linear", d:"Feb 2026", ord:mo(2026,2), lane:"att", pr:"attn", src:"Alibaba / Qwen",
+    one:"a true flagship that is mostly linear layers - the fixed-size-state bet reaches the frontier." },
+  { n:"MiniMax M2 (reverted)", d:"Oct 2025", ord:mo(2025,10), lane:"att", pr:"attn", rev:true, src:"MiniMax",
+    one:"went BACK to full attention after hybrids degraded multi-hop reasoning at scale - the best-documented negative result." },
+  { n:"mHC residual stream", d:"Dec 2025", ord:mo(2025,12), lane:"att", pr:"attn", src:"DeepSeek (shipped in V4)",
+    one:"not attention itself - the residual stream every layer writes to, redesigned (n parallel streams). First change to that layer since 2015." },
+  // --- Training (F3): RL is the last polish stage ---
+  { n:"RLP", d:"Oct 2025", ord:mo(2025,10), lane:"rl", pr:"stage", src:"NVIDIA",
+    one:"RL moved INSIDE pretraining: think a private thought before each token, rewarded by how much it improves the prediction." },
+  { n:"Agentic mid-training", d:"Oct 2025", ord:mo(2025,10), lane:"rl", pr:"stage", src:"Tongyi (Alibaba)",
+    one:"a brand-new training stage inserted between pretraining and post-training." },
+  { n:"TTRL", d:"Apr 2025", ord:mo(2025,4), lane:"rl", pr:"stage", src:"research -> subfield",
+    one:"RL at TEST time: with no labels, use the model's own majority vote as a pseudo-reward and keep training." },
+  { n:"The GRPO zoo", d:"2025-26", ord:mo(2025,10), lane:"rl", pr:"stage", src:"DAPO / GSPO / Dr.GRPO / VAPO / CISPO",
+    one:"post-training debugged flaw by flaw - entropy collapse, length bias, MoE instability; ScaleRL gave RL its first scaling laws." },
+  { n:"Rubrics as rewards", d:"Jul 2025", ord:mo(2025,7), lane:"rl", pr:"stage", src:"RLVR line",
+    one:"verifiable-reward RL escapes math and code into medicine and open-ended work - a rubric becomes the grader." },
+  { n:"Absolute Zero", d:"May 2025", ord:mo(2025,5), lane:"rl", pr:"stage", src:"self-play line / Prime Intellect",
+    one:"the model proposes its own curriculum; environments, not datasets, become the training material." },
+  { n:"DeepSeek-V4 specialists", d:"Jun 2026", ord:mo(2026,6), lane:"rl", pr:"stage", src:"DeepSeek",
+    one:"GRPO trains domain specialists, on-policy distillation fuses them into one student - RL makes the teachers, distillation makes the model." },
+  // --- Agents (F4): you hand-write the loop ---
+  { n:"Tongyi DeepResearch", d:"Sep 2025", ord:mo(2025,9), lane:"agt", pr:"loop", src:"Alibaba",
+    one:"an open 30B-A3B agent whose whole search / read / reason loop is trained end-to-end on synthetic data - no human labels." },
+  { n:"Cursor Composer", d:"Oct 2025", ord:mo(2025,10), lane:"agt", pr:"loop", src:"Cursor",
+    one:"lab-independent proof: RL in sandboxed coding environments, where running the tests EMERGED from reward." },
+  { n:"Kimi K2.5 PARL", d:"Jan 2026", ord:mo(2026,1), lane:"agt", pr:"loop", src:"Moonshot",
+    one:"the ORCHESTRATOR itself is trained - when to spawn up to ~100 sub-agents, what to delegate; names the 'serial collapse' failure." },
+  { n:"Kimi K2", d:"Jul 2025", ord:mo(2025,7), lane:"agt", pr:"loop", src:"Moonshot",
+    one:"the open blueprint: ~23k simulated tools generate verified trajectories, plus a self-critique rubric reward." },
+  // --- Body (F5): tools are functions, senses are text ---
+  { n:"pi-0.7 + FAST", d:"Apr 2026", ord:mo(2026,4), lane:"body", pr:"tool", src:"Physical Intelligence",
+    one:"robot actions DCT-compressed and BPE-tokenized - the tokenizer, on a motor - plus a flow-matching head for continuous ~50Hz control." },
+  { n:"Figure Helix", d:"Feb 2025", ord:mo(2025,2), lane:"body", pr:"tool", rev:true, src:"Figure",
+    one:"the honest counter: tokens think at 7-9Hz, a continuous 200Hz policy moves - actions-as-tokens has a speed limit." },
+  { n:"Gemini Robotics 1.5 / ER", d:"Sep 2025", ord:mo(2025,9), lane:"body", pr:"tool", src:"Google DeepMind",
+    one:"a planner VLM (with web search) hands off to a VLA executor - course 1's agent loop, embodied." },
+  { n:"NVIDIA GR00T N2", d:"2026", ord:mo(2026,5), lane:"body", pr:"token", src:"NVIDIA",
+    one:"a 'world-action model' where the world model IS the policy: pretrained to imagine, fine-tuned to act - the bridge to F6." },
+  // --- Foundation (F6): predict the next token ---
+  { n:"LLaDA 2.0", d:"Dec 2025", ord:mo(2025,12), lane:"fnd", pr:"token", src:"diffusion-LLM line",
+    one:"a 100B diffusion LLM in production - and converted FROM an autoregressive model (the token camp lent it the weights)." },
+  { n:"Mercury 2", d:"Feb 2026", ord:mo(2026,2), lane:"fnd", pr:"token", src:"Inception",
+    one:"diffusion text generation with reasoning at >1,000 tok/s - parallel denoising instead of left-to-right." },
+  { n:"Gemini Diffusion", d:"2026", ord:mo(2026,6), lane:"fnd", pr:"token", status:"unv", src:"Google",
+    one:"a diffusion text model from a frontier lab; production status UNVERIFIED." },
+  { n:"Genie 3 -> Project Genie", d:"Jan 2026", ord:mo(2026,1), lane:"fnd", pr:"token", src:"Google DeepMind",
+    one:"a playable world model becomes a consumer product - predict the next FRAME, steerable, learned from watching." },
+  { n:"Cosmos 3", d:"Jun 2026", ord:mo(2026,6), lane:"fnd", pr:"token", src:"NVIDIA",
+    one:"a world model unifying simulation + reasoning + action in one system." },
+  { n:"Sora 2", d:"Sep 2025", ord:mo(2025,9), lane:"fnd", pr:"token", src:"OpenAI",
+    one:"a passive world simulator - video as a predicted world, if not yet a steerable one." },
+  { n:"V-JEPA 2", d:"Jun 2025", ord:mo(2025,6), lane:"fnd", pr:"token", src:"Meta",
+    one:"the concrete JEPA artifact: predict in representation space, generate nothing - zero-shot robot planning in latent space." },
+  { n:"LeCun -> AMI Labs", d:"Mar 2026", ord:mo(2026,3), lane:"fnd", pr:"token", src:"AMI Labs ($1.03B seed)",
+    one:"the institutional bet: LeCun exits Meta for a world-model lab; V-JEPA lineage, 'LLMs are a dead end'." },
+  { n:"World Labs (Marble)", d:"Feb 2026", ord:mo(2026,2), lane:"fnd", pr:"token", src:"World Labs (+$1B)",
+    one:"the world as a persistent 3D structure to be built once, not re-predicted pixel by pixel." },
+  // --- Plumbing (the tail the modules skip) ---
+  { n:"MCP -> Agentic AI Foundation", d:"Dec 2025", ord:mo(2025,12), lane:"plmb", pr:"stack", src:"Anthropic -> AAIF",
+    one:"the agent-tool protocol donated to a neutral foundation (~97M monthly downloads) - the plumbing froze into a standard." },
+  { n:"A2A v1.0", d:"Apr 2026", ord:mo(2026,4), lane:"plmb", pr:"stack", src:"Linux Foundation",
+    one:"an agent-to-agent protocol with signed agent identity - agents get to call each other, verifiably." },
+  { n:"Microsoft Agent 365", d:"2026", ord:mo(2026,1), lane:"plmb", pr:"stack", src:"Microsoft",
+    one:"agents managed like employees - identity, directory and governance for a fleet of them." },
+  { n:"Claude Cowork / ChatGPT Agent", d:"2026", ord:mo(2026,2), lane:"plmb", pr:"stack", src:"Anthropic / OpenAI",
+    one:"agents leave the IDE for general knowledge work - the loop escapes the code editor." },
+  { n:"Nemotron 3 (hybrid SSM)", d:"2026", ord:mo(2026,3), lane:"plmb", pr:"attn", src:"NVIDIA",
+    one:"a hybrid state-space + attention flagship - another vote in the attention argument, from a different lab." },
+  { n:"Antigravity", d:"2026", ord:mo(2026,2), lane:"plmb", pr:"loop", src:"Google",
+    one:"an agent IDE that emits verifiable evidence artifacts - trust the loop by auditing what it did." },
+  { n:"K2.6 300-agent swarms", d:"2026", ord:mo(2026,4), lane:"plmb", pr:"loop", status:"unv", src:"Moonshot",
+    one:"reported 300-agent orchestration - scale of the trained swarm; UNVERIFIED." },
+  { n:"OpenAI universal verifiers", d:"2026", ord:mo(2026,3), lane:"plmb", pr:"stage", status:"unv", src:"OpenAI",
+    one:"a general grader for open-ended RL rewards; UNVERIFIED." },
+  { n:"Llama 4 / Behemoth shelved", d:"2026", ord:mo(2026,1), lane:"plmb", pr:"stack", status:"unv", src:"Meta",
+    one:"Meta's flagship reportedly shelved amid a closed pivot - the map has retreats too; partly UNVERIFIED." },
+];
+
+const $ = id => document.getElementById(id);
+const grid=$("grid"), detail=$("detail"), count=$("count");
+let prFilter=null, laneFilter=null, selected=null;
+PINS.forEach((p,i)=>p._i=i);
+
+/* filter chips */
+$("prChips").innerHTML = '<button class="chip on" data-pr="all">all</button>' +
+  Object.keys(PR).map(k=>'<button class="chip" data-pr="'+k+'">'+PR[k]+'</button>').join("");
+$("laneChips").innerHTML = '<button class="chip on" data-lane="all">all</button>' +
+  Object.keys(LANE).map(k=>'<button class="chip" data-lane="'+k+'"><span class="sw" style="background:'+LANE[k].c+'"></span>'+LANE[k].l+'</button>').join("");
+
+function visible(){ return PINS.filter(p =>
+  (prFilter==null || p.pr===prFilter) && (laneFilter==null || p.lane===laneFilter)); }
+
+/* timeline rail: dots along Jan-2025 -> Jul-2026, colored by lane, hollow if UNVERIFIED */
+const T0=mo(2025,1), T1=mo(2026,7);
+function ordToMonths(o){ const y=Math.floor(o/100), m=o%100; return (y-2025)*12+(m-1); }
+const M0=ordToMonths(T0), M1=ordToMonths(T1);
+function drawTimeline(items){
+  const W=940, padL=14, padR=14, x0=padL, x1=W-padR, axisY=96;
+  const X=o=>x0+(ordToMonths(o)-M0)/(M1-M0)*(x1-x0);
+  let s='<line x1="'+x0+'" y1="'+axisY+'" x2="'+x1+'" y2="'+axisY+'" stroke="#39424d" stroke-width="1.2"/>';
+  // quarter ticks + year labels
+  const ticks=[[mo(2025,1),"2025"],[mo(2025,4),"Q2"],[mo(2025,7),"Q3"],[mo(2025,10),"Q4"],[mo(2026,1),"2026"],[mo(2026,4),"Q2"],[mo(2026,7),"Q3"]];
+  ticks.forEach(t=>{ const x=X(t[0]); s+='<line class="rtick" x1="'+x+'" y1="'+(axisY-4)+'" x2="'+x+'" y2="'+(axisY+4)+'"/>'+
+    '<text class="rlab" x="'+x+'" y="'+(axisY+18)+'" text-anchor="middle">'+t[1]+'</text>'; });
+  // dots: stack vertically within a month bucket to reduce overlap
+  const buckets={};
+  items.slice().sort((a,b)=>a.ord-b.ord).forEach(p=>{ const k=p.ord; buckets[k]=(buckets[k]||0); const tier=buckets[k]++;
+    const x=X(p.ord), y=axisY-8-tier*10, c=LANE[p.lane].c, sel=selected===p._i;
+    if(p.status==="unv"){ s+='<circle class="rdot" data-i="'+p._i+'" cx="'+x+'" cy="'+y+'" r="'+(sel?5.5:4)+'" fill="#0b0e12" stroke="'+c+'" stroke-width="1.6" stroke-dasharray="2 1.6"/>'; }
+    else { s+='<circle class="rdot" data-i="'+p._i+'" cx="'+x+'" cy="'+y+'" r="'+(sel?5.5:4)+'" fill="'+c+'"'+(p.rev?' stroke="#ffd35c" stroke-width="1.6"':'')+'/>'; }
+    if(sel) s+='<circle cx="'+x+'" cy="'+y+'" r="9" fill="none" stroke="#ffd35c" stroke-width="1"/>';
+  });
+  $("rail").innerHTML=s;
+}
+
+function draw(){
+  const items=visible();
+  const nUnv=items.filter(p=>p.status==="unv").length;
+  count.innerHTML='<b>'+items.length+'</b> of '+PINS.length+' exhibits'+
+    (prFilter?' . attacking "'+PR[prFilter]+'"':'')+
+    (laneFilter?' . '+LANE[laneFilter].l:'')+
+    (nUnv?' . '+nUnv+' flagged unverified':'');
+  grid.innerHTML=items.slice().sort((a,b)=>b.ord-a.ord).map(p=>{
+    const c=LANE[p.lane].c;
+    return '<div class="card'+(selected===p._i?' sel':'')+'" data-i="'+p._i+'">'+
+      '<span class="cd">'+p.d+'</span><div class="cn">'+p.n+'</div>'+
+      '<div class="co">'+p.one+'</div><div class="tags">'+
+      '<span class="tag lane" style="background:'+c+'">'+LANE[p.lane].l+'</span>'+
+      (p.rev?'<span class="tag rev">counter</span>':'')+
+      (p.status==="unv"?'<span class="tag unv">UNVERIFIED</span>':'')+
+      '</div></div>';
+  }).join("");
+  drawTimeline(items);
+}
+function showDetail(i){
+  selected=i; const p=PINS[i], c=LANE[p.lane].c;
+  detail.hidden=false;
+  detail.innerHTML='<h2>'+p.n+' <span class="hd">'+p.d+'</span>'+
+    (p.status==="unv"?' <span class="tag unv">UNVERIFIED</span>':'')+
+    (p.rev?' <span class="tag rev">counter-exhibit</span>':'')+'</h2>'+
+    '<div class="drow"><span class="dk">what it is</span><span class="dv">'+p.one+'</span></div>'+
+    '<div class="drow"><span class="dk">'+(p.rev?'defends':'attacks')+'</span><span class="dv"><b>'+PR[p.pr]+'</b>'+(p.rev?' - a counter that defends the principle others attack':'')+'</span></div>'+
+    '<div class="drow"><span class="dk">lane</span><span class="dv"><span class="tag lane" style="background:'+c+'">'+LANE[p.lane].l+'</span></span></div>'+
+    '<div class="drow"><span class="dk">landed</span><span class="dv">'+p.d+'</span></div>'+
+    '<div class="drow"><span class="dk">source</span><span class="dv">'+p.src+(p.status==="unv"?' - thinly sourced, treat as a flagged aside':'')+'</span></div>';
+  draw(); detail.scrollIntoView({block:"nearest"});
+}
+
+grid.addEventListener("click",e=>{ const c=e.target.closest(".card"); if(c) showDetail(+c.dataset.i); });
+$("rail").addEventListener("click",e=>{ const d=e.target.closest(".rdot"); if(d) showDetail(+d.dataset.i); });
+$("prChips").addEventListener("click",e=>{ const b=e.target.closest(".chip"); if(!b) return;
+  prFilter=b.dataset.pr==="all"?null:b.dataset.pr;
+  $("prChips").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b)); draw(); });
+$("laneChips").addEventListener("click",e=>{ const b=e.target.closest(".chip"); if(!b) return;
+  laneFilter=b.dataset.lane==="all"?null:b.dataset.lane;
+  $("laneChips").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b)); draw(); });
+
+$("guideLine").textContent = "Every headline here attacks a principle you already own. Pick a principle to see it hit from every side; pick a lane to walk one chapter. The pins will date - the columns they sit in will not.";
+Cast.render(document);
+draw();
+</script>
+</body>
+</html>
