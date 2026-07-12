@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tokens versus worlds</title>
+<!-- Frontier F6. Verified as of 2026-07. Toy sentence + falling-ball physics +
+     step counts hand-authored (labeled); dates, $ amounts and tok/s are narrative
+     color, never measured here (rule 11). Rule 12: the tokens-vs-worlds question
+     is taught, not a winner. Somni debuts (assets/cast.js, single-source). -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:28px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--blue); background:#12171e; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto; display:block; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:76px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .react { margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>Tokens versus worlds</h1>
+<div class="stamp">TRACK 4 . F6 . verified as of 2026-07 - exhibits age, the principle does not</div>
+<p class="sub">Reading, talking, looping, moving - Cortex did all of it by predicting the next <b>token</b>.
+In 2026, roughly two billion dollars of new labs bet that foundation is wrong. Meet <b>Somni</b>,
+who never speaks in tokens - it predicts the <b>world</b>.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">intuition (Cortex meets Somni)</button>
+  <button class="modebtn" data-mode="mech">mechanism (word vs world, computed)</button>
+  <span class="modehint">toy sentence + falling-ball physics hand-authored (labeled); dates and $ are narrative color</span>
+</div>
+
+<div id="canvas" aria-label="Cortex predicts the next token; Somni predicts the world - the 2026 dissent"></div>
+
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+/* ===== toy data (hand-authored, labeled) ===== */
+const SENT=["the","ball","rolls","off","and","falls"];   // the shared sentence
+const OFF=[0.3,0.9,0.1,0.7,0.5,0.2];                      // per-word denoise phase (fixed)
+const ARSTEPS=6, DIFSTEPS=4;                              // toy: AR = 6 sequential, diffusion = 4 parallel
+
+const $=id=>document.getElementById(id);
+const caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(w,e,l){ chrR.dataset.c=w; chrR.dataset.e=e; reactLine.textContent=l; Cast.render($("react")); }
+
+if (window.p5) p5.disableFriendlyErrors=true;
+const CW=920, CH=380;
+let MODE="int", STEP=0;
+new p5(function(p){
+  const density=()=>Math.max(2,window.devicePixelRatio||1);
+  let lastKey="", stepStart=0, worldX=0, worldVel=1.1;
+  p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
+    p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+  p.draw=function(){ if(p.pixelDensity()!==density()) p.pixelDensity(density());
+    const key=MODE+STEP; if(key!==lastKey){ lastKey=key; stepStart=p.frameCount; }
+    p.background(11,14,18);
+    try { (MODE==="int"?drawInt:drawMech)(); }
+    catch(e){ p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(12); p.textAlign(p.LEFT);
+      p.text("stage error at "+MODE+" step "+(STEP+1)+": "+String(e).slice(0,90), 40, 60);
+      p.text("(please report this line)", 40, 84); p.pop(); } };
+
+  const hash=n=>{ const x=Math.sin(n*127.1+31.7)*43758.5453; return x-Math.floor(x); };
+  function arrowR(x1,y,x2,yy){ p.push(); p.line(x1,y,x2,yy); p.noStroke(); p.fill(p.drawingContext.strokeStyle); p.triangle(x2+8,yy,x2,yy-5,x2,yy+5); p.pop(); }
+  function header(t){ p.push(); p.noStroke(); p.fill("#5b6470"); p.textSize(9.5); p.textAlign(p.CENTER,p.BASELINE); p.text(t,CW/2,40); p.pop(); }
+  function lane(x,y,w,h,label){ p.push(); p.noStroke(); p.fill(255,255,255,4); p.rect(x,y,w,h,10);
+    p.fill(152,162,176); p.textSize(9.5); p.textAlign(p.CENTER,p.BASELINE); p.text(label,x+w/2,y-6); p.pop(); }
+
+  /* ---------- the cast, in p5 ---------- */
+  function cortexChip(x,y,s,tint){ p.push(); p.translate(x,y); const c=tint||"#58c4dd", e=tint?"#dfe4ea":"#8fe0f5";
+    p.stroke("#3a5568"); p.strokeWeight(2*s); for(let i=-1;i<=1;i++){ p.line(i*8*s,-15*s,i*8*s,-19*s); p.line(i*8*s,15*s,i*8*s,19*s); }
+    p.stroke(c); p.strokeWeight(2*s); p.fill(18,40,52); p.rect(-14*s,-14*s,28*s,28*s,6*s);
+    p.noStroke(); p.fill(e); p.circle(-5*s,-1*s,5.4*s); p.circle(5*s,-1*s,5.4*s);
+    p.fill("#0b1a22"); p.circle(-5*s,-1*s,2.4*s); p.circle(5*s,-1*s,2.4*s); p.pop(); }
+  /* Somni: cloud-soft, eyes closed. It never speaks - it dreams (see thoughtBubble). */
+  function somni(x,y,s,mood){ p.push(); p.translate(x,y); const PU="#b6a6ff", FL="#332f52";
+    p.noStroke(); p.fill(FL);
+    p.circle(0,2*s,58*s); p.circle(-24*s,10*s,36*s); p.circle(24*s,10*s,36*s); p.circle(0,20*s,40*s);
+    p.stroke(PU); p.strokeWeight(3*s); p.noFill();
+    p.arc(-13*s,-2*s,15*s,12*s,0.18*p.PI,0.82*p.PI);
+    p.arc(13*s,-2*s,15*s,12*s,0.18*p.PI,0.82*p.PI);
+    p.strokeWeight(2.4*s); p.arc(0,14*s,16*s,10*s,0.15*p.PI,0.85*p.PI);
+    if(mood==="dream"||mood==="think"){ p.noStroke(); p.fill(PU); p.textAlign(p.LEFT,p.BASELINE);
+      p.textSize(13*s); p.text("z",30*s,-16*s); p.textSize(9*s); p.text("z",41*s,-27*s); }
+    p.pop(); }
+
+  /* a rounded-rect clip on the raw canvas context */
+  function clipRound(x,y,w,h,r){ const c=p.drawingContext; c.save(); c.beginPath();
+    c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); c.clip(); }
+
+  /* Somni's thought bubble: trailing puffs + a framed world drawn by scene(cx,cy,w,h) */
+  function thoughtBubble(bx,by,w,h,fromX,fromY,scene){ p.push();
+    p.noStroke(); p.fill(46,42,74);
+    const mx=(bx+fromX)/2, my=(by+h/2+fromY)/2;
+    p.circle(fromX,fromY,9); p.circle(mx,my,13); p.circle((mx+bx)/2,(my+by+h/2)/2,17);
+    p.fill(22,20,34); p.stroke("#6a5fa0"); p.strokeWeight(1.5); p.rect(bx-w/2,by-h/2,w,h,14);
+    clipRound(bx-w/2,by-h/2,w,h,14); scene(bx,by,w,h); p.drawingContext.restore();
+    p.noStroke(); p.fill("#8a7fb8"); p.textSize(9); p.textAlign(p.CENTER,p.BASELINE); p.text("a world, not a word",bx,by-h/2-8);
+    p.pop(); }
+  function speechBubble(bx,by,w,h){ p.push(); p.fill(18,34,44); p.stroke("#58c4dd"); p.strokeWeight(1.5);
+    p.rect(bx-w/2,by-h/2,w,h,12);
+    p.noStroke(); p.fill(18,34,44); p.triangle(bx-w/2+18,by+h/2-2, bx-w/2+36,by+h/2-2, bx-w/2+12,by+h/2+15);
+    p.stroke("#58c4dd"); p.strokeWeight(1.5); p.line(bx-w/2+18,by+h/2, bx-w/2+12,by+h/2+15); p.line(bx-w/2+36,by+h/2, bx-w/2+12,by+h/2+15);
+    p.pop(); }
+
+  /* a ball rolls off a ledge and falls - the shared little world */
+  function fallingBall(cx,cy,s,t){ p.push(); p.translate(cx,cy); p.scale(s);
+    p.stroke("#4a4470"); p.strokeWeight(2); p.line(-58,40,58,40);            // ground
+    p.stroke("#6a5fa0"); p.strokeWeight(3); p.line(-58,-14,-6,-14);          // ledge top
+    p.noStroke(); p.fill(46,42,74); p.rect(-58,-14,52,7);                    // ledge body
+    const pos=tt=>{ if(tt<0.42){ const u=tt/0.42; return [-46+u*44,-20]; }
+      const u=(tt-0.42)/0.58; return [-2+u*44, Math.min(33,-20+u*u*62)]; };
+    p.noStroke(); for(let k=4;k>=1;k--){ const q=pos(Math.max(0,t-k*0.035)); p.fill(255,157,92, 34-k*6); p.circle(q[0],q[1],13); }
+    const b=pos(t); p.fill("#ff9d5c"); p.circle(b[0],b[1],13);
+    p.pop(); }
+
+  /* the M0 bet: a sentence written one token at a time, looping */
+  function tokenStream(cx,cy){ p.push(); const n=SENT.length, upto=Math.floor((p.frameCount-stepStart)/22)%(n+4);
+    const tw=78,gap=8,x0=cx-(n*tw+(n-1)*gap)/2; p.textAlign(p.CENTER,p.CENTER);
+    for(let i=0;i<n;i++){ const x=x0+i*(tw+gap), done=i<upto, cur=i===upto;
+      p.fill(done?18:22,done?34:24,done?44:30); p.stroke(done?"#58c4dd":cur?"#8fe0f5":"#2a3742"); p.strokeWeight(done?1.4:cur?1.8:1); p.rect(x,cy-15,tw,30,6);
+      if(done){ p.noStroke(); p.fill("#e9ebee"); p.textSize(13); p.text(SENT[i],x+tw/2,cy+1); }
+      else if(cur){ p.noStroke(); p.fill(143,224,245,120+120*Math.sin(p.frameCount*0.25)); p.textSize(15); p.text("|",x+tw/2,cy+1); } }
+    p.noStroke(); p.fill("#58c4dd"); p.textSize(9.5); p.textAlign(p.CENTER,p.BASELINE); p.text("predict the next token ->", cx, cy-30); p.pop(); }
+
+  /* autoregression: words 0..upto locked, the next one being predicted */
+  function arWrite(cx,cy,upto,tag){ p.push(); const n=SENT.length,tw=78,gap=8,x0=cx-(n*tw+(n-1)*gap)/2; p.textAlign(p.CENTER,p.CENTER);
+    for(let i=0;i<n;i++){ const x=x0+i*(tw+gap), done=i<=upto, cur=i===upto+1;
+      p.fill(done?18:22,done?34:24,done?44:30); p.stroke(done?"#58c4dd":cur?"#8fe0f5":"#2a3742"); p.strokeWeight(done?1.4:cur?1.8:1); p.rect(x,cy-15,tw,30,6);
+      if(done){ p.noStroke(); p.fill("#e9ebee"); p.textSize(13); p.text(SENT[i],x+tw/2,cy+1); }
+      else if(cur){ p.noStroke(); p.fill(143,224,245,120+120*Math.sin(p.frameCount*0.2)); p.textSize(13); p.text("?",x+tw/2,cy+1); } }
+    if(tag){ p.noStroke(); p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.CENTER,p.BASELINE); p.text(tag,cx,cy-30); } p.pop(); }
+
+  /* diffusion: the whole sentence sharpens from noise together (prog 0->1) */
+  function diffuseWrite(cx,cy,prog,tag){ p.push(); const n=SENT.length,tw=78,gap=8,x0=cx-(n*tw+(n-1)*gap)/2; p.textAlign(p.CENTER,p.CENTER);
+    for(let i=0;i<n;i++){ const x=x0+i*(tw+gap), lp=p.constrain((prog-OFF[i]*0.16)/0.62,0,1);
+      p.fill(24,22,38); p.stroke(lp>=0.98?"#83c167":"#4a4470"); p.strokeWeight(1.3); p.rect(x,cy-15,tw,30,6);
+      if(lp<0.98){ p.noStroke(); for(let j=0;j<6;j++){ const bx=x+9+j*11, h=6+(0.5+0.5*Math.sin(i*3+j*1.7+p.frameCount*0.3))*15*(1-lp); p.fill(150,140,200,140*(1-lp)+25); p.rect(bx,cy-h/2,7,h,1); } }
+      if(lp>0.4){ p.noStroke(); p.fill(233,235,238,255*p.constrain((lp-0.4)/0.6,0,1)); p.textSize(13); p.text(SENT[i],x+tw/2,cy+1); } }
+    if(tag){ p.noStroke(); p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.CENTER,p.BASELINE); p.text(tag,cx,cy-30); } p.pop(); }
+
+  /* the growing token menu - the incumbent's unification (words/image/audio/actions) */
+  function menuBar(){ p.push(); p.textAlign(p.LEFT,p.CENTER);
+    const items=[["words","#58c4dd"],["image patches","#83c167"],["audio frames","#ffd35c"],["ACTIONS","#fc6255"]];
+    items.forEach((it,i)=>{ const y=110+i*44; p.noStroke(); p.fill(it[1]); p.textSize(11); p.text(it[0],150,y);
+      for(let j=0;j<7;j++){ p.fill(30,42,54); p.stroke("#2a3742"); p.strokeWeight(1); p.rect(300+j*48,y-11,40,22,4);
+        p.noStroke(); p.fill("#5b6470"); p.textSize(8.5); p.textAlign(p.CENTER,p.CENTER); p.text("tok",320+j*48,y); p.textAlign(p.LEFT,p.CENTER); } });
+    p.pop(); }
+
+  /* a world model advancing: frames of the falling world, the last one predicted */
+  function filmstrip(cx,cy){ p.push(); const n=5,fw=80,gap=20,x0=cx-(n*fw+(n-1)*gap)/2;
+    for(let i=0;i<n;i++){ const x=x0+i*(fw+gap), pred=i===n-1, t=i/(n-1)*0.92;
+      if(pred) p.drawingContext.setLineDash([5,4]);
+      p.fill(pred?18:24,pred?20:22,pred?32:38); p.stroke(pred?"#b6a6ff":"#3a3560"); p.strokeWeight(pred?1.8:1.2); p.rect(x,cy,fw,fw,6);
+      p.drawingContext.setLineDash([]);
+      clipRound(x,cy,fw,fw,6); fallingBall(x+fw/2,cy+fw/2-4,0.6,t); p.drawingContext.restore();
+      p.noStroke(); p.fill(pred?"#b6a6ff":"#6a6480"); p.textSize(8.5); p.textAlign(p.CENTER,p.BASELINE); p.text(pred?"predict t+1":("frame "+(i+1)),x+fw/2,cy+fw+14);
+      if(i<n-1){ p.push(); p.stroke("#3a3560"); p.strokeWeight(1.2); arrowR(x+fw+3,cy+fw/2,x+fw+gap-5,cy+fw/2); p.pop(); } }
+    p.pop(); }
+
+  /* a Genie-style playable dream-world: scrolls as you steer; every frame is predicted ahead */
+  function tree(x,gy,s){ p.push(); p.translate(x,gy); p.noStroke(); p.fill(38,32,60); p.rect(-2*s,-17*s,4*s,17*s);
+    p.fill(74,64,116); p.circle(0,-23*s,25*s); p.circle(-9*s,-15*s,17*s); p.circle(9*s,-15*s,17*s); p.pop(); }
+  function ridge(px,pw,off,baseY,amp,col,botY){ p.push(); p.noStroke(); p.fill(col); p.beginShape(); p.vertex(px,botY);
+    for(let i=0;i<=pw;i+=8){ const wx=off+i, y=baseY-Math.sin(wx*0.012)*amp-Math.sin(wx*0.031+1.3)*amp*0.4; p.vertex(px+i,y); }
+    p.vertex(px+pw,botY); p.endShape(p.CLOSE); p.pop(); }
+  function playWorld(px,py,pw,ph){ p.push();
+    const L=p.keyIsDown(37), R=p.keyIsDown(39), target=R?3.4:L?-2.4:1.15;
+    worldVel+=(target-worldVel)*0.08; worldX+=worldVel;
+    clipRound(px,py,pw,ph,10);
+    const bands=[["#241f3a",0],["#2c2547",0.42],["#3a2f56",0.72]]; bands.forEach((b,i)=>{ p.noStroke(); p.fill(b[0]); p.rect(px,py+ph*b[1],pw,ph); });
+    p.noStroke(); p.fill(255,214,140,45); p.circle(px+pw*0.74,py+46,88); p.fill("#ffd98c"); p.circle(px+pw*0.74,py+46,32);
+    const gy=py+ph*0.8;
+    ridge(px,pw,worldX*0.25,gy-6,26,"#2b2550",py+ph);
+    ridge(px,pw,worldX*0.6,gy+8,20,"#211c3c",py+ph);
+    p.noStroke(); p.fill(28,24,48); p.rect(px,gy+8,pw,ph);          // ground fill
+    for(let k=-1;k<48;k++){ if(hash(k)<0.55) continue; const wpx=k*96+(hash(k*3.1)-0.5)*46, sx=px+40+wpx-worldX*0.6;
+      if(sx<px-30||sx>px+pw+30) continue; const edge=p.constrain((px+pw-sx)/70,0,1); p.push(); p.drawingContext.globalAlpha=0.35+0.65*edge; tree(sx,gy+8,0.8+hash(k*7.3)*0.5); p.pop(); }
+    // the dreamer walking through its dream
+    const chx=px+pw*0.34, bob=Math.sin(p.frameCount*0.18)*3; somni(chx,gy-14+bob,0.42,"dream");
+    // the generation edge: the world is predicted ahead of you
+    const g=p.drawingContext.createLinearGradient(px+pw-80,0,px+pw,0); g.addColorStop(0,"rgba(182,166,255,0)"); g.addColorStop(1,"rgba(182,166,255,0.16)");
+    p.noStroke(); p.drawingContext.fillStyle=g; p.rect(px+pw-80,py,80,ph);
+    p.drawingContext.restore();
+    p.noFill(); p.stroke("#6a5fa0"); p.strokeWeight(1.4); p.rect(px,py,pw,ph,10);
+    p.push(); p.noStroke(); p.textAlign(p.LEFT,p.BASELINE);
+    p.fill("#b6a6ff"); p.textSize(9.5); p.text("frame "+(Math.floor(worldX/6)%9999),px+10,py+18);
+    p.fill("#8a7fb8"); p.textSize(9); p.textAlign(p.RIGHT,p.BASELINE); p.text("dreaming next frame ->",px+pw-8,py+18);
+    p.fill("#8a7fb8"); p.textAlign(p.CENTER,p.BASELINE); p.text("auto-playing - click, then press  <  >  to steer",px+pw/2,py+ph-8); p.pop();
+    p.push(); p.noStroke(); p.fill("#8a7fb8"); p.textSize(9); p.textAlign(p.LEFT,p.BASELINE); p.text("a toy cartoon of the idea - a real world model dreams the pixels",px,py-6); p.pop();
+    p.pop(); }
+
+  /* JEPA: encode a world to a gist, predict the next gist - loss in representation space */
+  function jepaView(cx){ p.push();
+    // left: a pixel world
+    const gx=cx-320, gy=120, cell=15;
+    p.push(); p.noStroke(); for(let r=0;r<4;r++)for(let c=0;c<5;c++){ const v=hash(r*5+c); p.fill(40+v*60,34+v*40,64+v*50); p.rect(gx+c*cell,gy+r*cell,cell-1.5,cell-1.5,2); }
+    p.pop(); p.noStroke(); p.fill("#98a2b0"); p.textSize(9); p.textAlign(p.CENTER,p.BASELINE); p.text("a frame (pixels)",gx+2.5*cell,gy-9);
+    p.push(); p.stroke("#3a3560"); p.strokeWeight(1.3); arrowR(gx+5*cell+8,gy+2*cell,gx+5*cell+44,gy+2*cell); p.pop();
+    p.noStroke(); p.fill("#6a6480"); p.textSize(8.5); p.textAlign(p.CENTER,p.BASELINE); p.text("encode",gx+5*cell+28,gy+2*cell-9);
+    // right: the gist (a few latent dots)
+    const lx=cx-80, ly=gy+2*cell; const dots=[[0,-22],[20,-6],[-18,-2],[10,16],[-12,18],[26,14]];
+    dots.forEach((d,i)=>{ const pu=6+2*Math.sin(p.frameCount*0.08+i); p.noStroke(); p.fill("#b6a6ff"); p.circle(lx+d[0],ly+d[1],pu); });
+    p.noStroke(); p.fill("#b6a6ff"); p.textSize(9); p.textAlign(p.CENTER,p.BASELINE); p.text("the gist (a few numbers)",lx+2,ly-34);
+    // predict the NEXT gist: predicted (hollow) vs actual (filled), loss = the gap
+    const px2=cx+150; p.noStroke(); p.fill("#98a2b0"); p.textSize(9); p.textAlign(p.CENTER,p.BASELINE); p.text("predict the NEXT gist",px2,ly-34);
+    dots.forEach((d,i)=>{ const ax=px2+d[0], ay=ly+d[1], ex=ax+Math.sin(i*1.7)*7, ey=ay+Math.cos(i*2.1)*7;
+      p.stroke("#4a4470"); p.strokeWeight(1); p.line(ax,ay,ex,ey);
+      p.noFill(); p.stroke("#8fe0f5"); p.strokeWeight(1.4); p.circle(ex,ey,9);
+      p.noStroke(); p.fill("#b6a6ff"); p.circle(ax,ay,7); });
+    p.push(); p.noStroke(); p.textAlign(p.CENTER,p.BASELINE);
+    p.fill("#8fe0f5"); p.textSize(9); p.text("o predicted",px2-40,ly+44); p.fill("#b6a6ff"); p.text("* actual",px2+40,ly+44);
+    p.fill("#fc6255"); p.textSize(10); p.text("the loss lives HERE - in representation space. no pixels are ever drawn.",cx,ly+66); p.pop();
+    p.pop(); }
+
+  /* the balance for the debate - level: no winner */
+  function scaleBal(cx,cy){ p.push(); p.stroke("#6a6480"); p.strokeWeight(2);
+    p.line(cx,cy-30,cx,cy+26); p.line(cx-70,cy-30,cx+70,cy-30);
+    [[-70,"#58c4dd"],[70,"#b6a6ff"]].forEach(pn=>{ p.push(); p.stroke(pn[1]); p.strokeWeight(1.3);
+      p.line(cx+pn[0],cy-30,cx+pn[0]-14,cy-6); p.line(cx+pn[0],cy-30,cx+pn[0]+14,cy-6); p.noFill(); p.arc(cx+pn[0],cy-6,30,11,0,p.PI); p.pop(); });
+    p.noStroke(); p.fill("#6a6480"); p.triangle(cx,cy+26,cx-9,cy+40,cx+9,cy+40); p.pop(); }
+
+  /* ---------------- intuition: 8 steps (Cortex meets Somni) ---------------- */
+  function drawInt(){
+    const k=STEP;
+    if(k===0){ header("THE BET UNDER EVERYTHING");
+      cortexChip(140,150,1.05); tokenStream(500,150);
+      const a=p.constrain((p.frameCount-stepStart)/60,0,1); p.push(); p.drawingContext.globalAlpha=a; somni(820,160,0.9,"dream"); p.pop();
+      p.push(); p.noStroke(); p.fill("#8a7fb8"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); if(a>0.6)p.text("someone disagrees",820,232); p.pop(); }
+    if(k===1){ header("PREDICT THE WORLD, NOT THE WORD");
+      p.push(); p.stroke("#2a2f38"); p.strokeWeight(1); p.line(CW/2,58,CW/2,330); p.pop();
+      // left: Cortex says a WORD
+      cortexChip(150,180,0.95); speechBubble(300,120,190,54);
+      const showW=(p.frameCount-stepStart)>60; p.push(); p.textAlign(p.LEFT,p.CENTER);
+      p.noStroke(); p.fill("#cdd3da"); p.textSize(12.5); p.text("the ball rolls off and",214,120);
+      if(showW){ p.fill(18,40,52); p.stroke("#58c4dd"); p.strokeWeight(1.3); p.rect(354,108,54,24,5); p.noStroke(); p.fill("#8fe0f5"); p.textAlign(p.CENTER,p.CENTER); p.text("falls",381,120); } p.pop();
+      p.push(); p.noStroke(); p.fill("#58c4dd"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); p.text("a WORD (one token)",240,250); p.pop();
+      // right: Somni shows a WORLD
+      somni(600,190,0.85,"dream"); const t=((p.frameCount-stepStart)%150)/150;
+      thoughtBubble(770,150,150,104,650,175,(bx,by,w,h)=>fallingBall(bx,by+6,0.82,t));
+      p.push(); p.noStroke(); p.fill("#b6a6ff"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); p.text("a WORLD (it just happens)",770,250); p.pop(); }
+    if(k===2){ header("ESCAPE 1 - A DIFFERENT WAY TO WRITE");
+      p.push(); p.noStroke(); p.textAlign(p.LEFT,p.BASELINE); p.fill("#58c4dd"); p.textSize(10.5); p.text("Cortex: left to right, one token at a time",90,96); p.pop();
+      arWrite(CW/2,130,Math.floor((p.frameCount-stepStart)/26)%(SENT.length+2)-1);
+      p.push(); p.noStroke(); p.textAlign(p.LEFT,p.BASELINE); p.fill("#83c167"); p.textSize(10.5); p.text("the rival: the whole line at once, sharpened from noise",90,222); p.pop();
+      diffuseWrite(CW/2,256,((p.frameCount-stepStart)%150)/110);
+      p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE); p.text("same six words - but no left-to-right. all positions resolve together, so it can be much faster.",CW/2,318); p.pop(); }
+    if(k===3){ header("ESCAPE 2 - PREDICT THE WORLD");
+      playWorld(150,66,620,210); somni(838,150,0.7,"happy"); }
+    if(k===4){ header("ESCAPE 3 - PREDICT THE GIST (generate nothing)");
+      jepaView(CW/2); }
+    if(k===5){ header("THE DEBATE: SAME BALL, TWO ANSWERS");
+      cortexChip(150,175,0.95); p.push(); p.fill(18,40,52); p.stroke("#58c4dd"); p.strokeWeight(1.3); p.rect(120,232,60,26,6); p.noStroke(); p.fill("#8fe0f5"); p.textSize(12); p.textAlign(p.CENTER,p.CENTER); p.text("falls",150,245); p.pop();
+      p.push(); p.noStroke(); p.fill("#58c4dd"); p.textSize(9.5); p.textAlign(p.CENTER,p.BASELINE); p.text("Cortex: a token",150,278); p.pop();
+      scaleBal(CW/2,175);
+      p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(10.5); p.textAlign(p.CENTER,p.BASELINE); p.text("both right",CW/2,258); p.pop();
+      somni(720,175,0.8,"dream"); const t=((p.frameCount-stepStart)%150)/150; thoughtBubble(720,120,132,80,720,150,(bx,by,w,h)=>fallingBall(bx,by+4,0.7,t));
+      p.push(); p.noStroke(); p.fill("#b6a6ff"); p.textSize(9.5); p.textAlign(p.CENTER,p.BASELINE); p.text("Somni: a world",720,278); p.pop(); }
+    if(k===6){ header("BUT THE TOKEN BET KEEPS WINNING");
+      menuBar();
+      p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE);
+      p.text("this same year, images, audio and actions all BECAME tokens (F1, F5). even the best image",CW/2,308);
+      p.text("generator is a token model, and most diffusion LLMs are converted from token models.",CW/2,326); p.pop(); }
+    if(k===7){ somni(640,150,0.95,"dream"); cortexChip(300,150,1.15);
+      p.push(); p.noStroke(); p.textAlign(p.CENTER,p.BASELINE);
+      p.fill("#5b6470"); p.textSize(9.5); p.text("NOT A LAW - A BET, NOW CONTESTED",CW/2,40);
+      p.fill("#58c4dd"); p.textSize(10.5); p.text("predict the word",300,232); p.fill("#b6a6ff"); p.text("predict the world",640,232);
+      p.fill("#e9ebee"); p.textSize(12.5); p.text("two live hypotheses about what a mind should predict - and now you hold both.",CW/2,300); p.pop(); }
+  }
+
+  /* ---------------- mechanism: 13 steps, 3 acts ---------------- */
+  function drawMech(){
+    const k=STEP;
+    if(k<=4){ // ACT 1: writing - left-to-right vs all-at-once
+      lane(30,46,860,262, k===0?"AUTOREGRESSION - THE LOOP UNDER F1-F5":(k===1?"DIFFUSION STARTS FROM PURE NOISE":(k===2?"DENOISE ALL POSITIONS IN PARALLEL":(k===3?"THE TRADE (toy numbers)":"BUT IT IS STILL TOKENS"))));
+      if(k===0){ const up=Math.floor((p.frameCount-stepStart)/24)%(SENT.length+2)-1; arWrite(CW/2,150,up,"p( next | everything before ) - one at a time, in order");
+        p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE); p.text("six words = "+ARSTEPS+" sequential steps. lock one token, then predict the next. high quality, strictly serial.",CW/2,232); p.pop(); }
+      if(k===1){ diffuseWrite(CW/2,150,0,"every position: noise, all at once");
+        p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE); p.text("the rival begins with the whole sentence present but unreadable - nothing is written left to right.",CW/2,232); p.pop(); }
+      if(k===2){ const step=Math.floor(((p.frameCount-stepStart)/34)%(DIFSTEPS+1)); const prog=step/DIFSTEPS; diffuseWrite(CW/2,150,prog,"refinement step "+step+" / "+DIFSTEPS);
+        p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE); p.text("each pass sharpens ALL positions together. a few passes - here "+DIFSTEPS+" - and noise resolves into words.",CW/2,232); p.pop(); }
+      if(k===3){ p.push(); p.textAlign(p.LEFT,p.CENTER);
+        p.noStroke(); p.fill("#58c4dd"); p.textSize(11); p.text("autoregression",120,118); p.fill("#98a2b0"); p.textSize(10.5); p.text(ARSTEPS+" sequential steps",300,118);
+        for(let i=0;i<ARSTEPS;i++){ p.fill(18,34,44); p.stroke("#58c4dd"); p.strokeWeight(1.2); p.rect(470+i*40,108,32,20,4); }
+        p.fill("#83c167"); p.textSize(11); p.text("diffusion",120,168); p.fill("#98a2b0"); p.textSize(10.5); p.text("~"+DIFSTEPS+" parallel refinements",300,168);
+        for(let i=0;i<DIFSTEPS;i++){ p.fill(20,30,22); p.stroke("#83c167"); p.strokeWeight(1.2); p.rect(470+i*40,158,32,20,4); }
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE);
+        p.text("fewer, parallel passes -> far faster (Mercury 2 reports >1000 tok/s, labeled). the cost: it must revise, and can wobble.",CW/2,232); p.pop(); }
+      if(k===4){ diffuseWrite(CW/2,140,1,"diffusion output"); p.push(); p.noStroke(); p.textAlign(p.CENTER,p.BASELINE);
+        p.fill("#fc6255"); p.textSize(11); p.text("same menu . same target . just a different order",CW/2,210);
+        p.fill("#cdd3da"); p.textSize(11); p.text("diffusion still predicts TOKENS. many diffusion LLMs are literally converted from token models",CW/2,246);
+        p.fill("#cdd3da"); p.text("(LLaDA 2.0, labeled). escape 1 bends the loop - it does not leave it.",CW/2,264); p.pop(); }
+    } else if(k<=9){ // ACT 2: predicting a world
+      const k2=k-5;
+      lane(30,46,860,262, k2===0?"A NEW TARGET: THE NEXT FRAME":(k2===1?"PLAY IT - EVERY FRAME IS PREDICTED":(k2===2?"BUT PIXELS ARE EXPENSIVE":(k2===3?"JEPA: PREDICT THE GIST, NOT THE PIXELS":"THE SPECTRUM OF 'PREDICT THE NEXT ___'"))));
+      if(k2===0){ filmstrip(CW/2,120); p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE);
+        p.text("swap 'next word' for 'next frame of a world' - given the past frames and your action:",CW/2,268);
+        p.fill("#b6a6ff"); p.text("p( frame t+1 | frames so far, your action ). the same next-thing loop; the 'token' is now a frame.",CW/2,288); p.pop(); }
+      if(k2===1){ playWorld(150,64,620,208); somni(838,150,0.7,"happy"); }
+      if(k2===2){ const gx=CW/2-90,gy=96,cell=20; p.push();
+        for(let r=0;r<6;r++)for(let c=0;c<9;c++){ const keep=(r===2||r===3)&&c>2&&c<6; const v=hash(r*9+c);
+          p.fill(keep?90:40, keep?76:36, keep?130:52, keep?255:150); p.stroke("#0b0e12"); p.strokeWeight(1); p.rect(gx+c*cell,gy+r*cell,cell,cell); }
+        p.noStroke(); p.fill("#b6a6ff"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); p.text("the gist",gx+4.5*cell,gy-8);
+        p.fill("#98a2b0"); p.textSize(10.5); p.textAlign(p.CENTER,p.BASELINE); p.text("predicting every pixel spends huge effort on detail that barely matters -",CW/2,250); p.text("each leaf, each speck of grain. a lot of paint for the gist.",CW/2,270); p.pop(); }
+      if(k2===3){ jepaView(CW/2); p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(10.5); p.textAlign(p.CENTER,p.BASELINE); p.text("generate nothing; predict the meaning. V-JEPA plans robot moves in this latent space (labeled).",CW/2,300); p.pop(); }
+      if(k2===4){ p.push(); const y=150; p.stroke("#3a3560"); p.strokeWeight(2); p.line(120,y,800,y);
+        const marks=[["predict the word","#58c4dd",120],["out of order","#83c167",320],["the world's frame","#b6a6ff",540],["the world's gist","#8fe0f5",800]];
+        marks.forEach(m=>{ p.noStroke(); p.fill(m[1]); p.circle(m[2],y,11); p.textAlign(p.CENTER,p.BASELINE); p.textSize(10); p.text(m[0],m[2],y-16); });
+        p.noStroke(); p.fill("#6a6480"); p.textSize(9.5); p.textAlign(p.LEFT,p.BASELINE); p.text("tokens",120,y+26); p.textAlign(p.RIGHT,p.BASELINE); p.text("worlds",800,y+26);
+        p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE); p.text("four bets on what 'predict the next ___' should fill in.",CW/2,y+70); p.pop(); }
+    } else { // ACT 3: the argument
+      const k3=k-10;
+      lane(30,46,860,262, k3===0?"THE INCUMBENT'S CASE: ONE LOOP":(k3===1?"THE DISSENT'S CASE: A WORD CAN HIDE":"NO WINNER (rule 12)"));
+      if(k3===0){ menuBar(); p.push(); p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER,p.BASELINE);
+        p.text("words, images, audio, actions - all became tokens this year (F1, F5). one menu, one loop,",CW/2,300);
+        p.text("simple and unified - and it keeps winning at the other camps' games.",CW/2,320); p.pop(); }
+      if(k3===1){ cortexChip(180,150,0.95); p.push(); p.fill(18,40,52); p.stroke("#58c4dd"); p.strokeWeight(1.3); p.rect(150,196,60,26,6); p.noStroke(); p.fill("#8fe0f5"); p.textSize(12); p.textAlign(p.CENTER,p.CENTER); p.text("falls",180,209); p.pop();
+        p.push(); p.noStroke(); p.fill("#98a2b0"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); p.text("can say 'falls' without knowing gravity",180,242); p.pop();
+        somni(560,150,0.85,"think"); const t=((p.frameCount-stepStart)%150)/150; thoughtBubble(560,110,130,74,560,150,(bx,by,w,h)=>fallingBall(bx,by+2,0.66,t));
+        p.push(); p.noStroke(); p.fill("#b6a6ff"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); p.text("must get the world right",560,242);
+        p.fill("#cdd3da"); p.textSize(10.5); p.textAlign(p.CENTER,p.BASELINE); p.text("the institutional bet is real: LeCun left Meta for a world-model lab; roughly $2B backs the idea",CW/2,286);
+        p.text("that tokens are a shortcut around understanding (AMI Labs, World Labs - labeled, 2026).",CW/2,304); p.pop(); }
+      if(k3===2){ scaleBal(CW/2,140); p.push(); p.noStroke(); p.textAlign(p.CENTER,p.BASELINE);
+        p.fill("#58c4dd"); p.textSize(11); p.text("tokens: winning, unified",CW/2-150,210); p.fill("#b6a6ff"); p.text("worlds: rising, $2B bet",CW/2+150,210);
+        p.fill("#e9ebee"); p.textSize(11.5); p.text("no winner - the field has not called it. verified as of 2026-07.",CW/2,244);
+        p.fill("#98a2b0"); p.textSize(10.5); p.text("done when: name the three escapes, say what each predicts instead of the next token,",CW/2,278);
+        p.text("and give the strongest argument FOR tokens.",CW/2,296); p.pop(); }
+    }
+  }
+}, "canvas");
+
+/* ===== captions ===== */
+const CAPS_INT=[
+["Every skill you have watched Cortex learn - reading, talking, looping, moving - runs on one move: predict the next token. That single bet is the foundation under all of it. In 2026, about two billion dollars of new labs bet the foundation is wrong.","cortex","neutral","One move, under everything I do."],
+["Meet Somni. Ask them both what happens when a ball rolls off a table. Cortex predicts the next WORD - the token 'falls'. Somni never speaks: it closes its eyes and shows the whole scene - the ball arcing down and landing. A word, versus a world.","somni","dream","...i don't say it. i see it."],
+["Escape 1 changes HOW you write. Cortex writes left to right, one token at a time. The diffusion rival starts from pure noise and sharpens the WHOLE line at once - same words, no left-to-right. That parallelism can make it much faster.","bit","think","Two ways to write the same line."],
+["Escape 2 changes WHAT you predict: not the next word, the next FRAME of a world. Steer it and it dreams the next frame from the last - it never read a physics engine, it learned the world from watching video. This is Somni's home.","somni","happy","step in - i'll dream where you go."],
+["Escape 3 goes furthest: predict, but generate NOTHING you can see. Encode the world to a gist - a handful of numbers - and predict the next gist. Understanding without painting a single pixel. (LeCun's bet.)","somni","think","the idea of what happens - not the picture."],
+["So the debate. Same falling ball. Cortex hands you a token: 'falls'. Somni hands you a world: the ball landing. Both are right - but is 'the next token' the true foundation, or a clever shortcut around actually understanding the world?","cortex","reach","Is my word enough - or do I need her world?"],
+["The honest other side: this SAME year, Cortex's token bet kept winning. Images, audio, and actions all BECAME tokens (F1, F5). Even the best image generator is a token model, and most diffusion models are converted from token models. The incumbent is strong.","bit","happy","The token loop keeps eating the menu."],
+["The aha: 'predict the next token' was never physics - it is a bet. Currently winning, and for the first time seriously contested. You now hold both arguments: one loop that turns everything into tokens, and a rival that predicts the world itself.","bit","neutral","Not a law - a bet, with a real challenger."]];
+const CAPS_MECH=[
+["Autoregression - the loop under F1 through F5. Predict one token from everything before it, lock it in, then predict the next. Six words is six steps, strictly in order. High quality, but sequential.","cortex","read","One word, then the next, then the next."],
+["The diffusion rival starts the opposite way: the whole sentence at once, every position pure noise. Nothing is written left to right - it is all present, just unreadable.","bit","think","Start with everything, blurred."],
+["Then it denoises in parallel: each refinement step sharpens ALL positions together. A few passes - here four - and the noise resolves into words. Steps, not word-count.","bit","read","Sharpen the whole line at once."],
+["The trade, in toy numbers: autoregression takes six sequential steps; diffusion takes about four parallel refinements. Fewer, parallel passes mean far faster (Mercury 2 reports >1000 tok/s). The cost: it may have to revise, and can wobble.","bit","neutral","Faster - if you can revise."],
+["But note what did NOT change: diffusion still predicts TOKENS - same menu, same target, just a different order. Many diffusion LLMs are literally converted from token models. Escape 1 bends the loop; it does not leave it.","cortex","happy","Still my tokens - just shuffled."],
+["Escape 2 swaps the target. Instead of the next word, predict the next FRAME of a world, given the past frames and your action. Same next-thing loop - the 'token' is now a frame.","somni","dream","the next thing i predict is a world."],
+["Play it. Every step, the model takes the last frame plus your steering and dreams the next one. Genie became a consumer product this year. (A toy cartoon here - a real one dreams the pixels.)","somni","happy","move, and i draw where you go."],
+["The catch: predicting every pixel spends enormous effort on detail that barely matters - each leaf, each speck of grain. A lot of paint for the gist.","bit","think","Most pixels are not the point."],
+["So JEPA predicts the LATENT, not the pixels: encode both frames to a gist, predict the future gist, and put the loss THERE - in representation space. It generates nothing. V-JEPA plans robot moves this way.","somni","think","predict the meaning, skip the picture."],
+["Line them up: predict the word, predict it out of order, predict the world's frame, predict the world's gist. Four bets on what 'predict the next ___' should mean.","bit","neutral","One blank, four ways to fill it."],
+["The incumbent's case: one loop, one menu. Words, images, audio, actions - all became tokens this year (F1, F5). Simple, unified, and it keeps winning at the other camps' games.","cortex","reach","One loop to predict them all."],
+["The dissent's case: a token model can predict the word 'falls' without ever understanding gravity - a world model must get the world right. The bet is real: LeCun left Meta for a world-model lab, roughly $2B backing the idea that tokens are a dead end.","somni","think","a word can hide what a world cannot."],
+["No winner - the field has not called it (rule 12). Done when you can name the three escapes, say what each predicts instead of the next token, and give the strongest argument FOR tokens. Verified as of 2026-07.","bit","happy","Two live hypotheses - and you hold both."]];
+const MECH_ACTS=[["writing: L-to-R vs all-at-once",5],["predicting a world",5],["the argument",3]];
+
+let tl=null;
+function render(i){
+  STEP=i;
+  const caps=MODE==="int"?CAPS_INT:CAPS_MECH, c=caps[i];
+  caption.textContent=c[0]; react(c[1],c[2],c[3]);
+  insight.className="insight";
+  insight.innerHTML = MODE==="int"
+    ? (i>=7?"<b>The aha:</b> next-token prediction is a bet, not a law - and now seriously contested. Switch to <b>mechanism</b> to compute word-vs-world."
+          :"One idea: <b>three escapes from 'predict the next token, left to right' - reorder it (diffusion), retarget it to a world (world models), or predict only its gist (JEPA) - against a token loop that keeps winning.</b>")
+    : (i<=4?"Act 1: <b>same sentence, two ways to write it</b> - left-to-right tokens vs denoise-all-at-once. Faster, but still tokens."
+      : i<=9?"Act 2: <b>predict a world, not a word</b> - frames as tokens (world models), or the gist in latent space (JEPA - generate nothing)."
+      : "Act 3: <b>the argument, dated</b> - one unifying token loop vs a ~$2B bet that tokens skip understanding. No winner declared.");
+}
+function build(mode){ MODE=mode;
+  const isInt=mode==="int";
+  tl=new Anim.Timeline({ length:isInt?8:13, autoMs:isInt?3800:3500, onStep:(i)=>render(i) });
+  Anim.scrubber($("scrub"), tl, { label:isInt?(i=>"step "+(i+1)+" / 8"):Anim.actLabel(MECH_ACTS), acts:isInt?null:MECH_ACTS });
+  tl.render(0);
+}
+document.querySelectorAll(".modebtn").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".modebtn").forEach(x=>x.classList.toggle("on",x===b));
+  build(b.dataset.mode);
+});
+build("int");
+</script>
+</body>
+</html>

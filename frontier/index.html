@@ -83,9 +83,14 @@ const NAV = [
   { m:"F5 - The loop gets a body", items:[
     { label:"The embodied loop (camera -> motor)", src:"module-f5-body/widgets/embodied-loop/index.html" },
   ]},
+  { m:"F6 - Tokens versus worlds", items:[
+    { label:"The dissent (next token vs the world)", src:"module-f6-dissent/widgets/tokens-vs-worlds/index.html" },
+  ]},
 ];
 
 const LESSONS = {
+  "F6 - Tokens versus worlds": { q:"Reading, talking, looping, moving - Cortex did all of it by predicting the next token. In 2026, roughly two billion dollars of new labs bet that foundation is wrong. What do they predict instead?",
+    aha:"Three escapes from 'predict the next token, left to right.' DIFFUSION denoises the whole sentence in parallel - still tokens, just not one at a time (LLaDA converted from an AR model; Mercury >1000 tok/s). WORLD MODELS predict the next FRAME of a world you can steer - the 'token' becomes a frame (Genie -> a consumer product; Cosmos unifies sim+reason+act). JEPA predicts in REPRESENTATION space and generates nothing - the loss lives in latent space (V-JEPA plans robot moves there; LeCun's ~$2B bet). The honest counter: this same year images, audio and actions all BECAME tokens, the best image generator is autoregressive, and most diffusion LLMs are converted from token models. So next-token prediction is not physics - it is a bet, currently winning, now seriously contested. A new character, Somni, predicts the world where Cortex predicts the word. Verified as of 2026-07." },
   "F5 - The loop gets a body": { q:"An agent's tools were functions. What happens when the tool is a motor and the observation is a camera - and how does a token become a movement?",
     aha:"A VLA is a VLM whose output tokens ARE actions. The camera enters as F1's patches; the goal enters as words; the next tokens come from a new part of M1's menu - ACTIONS - decoded to joint angles that move a real arm. To fit a smooth motion into tokens it is DCT-compressed (keep the big coefficients) then BPE-tokenized (pi-0.7 + FAST) - M1's exact algorithm on a motor, and reversibly. The honest counter: tokens are slow (~7-9 Hz); smooth control wants ~200 Hz, so Figure Helix splits it - slow tokens choose WHAT, a fast continuous policy handles HOW. No winner declared. Verified as of 2026-07." },
   "F4 - The loop learns itself": { q:"You hand-wrote the agent loop in course 1. The 2026 labs do not. What replaced your while loop?",

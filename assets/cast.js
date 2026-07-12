@@ -1,5 +1,6 @@
 /* The cast: emotive SVG characters shared across the whole course.
    Cortex = the model (blue chip). Bit = you, the builder (gold, hard hat).
+   Somni = the dreamer (world-model rival, F6+), soft violet cloud, eyes closed.
 
    Usage:
      <script src="../../../assets/cast.js"></script>
@@ -58,13 +59,33 @@
       + (M.brow != null ? brows(46, 70, 38, M.brow) : "") + ey + M.mouth + M.x + '</svg>';
   }
 
+  // Somni (F6+): the world-model rival. Cloud-soft, eyes closed - it dreams outcomes
+  // instead of speaking tokens. Design rule (in widgets): Somni shows a small WORLD in a
+  // thought bubble rather than a word bubble; here we just draw the portrait.
+  function somni(e) {
+    var PU = "#b6a6ff", FL = "#2e2a4d";
+    var body = '<circle cx="60" cy="66" r="30" fill="' + FL + '"/>'
+             + '<circle cx="36" cy="74" r="19" fill="' + FL + '"/>'
+             + '<circle cx="84" cy="74" r="19" fill="' + FL + '"/>'
+             + '<circle cx="60" cy="82" r="20" fill="' + FL + '"/>';
+    var eye = '<path d="M44,66 Q50,72 56,66" fill="none" stroke="' + PU + '" stroke-width="3" stroke-linecap="round"/>'
+            + '<path d="M64,66 Q70,72 76,66" fill="none" stroke="' + PU + '" stroke-width="3" stroke-linecap="round"/>';
+    var mouth = e === "happy"
+      ? '<path d="M52,78 Q60,86 68,78" fill="none" stroke="' + PU + '" stroke-width="2.6" stroke-linecap="round"/>'
+      : '<path d="M54,78 Q60,82 66,78" fill="none" stroke="' + PU + '" stroke-width="2.4" stroke-linecap="round"/>';
+    var zz = (e === "think" || e === "dream")
+      ? '<text x="88" y="36" font-size="15" fill="' + PU + '" opacity=".85">z</text><text x="99" y="24" font-size="11" fill="' + PU + '" opacity=".6">z</text>'
+      : "";
+    return '<svg viewBox="0 0 120 120">' + body + eye + mouth + zz + '</svg>';
+  }
+
   function render(root) {
     (root || document).querySelectorAll(".chr").forEach(function (s) {
-      s.innerHTML = (s.dataset.c === "bit" ? bit : cortex)(s.dataset.e || "neutral");
+      s.innerHTML = (s.dataset.c === "bit" ? bit : s.dataset.c === "somni" ? somni : cortex)(s.dataset.e || "neutral");
     });
   }
 
-  global.Cast = { cortex: cortex, bit: bit, render: render };
+  global.Cast = { cortex: cortex, bit: bit, somni: somni, render: render };
 
   // When embedded in a parent frame, report our content height so the host can size the
   // iframe flush to the page (no inner scrollbar). Works cross-origin (file:// included).

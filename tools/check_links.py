@@ -30,11 +30,11 @@ def refs_in(path):
     txt = open(path, encoding="utf-8").read()
     out = set()
     for m in list(ATTR.findall(txt)) + list(QUOTED.findall(txt)):
-        if "${" in m or "*" in m or is_external(m) or not m or m.startswith("/"):
-            continue  # skip templated, external, and absolute-root literals (e.g. "/README.md")
+        if "${" in m or "+" in m or "'" in m or "*" in m or is_external(m) or not m or m.startswith("/"):
+            continue  # skip templated ("${x}" or '"+x+"' concatenation), external, and absolute-root literals
         out.add(clean(m))
-    # course hub: LESSONS links to each module's README, derived from the widget src
-    if path.endswith(os.path.join("agentic-course", "index.html")):
+    # course + frontier hubs: LESSONS link to each module's README, derived from the widget src
+    if path.endswith(os.path.join("agentic-course", "index.html")) or path.endswith(os.path.join("frontier", "index.html")):
         for src in re.findall(r'src:\s*"([^"]+/widgets/[^"]+)"', txt):
             out.add(src.split("/widgets/")[0] + "/README.md")
     return out
@@ -44,6 +44,7 @@ def main():
     files = (glob.glob(os.path.join(ROOT, "agentic-course", "**", "*.html"), recursive=True) +
              glob.glob(os.path.join(ROOT, "production", "**", "*.html"), recursive=True) +
              glob.glob(os.path.join(ROOT, "models", "**", "*.html"), recursive=True) +
+             glob.glob(os.path.join(ROOT, "frontier", "**", "*.html"), recursive=True) +
              [os.path.join(ROOT, "index.html"), os.path.join(ROOT, "tools", "gallery.mjs")])
     files = [f for f in files if "node_modules" not in f]
 
