@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The drafting room</title>
+<!-- Frontier F8 - the capstone. Design a frontier model by turning one dial per
+     module (F1-F6). The blueprint inks as you commit; meters recompute; your dot
+     drifts through a design space of real 2026 models and settles beside its
+     nearest star. Meter deltas are hand-authored, illustrative (rule 11); the
+     anchor numbers on hover (V4 27% FLOPs, KDA 6x, PARL 4.5x, MSA 1/20) are the
+     labs' own claims. Warnings are exhibits, not verdicts (rule 12). 2026-07. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:1000px; margin:28px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  .guide { display:flex; gap:11px; align-items:center; border:1px solid var(--line); border-left:3px solid var(--gold);
+           border-radius:10px; background:var(--panel); padding:8px 12px; margin-bottom:14px; }
+  .guide .chr svg { width:42px; height:42px; flex:none; }
+  .guide .line { font-size:13.5px; color:#d8dde3; }
+
+  .studio { display:flex; gap:12px; align-items:stretch; }
+  .dials { width:296px; min-width:296px; display:flex; flex-direction:column; gap:9px; }
+  .dial { border:1px solid var(--line); border-radius:10px; background:#0b0e12; padding:8px 10px; }
+  .dial .dh { display:flex; align-items:baseline; gap:7px; margin-bottom:6px; }
+  .dial .dn { font:12px var(--mono); color:var(--ink); font-weight:600; }
+  .dial .dm { font:9px var(--mono); color:var(--faint); border:1px solid var(--line); border-radius:4px; padding:0 4px; }
+  .opts { display:flex; flex-wrap:wrap; gap:4px; }
+  .opt { font:11px var(--mono); border:1px solid var(--line); background:var(--panel); color:var(--dim);
+         border-radius:7px; padding:4px 8px; cursor:pointer; transition:border-color .12s,color .12s; }
+  .opt:hover { color:var(--ink); }
+  .opt.on { color:#04222a; font-weight:600; }
+
+  .stage { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
+  .bpwrap { border:1px solid var(--line); border-radius:11px; background:#0b0e12; padding:4px; position:relative; }
+  #bp { width:100%; height:auto; display:block; }
+  .bptag { position:absolute; top:9px; left:12px; font:9.5px var(--mono); color:var(--faint); }
+  .meters { display:flex; flex-direction:column; gap:6px; border:1px solid var(--line); border-radius:11px; background:#0b0e12; padding:10px 12px; }
+  .mrow { display:flex; align-items:center; gap:9px; }
+  .mrow .ml { width:66px; font:10.5px var(--mono); color:var(--dim); text-align:right; }
+  .mrow .mbar { flex:1; height:12px; background:#161b22; border-radius:6px; overflow:hidden; }
+  .mrow .mfill { height:100%; width:0; border-radius:6px; transition:width .5s cubic-bezier(.4,0,.2,1), background .3s; }
+  .mrow .mv { width:118px; font:9.5px var(--mono); color:var(--faint); }
+  .mrow .mv b { color:var(--dim); }
+
+  .readouts { display:flex; gap:12px; align-items:stretch; margin-top:2px; }
+  .constel { flex:1; border:1px solid var(--line); border-radius:11px; background:#0b0e12; padding:8px 10px 4px; }
+  .constel .th { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); }
+  #sky { width:100%; height:auto; display:block; }
+  .side { width:320px; min-width:320px; display:flex; flex-direction:column; gap:9px; }
+  .reveal { border:1px solid var(--line); border-radius:11px; background:var(--panel); padding:12px 14px; }
+  .reveal[hidden] { display:none; }
+  .reveal .rh { font:12px var(--mono); color:var(--faint); }
+  .reveal .rname { font-family:var(--serif); font-size:19px; color:var(--gold); margin:1px 0 4px; }
+  .reveal .rrow { font-size:12.5px; color:#cdd3da; margin:3px 0; }
+  .reveal .rrow b { color:var(--ink); }
+  .reveal .cite { font:10px var(--mono); color:var(--faint); margin-top:5px; }
+  .warns { display:flex; flex-direction:column; gap:8px; }
+  .warn { border:1px solid #5a3a1a; border-left:3px solid var(--gold); border-radius:9px; background:#170f04; padding:8px 11px; }
+  .warn .wt { font:11px var(--mono); color:var(--gold); font-weight:600; margin-bottom:2px; }
+  .warn .wd { font-size:12px; color:#d8c9a8; line-height:1.45; }
+  .placeholder { border:1px dashed var(--line); border-radius:11px; padding:14px; color:var(--faint); font-size:13px; text-align:center; }
+  .foot { color:var(--faint); font-size:11.5px; margin-top:14px; line-height:1.5; }
+
+  .trainbox { margin-top:16px; border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; }
+  .tbhead { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:11px; flex-wrap:wrap; }
+  .th2 { font-family:var(--serif); font-size:16.5px; color:var(--ink); }
+  .tbsub { font-size:12px; color:var(--dim); } .tbsub b { color:#c7e7ad; }
+  #trainBtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:9px; padding:7px 15px; cursor:pointer; white-space:nowrap; }
+  #trainBtn:not(:disabled) { border-color:var(--green); background:#12210c; color:#c7e7ad; }
+  #trainBtn:disabled { opacity:.5; cursor:default; }
+  .tgrid { display:flex; gap:12px; align-items:stretch; }
+  .tpanel { flex:1; min-width:0; border:1px solid var(--line); border-radius:10px; background:#0d1116; padding:9px 11px; }
+  .tpanel .th { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:6px; }
+  #tloss,#tkv { width:100%; height:auto; display:block; }
+  .trow { display:flex; gap:14px; margin-top:6px; font:11px var(--mono); color:var(--dim); }
+  .trow b { color:var(--ink); }
+  .gen { font:12.5px/1.6 var(--mono); background:#12161c; border:1px solid var(--line); border-radius:7px; padding:7px 9px; margin-top:7px; min-height:42px; white-space:pre-wrap; word-break:break-word; }
+  .gen .seed { color:var(--faint); } .gen .out { color:var(--green); }
+  .verdict { font-size:12.5px; color:#cdd3da; line-height:1.55; margin-top:9px; }
+  .verdict b { color:var(--ink); } .verdict .hi { color:var(--blue); }
+
+  .presets { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:-4px 0 14px; font:11.5px var(--mono); color:var(--faint); }
+  .presets button { font:11px var(--mono); border:1px solid var(--line); background:var(--panel); color:var(--blue); border-radius:999px; padding:3px 10px; cursor:pointer; }
+  .presets button:hover { border-color:var(--blue); }
+  .presets button.clr { color:var(--faint); }
+  .tiptext { font-size:12px; color:#b9c2cc; background:#0e141b; border:1px solid var(--line); border-radius:8px; padding:7px 10px; margin-bottom:11px; }
+  .tiptext b { color:var(--ink); } .tiptext .n { color:var(--green); font-family:var(--mono); }
+  .steps { display:flex; gap:7px; flex-wrap:wrap; margin:-4px 0 13px; }
+  .step { font:11px var(--mono); color:var(--dim); border:1px solid var(--line); border-radius:8px; padding:4px 10px; background:#0b0e12; }
+  .step b { color:var(--gold); }
+  .runs { margin-top:11px; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+  .runlbl { font:9.5px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+  .runchip { font:10.5px var(--mono); border:1px solid var(--line); border-radius:7px; padding:3px 9px; color:var(--dim); }
+  .runchip.cur { border-color:var(--gold); color:#e9ebee; background:#12140c; }
+  .runchip.off { color:var(--faint); opacity:.55; }
+  @media (max-width:900px){ .studio,.readouts,.tgrid{ flex-direction:column; } .dials,.side{ width:auto; min-width:0; } }
+</style>
+</head>
+<body>
+<h1>The drafting room</h1>
+<div class="stamp">TRACK 4 . F8 . verified as of 2026-07 - design a model from the principles you now own</div>
+<p class="sub">You have watched every lab make its choices. Now <b>make yours</b> - one dial per module. The
+blueprint inks as you commit, the meters price each choice, and your design drifts through a sky of real 2026
+models until it <b>settles beside the one it most resembles</b>.</p>
+
+<div class="guide"><span class="chr" id="guideChr" data-c="bit" data-e="happy"></span><span class="line" id="guideLine"></span></div>
+
+<div class="steps">
+  <span class="step"><b>1.</b> design - turn the five dials</span>
+  <span class="step"><b>2.</b> run - build &amp; train the model you drew</span>
+  <span class="step"><b>3.</b> compare - swap the Attention dial, train again</span>
+</div>
+<div class="presets">or start from a real design:
+  <button data-model="MiniMax M2">MiniMax M2</button>
+  <button data-model="Qwen3.5">Qwen3.5</button>
+  <button data-model="DeepSeek V4">DeepSeek V4</button>
+  <button data-model="" class="clr">clear</button>
+</div>
+
+<div class="studio">
+  <div class="dials" id="dials"></div>
+  <div class="stage">
+    <div class="bpwrap"><span class="bptag">the blueprint - pencil until you commit a dial</span><canvas id="bp" width="620" height="286"></canvas></div>
+    <div class="meters" id="meters"></div>
+  </div>
+</div>
+
+<div class="readouts">
+  <div class="constel"><div class="th">the design sky - real 2026 models as stars, your design the moving dot</div>
+    <svg id="sky" viewBox="0 0 620 300" preserveAspectRatio="xMidYMid meet" aria-label="design space of frontier models"></svg></div>
+  <div class="side">
+    <div class="reveal" id="reveal" hidden></div>
+    <div class="warns" id="warns"></div>
+    <div class="placeholder" id="ph">Turn all five dials to reveal the model you designed.</div>
+  </div>
+</div>
+
+<div class="trainbox" id="trainbox">
+  <div class="tbhead">
+    <div><span class="th2">now run the model you designed</span>
+      <span class="tbsub">the Attention dial swaps <b>real</b> full / sparse / linear code - F8 <i>predicted</i> the costs; this <i>measures</i> them, in your browser</span></div>
+    <button id="trainBtn" disabled>set the Attention dial to build &#9654;</button>
+  </div>
+  <div class="tiptext"><span class="n">try this:</span> press <b>build &amp; train</b> and watch the loss fall on the left (it's a real ~900-weight transformer learning "the capital of france is paris"). Then switch the <b>Attention</b> dial to <b>Linear</b> and train again - the <b>memory chart</b> on the right shows why F2 matters: same model, very different cost as context grows.</div>
+  <div class="tgrid">
+    <div class="tpanel"><div class="th">training loss - live, real backprop (nanomodel, in JS)</div>
+      <canvas id="tloss" width="440" height="150"></canvas>
+      <div class="trow"><span>step <b id="tStep">0</b></span><span>loss <b id="tLoss">-</b></span><span>attention <b id="tAttn">-</b></span></div>
+      <div class="gen" id="tgen"><span class="seed">the capital of </span><span class="out" id="tgenOut">...</span></div>
+    </div>
+    <div class="tpanel"><div class="th">memory as context grows - the real mechanism</div>
+      <canvas id="tkv" width="300" height="150"></canvas>
+      <div class="verdict" id="verdict">Pick an <b>Attention</b> dial to preview its memory curve; press build to measure the real run.</div>
+    </div>
+  </div>
+  <div class="runs" id="runs"></div>
+</div>
+
+<p class="foot">The blueprint (Rough.js), the sky (D3) and the meters recompute live from your dials. Meter
+deltas are hand-authored and illustrative (rule 11); the anchor figures on hover - V4 ~27% FLOPs, KDA ~6x
+decode, PARL ~4.5x wall-clock, MSA ~1/20 compute at 1M - are the labs' own claims, not measured here. Warnings
+are dated exhibits, not verdicts (rule 12). Verified as of 2026-07.</p>
+
+<script src="../../../../assets/vendor/rough.min.js"></script>
+<script src="../../../../assets/vendor/d3.min.js"></script>
+<script src="../../../../assets/cast.js"></script>
+<script>
+/* ================= the five dials (one per module) ================= */
+const LANE = { attn:"#83c167", modality:"#58c4dd", train:"#ffd35c", deploy:"#c07cfc", found:"#b6a6ff" };
+const DIALS = [
+  { key:"modality", name:"Modality", mod:"F1 / F5", opts:[
+    { v:"text", n:"Text",  m:{cost:0,speed:0,ctx:0,risk:0} },
+    { v:"vl",   n:"Vision-Language", m:{cost:12,speed:-3,ctx:-8,risk:2}, note:"patches join the stream" },
+    { v:"omni", n:"Omni", m:{cost:20,speed:-5,ctx:-10,risk:5}, note:"+ speech as codebook tokens" },
+    { v:"vla",  n:"+ Actions", m:{cost:26,speed:-6,ctx:-8,risk:12}, note:"a body: action tokens out" },
+  ]},
+  { key:"attn", name:"Attention", mod:"F2", opts:[
+    { v:"full",   n:"Full",   m:{cost:30,speed:-15,ctx:-10,risk:-5}, note:"exact, but pays n^2 (MiniMax M2's bet)" },
+    { v:"sparse", n:"Sparse", m:{cost:8,speed:12,ctx:30,risk:3}, note:"a learned indexer reads top-k (V4: ~27% of the FLOPs)" },
+    { v:"linear", n:"Linear", m:{cost:-5,speed:25,ctx:35,risk:18}, note:"fixed-size state, KV abolished (KDA: ~6x decode)", warn:"m2" },
+    { v:"hybrid", n:"Hybrid", m:{cost:6,speed:15,ctx:25,risk:8}, note:"mostly linear + a few full layers (Qwen3.5)" },
+  ]},
+  { key:"train", name:"Training", mod:"F3", opts:[
+    { v:"classic", n:"SFT+RLHF", m:{cost:8,speed:0,ctx:0,risk:0}, note:"the classic manners pipeline" },
+    { v:"grpo",    n:"GRPO reasoning", m:{cost:15,speed:0,ctx:0,risk:6}, note:"critic-free reasoning RL" },
+    { v:"rubric",  n:"Rubric rewards", m:{cost:18,speed:0,ctx:0,risk:16}, note:"RLVR into open-ended work - graders you can game", warn:"rubric" },
+    { v:"distill", n:"Specialists+distill", m:{cost:22,speed:8,ctx:0,risk:4}, note:"GRPO teachers -> one distilled student (V4)" },
+  ]},
+  { key:"deploy", name:"Deployment", mod:"F4", opts:[
+    { v:"single", n:"Single agent", m:{cost:0,speed:0,ctx:0,risk:0}, note:"one trained loop" },
+    { v:"swarm",  n:"Trained swarm", m:{cost:30,speed:20,ctx:0,risk:18}, note:"a trained orchestrator spawns workers (PARL: ~4.5x wall-clock)", warn:"swarm" },
+  ]},
+  { key:"found", name:"Foundation", mod:"F6", opts:[
+    { v:"ar",    n:"Autoregressive", m:{cost:0,speed:0,ctx:0,risk:0}, note:"predict the next token, left to right" },
+    { v:"diff",  n:"Diffusion", m:{cost:5,speed:22,ctx:-5,risk:14}, note:"denoise the whole line (>1000 tok/s) - still tokens", warn:"diff" },
+    { v:"world", n:"World-model", m:{cost:25,speed:-8,ctx:0,risk:30}, note:"predict the world, not the word - the boldest dial", warn:"world" },
+  ]},
+];
+const BASE = { cost:30, speed:45, ctx:40, risk:12 };
+const METERS = [
+  { k:"cost",  label:"cost",     good:"low",  hue:"#fc6255" },
+  { k:"speed", label:"speed",    good:"high", hue:"#83c167" },
+  { k:"ctx",   label:"context",  good:"high", hue:"#58c4dd" },
+  { k:"risk",  label:"risk",     good:"low",  hue:"#e0873a" },
+];
+/* ================= real models as stars (dial-profiles from F1-F6) ================= */
+const AX = { full:0.14, hybrid:0.50, sparse:0.72, linear:0.86 };
+const AYm = { text:0, vl:0.12, omni:0.26, vla:0.40 };
+const AYf = { ar:0, diff:0.20, world:0.44 };
+const AYt = { classic:0, grpo:0.05, rubric:0.09, distill:0.07 };
+function coords(c){
+  let x = AX[c.attn] != null ? AX[c.attn] : 0.5;
+  if (c.deploy === "swarm") x = Math.min(0.95, x + 0.06);
+  let y = 0.28 + (AYm[c.modality]||0) + (AYf[c.found]||0) + (AYt[c.train]||0);
+  return { x: Math.max(0.06, Math.min(0.94, x)), y: Math.max(0.06, Math.min(0.94, y)) };
+}
+const MODELS = [
+  { name:"MiniMax M2", date:"Oct 2025", cfg:{modality:"text",attn:"full",train:"grpo",deploy:"single",found:"ar"},
+    blurb:"reverted to full attention when hybrids hurt multi-hop reasoning", cite:"MiniMax M2, the best-documented negative result" },
+  { name:"pi-0.7", date:"Apr 2026", cfg:{modality:"vla",attn:"full",train:"classic",deploy:"single",found:"ar"},
+    blurb:"a VLA: the same transformer, but its tokens move a robot", cite:"Physical Intelligence pi-0.7 + FAST" },
+  { name:"Cosmos 3", date:"Jun 2026", cfg:{modality:"vl",attn:"hybrid",train:"classic",deploy:"single",found:"world"},
+    blurb:"a world model unifying simulation, reasoning and action", cite:"NVIDIA Cosmos 3 - the world-model bet" },
+  { name:"Qwen3.5", date:"Feb 2026", cfg:{modality:"omni",attn:"hybrid",train:"distill",deploy:"single",found:"ar"},
+    blurb:"75% linear layers, native omni, in a true flagship", cite:"Alibaba Qwen3.5 / Qwen3.5-Omni" },
+  { name:"Kimi K2.5", date:"Jan 2026", cfg:{modality:"text",attn:"hybrid",train:"grpo",deploy:"swarm",found:"ar"},
+    blurb:"a TRAINED orchestrator that spawns and aggregates sub-agents", cite:"Moonshot Kimi K2.5 PARL" },
+  { name:"DeepSeek V4", date:"2026", cfg:{modality:"text",attn:"sparse",train:"distill",deploy:"single",found:"ar"},
+    blurb:"sparse attention + specialists fused by on-policy distillation", cite:"DeepSeek V4 (CSA+HCA, ~27% FLOPs)" },
+];
+MODELS.forEach(m => m.pos = coords(m.cfg));
+
+/* ================= warnings (rule 12 as gameplay) ================= */
+const WARN = {
+  m2:    { t:"The M2 retreat", d:"MiniMax M2 reverted to full attention after linear/hybrid degraded multi-hop reasoning at scale. Linear is cheap and long-context - just make sure your task isn't deep multi-hop." },
+  rubric:{ t:"Reward hacking", d:"A rubric is a grader the model can learn to game. RLVR works when the reward is hard to fake; open-ended rubrics need care." },
+  swarm: { t:"Serial collapse", d:"An untrained orchestrator collapses to doing everything itself. Kimi's PARL had to TRAIN when to delegate - the swarm is not free." },
+  diff:  { t:"Still tokens", d:"Diffusion is faster but must revise, and it is still predicting tokens (often converted from an AR model). You changed the order, not the target." },
+  world: { t:"An unproven bet", d:"The world-model dial is the boldest: ~$2B says tokens are a dead end - but this same year images, audio and actions all became tokens. High risk, high reward." },
+};
+
+/* ================= state ================= */
+const $ = id => document.getElementById(id);
+const sel = { modality:null, attn:null, train:null, deploy:null, found:null };
+const rc = rough.canvas($("bp"));
+const bpx = $("bp").getContext("2d");
+
+/* ---- dials ---- */
+$("dials").innerHTML = DIALS.map(d =>
+  '<div class="dial"><div class="dh"><span class="dn" style="color:'+LANE[d.key]+'">'+d.name+'</span><span class="dm">'+d.mod+'</span></div>'+
+  '<div class="opts">'+ d.opts.map(o =>
+    '<button class="opt" data-dial="'+d.key+'" data-v="'+o.v+'" title="'+(o.note||"")+'">'+o.n+'</button>').join("") +'</div></div>'
+).join("");
+$("dials").addEventListener("click", e => {
+  const b = e.target.closest(".opt"); if (!b) return;
+  const k = b.dataset.dial;
+  sel[k] = sel[k] === b.dataset.v ? null : b.dataset.v;
+  document.querySelectorAll('.opt[data-dial="'+k+'"]').forEach(o => {
+    const on = o.dataset.v === sel[k];
+    o.classList.toggle("on", on);
+    o.style.background = on ? LANE[k] : ""; o.style.borderColor = on ? LANE[k] : "";
+  });
+  update();
+});
+
+/* ---- meters ---- */
+$("meters").innerHTML = METERS.map(m =>
+  '<div class="mrow" data-k="'+m.k+'"><span class="ml">'+m.label+'</span><div class="mbar"><div class="mfill"></div></div><span class="mv"></span></div>'
+).join("");
+function optFor(k){ const d=DIALS.find(x=>x.key===k); return d && sel[k] ? d.opts.find(o=>o.v===sel[k]) : null; }
+function meterVals(){
+  const v = Object.assign({}, BASE);
+  DIALS.forEach(d => { const o = optFor(d.key); if (o) ["cost","speed","ctx","risk"].forEach(mk => v[mk]+=o.m[mk]); });
+  ["cost","speed","ctx","risk"].forEach(mk => v[mk]=Math.max(4,Math.min(100,v[mk])));
+  return v;
+}
+function drawMeters(){
+  const v = meterVals();
+  METERS.forEach(m => {
+    const row=$("meters").querySelector('.mrow[data-k="'+m.k+'"]'), val=v[m.k];
+    row.querySelector(".mfill").style.width=val+"%";
+    row.querySelector(".mfill").style.background=m.hue;
+    const q = m.good==="low" ? (val<40?"good":val<70?"ok":"steep") : (val>66?"strong":val>40?"ok":"weak");
+    row.querySelector(".mv").innerHTML="<b>"+Math.round(val)+"</b> . "+q;
+  });
+}
+
+/* ---- blueprint (Rough.js): the model inks as dials commit ---- */
+const BOX = {
+  modality: { x:24,  y:54,  w:150, h:66, seed:11, title:"MODALITY" },
+  attn:     { x:236, y:54,  w:150, h:66, seed:22, title:"ATTENTION" },
+  found:    { x:448, y:54,  w:150, h:66, seed:33, title:"FOUNDATION" },
+  train:    { x:236, y:186, w:150, h:60, seed:44, title:"TRAINING" },
+  deploy:   { x:448, y:186, w:150, h:60, seed:55, title:"DEPLOYMENT" },
+};
+function drawBlueprint(){
+  bpx.clearRect(0,0,620,286);
+  // forward-path arrows modality -> attention -> foundation, and training -> attention
+  const arrow=(x1,y1,x2,y2,on)=>{ bpx.save(); bpx.strokeStyle=on?"#5b6470":"#2a3038"; bpx.lineWidth=1.4; bpx.setLineDash(on?[]:[4,4]);
+    bpx.beginPath(); bpx.moveTo(x1,y1); bpx.lineTo(x2,y2); bpx.stroke();
+    const a=Math.atan2(y2-y1,x2-x1); bpx.setLineDash([]); bpx.beginPath();
+    bpx.moveTo(x2,y2); bpx.lineTo(x2-8*Math.cos(a-0.4),y2-8*Math.sin(a-0.4)); bpx.lineTo(x2-8*Math.cos(a+0.4),y2-8*Math.sin(a+0.4)); bpx.closePath();
+    bpx.fillStyle=on?"#5b6470":"#2a3038"; bpx.fill(); bpx.restore(); };
+  arrow(174,87,236,87, !!sel.modality);
+  arrow(386,87,448,87, !!sel.attn);
+  arrow(311,186,311,120, !!sel.train);
+  arrow(523,186,523,120, false);
+  for (const k in BOX){
+    const b=BOX[k], o=optFor(k), on=!!o, col=LANE[k];
+    rc.rectangle(b.x,b.y,b.w,b.h, on
+      ? { stroke:col, strokeWidth:2, roughness:1.1, bowing:1.4, fill:col, fillStyle:"hachure", fillWeight:0.8, hachureGap:7, seed:b.seed }
+      : { stroke:"#3d4550", strokeWidth:1.1, roughness:2.3, bowing:2.2, seed:b.seed });
+    bpx.save(); bpx.textAlign="center";
+    bpx.fillStyle=on?col:"#4a5260"; bpx.font="9px ui-monospace, Menlo, monospace";
+    bpx.fillText(b.title, b.x+b.w/2, b.y+16);
+    if(on){ bpx.fillStyle="#e9ebee"; bpx.font="600 13px ui-monospace, Menlo, monospace"; bpx.fillText(o.n, b.x+b.w/2, b.y+b.h/2+9); }
+    else { bpx.fillStyle="#39424d"; bpx.font="15px ui-monospace, monospace"; bpx.fillText("?", b.x+b.w/2, b.y+b.h/2+11); }
+    bpx.restore();
+  }
+}
+
+/* ---- constellation (D3): stars + your drifting dot ---- */
+const sky = d3.select("#sky");
+const SW=620, SH=300, PX=54, PY=30;
+const sx = x => PX + x*(SW-2*PX), sy = y => (SH-PY) - y*(SH-2*PY);
+let dotSel=null;
+function buildSky(){
+  sky.selectAll("*").remove();
+  // axes hints
+  sky.append("line").attr("x1",PX).attr("y1",SH-PY).attr("x2",SW-PX).attr("y2",SH-PY).attr("stroke","#2a3038").attr("stroke-width",1);
+  sky.append("line").attr("x1",PX).attr("y1",PY).attr("x2",PX).attr("y2",SH-PY).attr("stroke","#2a3038").attr("stroke-width",1);
+  sky.append("text").attr("x",SW-PX).attr("y",SH-10).attr("text-anchor","end").attr("fill","#5b6470").style("font","9.5px ui-monospace,monospace").text("cheaper . longer context ->");
+  sky.append("text").attr("x",PX+2).attr("y",PY-12).attr("fill","#5b6470").style("font","9.5px ui-monospace,monospace").text("^ bolder bet . broader reach");
+  // stars
+  const g = sky.selectAll("g.star").data(MODELS).join("g").attr("class","star").attr("transform",d=>"translate("+sx(d.pos.x)+","+sy(d.pos.y)+")");
+  g.append("path").attr("d","M0,-6 L1.6,-1.6 6,0 1.6,1.6 0,6 -1.6,1.6 -6,0 -1.6,-1.6 Z").attr("fill","#6b7480").attr("stroke","#8a93a0").attr("stroke-width",0.6);
+  g.append("text").attr("x",9).attr("y",3.5).attr("fill","#8a93a0").style("font","10px ui-monospace,monospace").text(d=>d.name);
+  // link (dot -> nearest) + your dot on top
+  sky.append("line").attr("id","link").attr("stroke","#ffd35c").attr("stroke-width",1).attr("stroke-dasharray","3 3").attr("opacity",0);
+  const dg = sky.append("g").attr("id","you").attr("opacity",0);
+  dg.append("circle").attr("id","glow").attr("r",12).attr("fill","#ffd35c").attr("opacity",0.16);
+  dg.append("circle").attr("id","dot").attr("r",5).attr("fill","#ffd35c").attr("stroke","#0b0e12").attr("stroke-width",1.4);
+  dg.append("text").attr("id","youlab").attr("x",-9).attr("y",-8).attr("text-anchor","end").attr("fill","#ffd35c").style("font","10px ui-monospace,monospace").text("your design");
+}
+function nearest(pos){ let best=null,bd=1e9; MODELS.forEach(m=>{ const dx=m.pos.x-pos.x,dy=m.pos.y-pos.y,d=dx*dx+dy*dy; if(d<bd){bd=d;best=m;} }); return best; }
+function updateSky(){
+  const anySet = Object.values(sel).some(Boolean);
+  const pos = coords(sel);
+  const you = sky.select("#you");
+  // hidden until the first dial is turned (avoids a stray dot colliding with a star label)
+  you.transition().duration(500).attr("opacity", anySet?1:0).attr("transform","translate("+sx(pos.x)+","+sy(pos.y)+")");
+  const allSet = Object.values(sel).every(Boolean);
+  if(allSet){ const nm=nearest(pos);
+    sky.select("#link").attr("x1",sx(pos.x)).attr("y1",sy(pos.y)).transition().duration(500).attr("x2",sx(nm.pos.x)).attr("y2",sy(nm.pos.y)).attr("opacity",0.8);
+    sky.selectAll("g.star path").attr("fill",d=>d===nm?"#ffd35c":"#6b7480").attr("stroke",d=>d===nm?"#ffd35c":"#8a93a0");
+  } else { sky.select("#link").attr("opacity",0); sky.selectAll("g.star path").attr("fill","#6b7480").attr("stroke","#8a93a0"); }
+}
+
+/* ---- reveal + warnings ---- */
+function drawReveal(){
+  const allSet = Object.values(sel).every(Boolean);
+  $("ph").hidden = allSet;
+  const rv=$("reveal");
+  if(!allSet){ rv.hidden=true; return; }
+  const nm=nearest(coords(sel));
+  const same = DIALS.filter(d=>sel[d.key]===nm.cfg[d.key]).length;
+  const diffs = DIALS.filter(d=>sel[d.key]!==nm.cfg[d.key])
+    .map(d=>{ const yours=d.opts.find(o=>o.v===sel[d.key]).n, theirs=d.opts.find(o=>o.v===nm.cfg[d.key]).n; return d.name+": you "+yours+" / they "+theirs; });
+  rv.hidden=false;
+  rv.innerHTML = '<div class="rh">you just designed something like -</div>'+
+    '<div class="rname">~ '+nm.name+' <span style="font:11px var(--mono);color:var(--faint)">'+nm.date+'</span></div>'+
+    '<div class="rrow">'+nm.blurb+'.</div>'+
+    '<div class="rrow"><b>'+same+' of 5 dials</b> match its real design.</div>'+
+    (diffs.length? '<div class="rrow" style="color:#98a2b0">where you differ - '+diffs.join(" . ")+'</div>' : '<div class="rrow" style="color:#83c167">a byte-for-byte match of its dial choices.</div>')+
+    '<div class="cite">nearest star by design: '+nm.cite+'. Verified as of 2026-07.</div>';
+}
+function drawWarns(){
+  const keys=[]; DIALS.forEach(d=>{ const o=optFor(d.key); if(o&&o.warn&&keys.indexOf(o.warn)<0) keys.push(o.warn); });
+  $("warns").innerHTML = keys.map(k=>'<div class="warn"><div class="wt">! '+WARN[k].t+'</div><div class="wd">'+WARN[k].d+'</div></div>').join("");
+}
+
+function update(){ drawMeters(); drawBlueprint(); updateSky(); drawReveal(); drawWarns(); syncTrain(); drawKV(kvMode()); $("guideLine").textContent=guideText(); }
+
+$("guideLine").textContent = "Start here - turn each of the five dials below (one per module), or load a real design above. The blueprint inks in and the meters price your choice.";
+Cast.render(document);
+buildSky(); drawMeters(); drawBlueprint(); updateSky();
+
+/* ================= nanofrontier: RUN the model you designed ================= */
+/* models/nanomodel ported to JS. The Attention dial swaps REAL full/sparse/linear code. */
+class Value{ constructor(d,c=[]){this.data=d;this.grad=0;this._b=()=>{};this._p=c;}
+  add(o){o=o instanceof Value?o:new Value(o);const r=new Value(this.data+o.data,[this,o]);r._b=()=>{this.grad+=r.grad;o.grad+=r.grad;};return r;}
+  mul(o){o=o instanceof Value?o:new Value(o);const r=new Value(this.data*o.data,[this,o]);r._b=()=>{this.grad+=o.data*r.grad;o.grad+=this.data*r.grad;};return r;}
+  pow(p){const r=new Value(Math.pow(this.data,p),[this]);r._b=()=>{this.grad+=p*Math.pow(this.data,p-1)*r.grad;};return r;}
+  exp(){const r=new Value(Math.exp(this.data),[this]);r._b=()=>{this.grad+=r.data*r.grad;};return r;}
+  log(){const d=Math.max(this.data,1e-9),r=new Value(Math.log(d),[this]);r._b=()=>{this.grad+=(1/d)*r.grad;};return r;}
+  tanh(){const t=Math.tanh(this.data),r=new Value(t,[this]);r._b=()=>{this.grad+=(1-t*t)*r.grad;};return r;}
+  sub(o){return this.add(o instanceof Value?o.mul(-1):-o);} div(o){return o instanceof Value?this.mul(o.pow(-1)):this.mul(1/o);}
+  backward(){const topo=[],vis=new Set();(function bd(v){if(!vis.has(v)){vis.add(v);for(const c of v._p)bd(c);topo.push(v);}})(this);this.grad=1;for(let i=topo.length-1;i>=0;i--)topo[i]._b();}}
+const NV=x=>new Value(x);
+function nsm(a){let m=-1e9;for(const v of a)if(v.data>m)m=v.data;const e=a.map(v=>v.sub(m).exp());let s=e[0];for(let i=1;i<e.length;i++)s=s.add(e[i]);return e.map(x=>x.div(s));}
+function nce(lg,ix){return nsm(lg)[ix].log().mul(-1);}
+function nrng(seed){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return(s/4294967296)*2-1;};}
+class NLin{constructor(ni,no,r){const sc=1/Math.sqrt(ni);this.W=[];this.b=[];for(let o=0;o<no;o++){const row=[];for(let i=0;i<ni;i++)row.push(NV(r()*sc));this.W.push(row);this.b.push(NV(0));}}
+  c(x){const out=[];for(let o=0;o<this.W.length;o++){let a=this.b[o];const row=this.W[o];for(let i=0;i<row.length;i++)a=a.add(row[i].mul(x[i]));out.push(a);}return out;}
+  p(){const r=[];for(const row of this.W)for(const w of row)r.push(w);for(const b of this.b)r.push(b);return r;}}
+/* one head, three REAL mechanisms: full (all past), sparse (last k), linear (fixed running state) */
+class NAttn{constructor(d,r){this.d=d;this.q=new NLin(d,d,r);this.k=new NLin(d,d,r);this.v=new NLin(d,d,r);this.o=new NLin(d,d,r);}
+  soft(hs,win){const T=hs.length,Q=hs.map(h=>this.q.c(h)),K=hs.map(h=>this.k.c(h)),Vv=hs.map(h=>this.v.c(h)),sc=1/Math.sqrt(this.d),out=[];
+    for(let t=0;t<T;t++){const lo=Math.max(0,t-win+1),ss=[];for(let s=lo;s<=t;s++){let dd=NV(0);for(let j=0;j<this.d;j++)dd=dd.add(Q[t][j].mul(K[s][j]));ss.push(dd.mul(sc));}
+      const w=nsm(ss),bl=[];for(let j=0;j<this.d;j++)bl.push(NV(0));for(let si=0;si<w.length;si++){const s=lo+si;for(let j=0;j<this.d;j++)bl[j]=bl[j].add(w[si].mul(Vv[s][j]));}out.push(this.o.c(bl));}return out;}
+  lin(hs){const T=hs.length,out=[],ph=x=>x.map(e=>e.tanh().add(1.001));let S=[],z=[];for(let a=0;a<this.d;a++){z.push(NV(0));S.push([]);for(let b=0;b<this.d;b++)S[a].push(NV(0));}
+    for(let t=0;t<T;t++){const q=ph(this.q.c(hs[t])),k=ph(this.k.c(hs[t])),v=this.v.c(hs[t]);
+      for(let a=0;a<this.d;a++){z[a]=z[a].add(k[a]);for(let b=0;b<this.d;b++)S[a][b]=S[a][b].add(k[a].mul(v[b]));}
+      let dn=NV(1e-3);for(let a=0;a<this.d;a++)dn=dn.add(q[a].mul(z[a]));const num=[];for(let b=0;b<this.d;b++){let s=NV(0);for(let a=0;a<this.d;a++)s=s.add(q[a].mul(S[a][b]));num.push(s.div(dn));}out.push(this.o.c(num));}return out;}
+  call(hs,mode){return mode==="linear"?this.lin(hs):this.soft(hs,mode==="sparse"?3:9999);}
+  p(){return[...this.q.p(),...this.k.p(),...this.v.p(),...this.o.p()];}}
+class NMLP{constructor(d,h,r){this.f=new NLin(d,h,r);this.o=new NLin(h,d,r);}c(h){return this.o.c(this.f.c(h).map(x=>x.tanh()));}p(){return[...this.f.p(),...this.o.p()];}}
+class NModel{constructor(vocab,blk,d,h,seed,mode){const r=nrng(seed);this.vocab=vocab;this.blk=blk;this.d=d;this.mode=mode;
+    this.te=[];for(let t=0;t<vocab;t++){const a=[];for(let j=0;j<d;j++)a.push(NV(r()*0.1));this.te.push(a);}this.pe=[];for(let p=0;p<blk;p++){const a=[];for(let j=0;j<d;j++)a.push(NV(r()*0.1));this.pe.push(a);}
+    this.at=new NAttn(d,r);this.ml=new NMLP(d,h,r);this.hd=new NLin(d,vocab,r);}
+  fwd(idx){let hs=idx.map((t,p)=>{const a=[];for(let j=0;j<this.d;j++)a.push(this.te[t][j].add(this.pe[p][j]));return a;});
+    const a=this.at.call(hs,this.mode);hs=hs.map((h,i)=>h.map((x,j)=>x.add(a[i][j])));const m=hs.map(h=>this.ml.c(h));hs=hs.map((h,i)=>h.map((x,j)=>x.add(m[i][j])));return hs.map(h=>this.hd.c(h));}
+  p(){const r=[];for(const a of this.te)for(const w of a)r.push(w);for(const a of this.pe)for(const w of a)r.push(w);return[...r,...this.at.p(),...this.ml.p(),...this.hd.p()];}
+  gen(idx,n,temp,rnd){idx=idx.slice();for(let s=0;s<n;s++){const w=idx.slice(-this.blk),lg=this.fwd(w)[w.length-1],pr=nsm(lg.map(l=>l.mul(1/temp)));let dr=(rnd()+1)/2,cc=0,pk=pr.length-1;for(let i=0;i<pr.length;i++){cc+=pr[i].data;if(dr<cc){pk=i;break;}}idx.push(pk);}return idx;}}
+const NCORP="the capital of france is paris.\nthe capital of spain is madrid.\n";
+const NCH=[...new Set(NCORP)].sort(),Nsi={},Nit={};NCH.forEach((c,i)=>{Nsi[c]=i;Nit[i]=c;});
+const Nenc=s=>[...s].map(c=>Nsi[c]),Ndec=ix=>ix.map(i=>Nit[i]).join("");
+const NDATA=Nenc(NCORP),NBLK=6,ND=8,NHID=16,NLR0=0.25,NLRmin=0.03,NBAT=3,NMAX=820;
+function kvSize(mode,T){return mode==="linear"?ND*ND:mode==="sparse"?Math.min(T,3)*ND:T*ND;}
+function kvMode(){return sel.attn==="hybrid"?"linear":sel.attn;}
+let NM=null,Nparams,Nstep=0,Nema=null,Nlosses=[],Nrunning=false,NwinRng,NgenRng=nrng(7),Nmode=null,NmsAcc=0,NmsN=0;
+const RUNS={};
+function renderRuns(){$("runs").innerHTML='<span class="runlbl">your runs:</span> '+[["full","Full"],["sparse","Sparse"],["linear","Linear"]].map(function(mn){const m=mn[0],r=RUNS[m];
+  if(!r)return '<span class="runchip off">'+mn[1]+': not run yet</span>';
+  return '<span class="runchip'+(m===Nmode?' cur':'')+'">'+mn[1]+': loss '+r.loss.toFixed(2)+' · '+r.ms.toFixed(1)+'ms · KV@1k '+kvSize(m,1000).toLocaleString()+(m==="linear"?" (flat)":m==="sparse"?" (capped)":" (grows)")+'</span>';}).join(" ");}
+function syncTrain(){const b=$("trainBtn");if(Nrunning)return;
+  if(sel.attn){b.disabled=false;b.textContent="build & train this "+DIALS[1].opts.find(o=>o.v===sel.attn).n+" design ▶";}
+  else{b.disabled=true;b.textContent="set the Attention dial to build ▶";}}
+function buildAndTrain(){if(!sel.attn||Nrunning)return;
+  Nmode=kvMode();NM=new NModel(NCH.length,NBLK,ND,NHID,1337,Nmode);
+  Nparams=NM.p();Nstep=0;Nema=null;Nlosses=[];NwinRng=nrng(1337);NgenRng=nrng(7);NmsAcc=0;NmsN=0;Nrunning=true;
+  const b=$("trainBtn");b.disabled=true;b.textContent="training …";
+  $("tAttn").textContent=Nmode+(sel.attn==="hybrid"?" (hybrid→linear)":"");
+  $("verdict").innerHTML="<span style='color:#6b7480'>training the model you designed, live …</span>";
+  $("guideLine").textContent="Training your design - real backprop, live in the browser. Watch the loss fall on the left.";
+  drawKV(Nmode);requestAnimationFrame(Nloop);}
+function NtrainStep(){const t0=performance.now();let loss=null;
+  for(let b=0;b<NBAT;b++){const st=Math.floor(((NwinRng()+1)/2)*(NDATA.length-NBLK-1));const xs=NDATA.slice(st,st+NBLK),ys=NDATA.slice(st+1,st+NBLK+1);const lg=NM.fwd(xs);
+    let wl=nce(lg[0],ys[0]);for(let k=1;k<NBLK;k++)wl=wl.add(nce(lg[k],ys[k]));wl=wl.mul(1/NBLK);loss=loss===null?wl:loss.add(wl);}
+  loss=loss.mul(1/NBAT);for(const p of Nparams)p.grad=0;loss.backward();
+  const lr=NLR0*Math.pow(NLRmin/NLR0,Nstep/NMAX);for(const p of Nparams)p.data-=lr*p.grad;
+  Nema=Nema===null?loss.data:0.9*Nema+0.1*loss.data;Nstep++;Nlosses.push(Nema);NmsAcc+=performance.now()-t0;NmsN++;}
+function Nloop(){if(!Nrunning)return;const PF=Nmode==="linear"?1:2;for(let k=0;k<PF&&Nstep<NMAX;k++)NtrainStep();
+  drawTLoss();$("tStep").textContent=Nstep;$("tLoss").textContent=Nema.toFixed(3);
+  if(Nstep%12<PF){const out=NM.gen(Nenc("the capital of "),15,0.25,NgenRng);$("tgenOut").textContent=Ndec(out.slice(15)).replace(/\n/g," / ");}
+  if(Nstep>=NMAX){Nrunning=false;finishTrain();return;}requestAnimationFrame(Nloop);}
+function finishTrain(){syncTrain();const out=NM.gen(Nenc("the capital of "),15,0.2,NgenRng);$("tgenOut").textContent=Ndec(out.slice(15)).replace(/\n/g," / ");
+  RUNS[Nmode]={loss:Nema,ms:NmsAcc/Math.max(1,NmsN)};renderRuns();drawVerdict();$("guideLine").textContent=guideText();}
+function drawTLoss(){const c=$("tloss"),x=c.getContext("2d"),W=c.width,H=c.height,pad=22;x.clearRect(0,0,W,H);
+  x.strokeStyle="#2a3038";x.lineWidth=1;x.beginPath();x.moveTo(pad,6);x.lineTo(pad,H-14);x.lineTo(W-6,H-14);x.stroke();
+  if(Nlosses.length<2){x.fillStyle="#5b6470";x.font="10px ui-monospace,monospace";x.textAlign="left";x.fillText("press build & train",pad+8,H/2);return;}
+  const mx=Math.max.apply(null,Nlosses),mn=Math.min.apply(null,Nlosses),rg=Math.max(0.2,mx-mn);
+  const X=i=>pad+i/(Nlosses.length-1)*(W-pad-6),Y=v=>6+(1-(v-mn)/rg)*(H-20);
+  x.strokeStyle="#58c4dd";x.lineWidth=1.8;x.beginPath();Nlosses.forEach((v,i)=>{const xx=X(i),yy=Y(v);i?x.lineTo(xx,yy):x.moveTo(xx,yy);});x.stroke();
+  x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText(mx.toFixed(1),2,Y(mx)+3);x.fillText(mn.toFixed(1),2,Y(mn)+3);}
+function drawKV(hl){const c=$("tkv"),x=c.getContext("2d"),W=c.width,H=c.height,pad=26;x.clearRect(0,0,W,H);
+  x.strokeStyle="#2a3038";x.lineWidth=1;x.beginPath();x.moveTo(pad,8);x.lineTo(pad,H-16);x.lineTo(W-6,H-16);x.stroke();
+  const Tmax=48,ymax=Tmax*ND,px=T=>pad+(T/Tmax)*(W-pad-8),py=v=>(H-16)-(v/ymax)*(H-26);
+  [["full","#fc6255"],["sparse","#58c4dd"],["linear","#83c167"]].forEach(function(mc){const m=mc[0],col=mc[1],on=m===hl;
+    x.strokeStyle=on?col:col+"3a";x.lineWidth=on?2.4:1.1;x.beginPath();for(let T=1;T<=Tmax;T++){const xx=px(T),yy=py(kvSize(m,T));T===1?x.moveTo(xx,yy):x.lineTo(xx,yy);}x.stroke();
+    x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign="left";x.fillText(m,px(Tmax)-32,py(kvSize(m,Tmax))+(m==="full"?-3:m==="linear"?12:4));});
+  x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText("memory (values)",pad+2,16);x.textAlign="right";x.fillText("context length →",W-8,H-3);x.textAlign="left";}
+function drawVerdict(){const mode=Nmode,ms=(NmsAcc/Math.max(1,NmsN)).toFixed(1),predCtx=Math.round(meterVals().ctx),projFull=(1000*ND).toLocaleString(),proj=kvSize(mode,1000);let line;
+  if(mode==="linear")line="Your <b>Linear</b> attention keeps a <b>fixed</b> state of d² = "+ND*ND+" values - forever. Full attention would hold "+projFull+" at 1,000 tokens; yours holds <b>"+proj+"</b>. That is F2's <span class=hi>“KV cache abolished, not shrunk”</span> - in your running model.";
+  else if(mode==="sparse")line="Your <b>Sparse</b> attention reads only the last 3 positions, so memory caps at <b>"+kvSize("sparse",1000)+"</b> values - Full would grow to "+projFull+" at 1,000 tokens. <span class=hi>Reads collapse; storage is capped.</span>";
+  else line="Your <b>Full</b> attention stores every past token ("+ND+" values each), growing without limit - <b>"+projFull+"</b> at 1,000 tokens. Exact, but it <span class=hi>pays for every token</span> (MiniMax M2's bet).";
+  const bill=mode==="full"?"~"+(100*kvSize("full",1000)).toLocaleString()+" values live and still climbing":mode==="linear"?"a flat "+(100*ND*ND).toLocaleString()+" values, whatever the context":"~"+(100*kvSize("sparse",1000)).toLocaleString()+" values, capped";
+  $("verdict").innerHTML="<b>Measured</b> from the real run: ~"+ms+" ms / train-step, final loss "+Nema.toFixed(2)+".<br>"+line+
+    "<br><span style='color:#8a93a0'>The serving bill: that KV must be held for <b>every</b> concurrent user at once - at 100 users, "+bill+". Paying it at real scale is <b style='color:#b6a6ff'>Track 5</b>.</span>"+
+    "<br><span style='color:#6b7480'>F8 predicted a context score of "+predCtx+"/100 for this design - the curve on the left is why.</span>";}
+function setConfig(cfg){DIALS.forEach(function(d){sel[d.key]=cfg?cfg[d.key]:null;
+  document.querySelectorAll('.opt[data-dial="'+d.key+'"]').forEach(function(o){const on=o.dataset.v===sel[d.key];
+    o.classList.toggle("on",on);o.style.background=on?LANE[d.key]:"";o.style.borderColor=on?LANE[d.key]:"";});});update();}
+document.querySelector(".presets").addEventListener("click",function(e){const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.model==="")setConfig(null);else{const m=MODELS.find(function(x){return x.name===b.dataset.model;});if(m)setConfig(m.cfg);}});
+function guideText(){const n=Object.values(sel).filter(Boolean).length;
+  if(n===0)return "Start here - turn each of the five dials below (one per module), or load a real design above.";
+  if(n<5)return n+" of 5 dials set. Finish the rest - then you can build & train your design for real.";
+  if(Nstep===0)return "Design complete - you built ~"+nearest(coords(sel)).name+". Now go to “run the model you designed” below and press build & train.";
+  return "Trained! Now flip the Attention dial (try Linear vs Full) and train again - watch the memory chart change. That is F2's lesson, measured.";}
+$("trainBtn").onclick=buildAndTrain;
+syncTrain();drawTLoss();drawKV(kvMode());renderRuns();
+</script>
+</body>
+</html>

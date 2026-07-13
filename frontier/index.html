@@ -89,9 +89,15 @@ const NAV = [
   { m:"F7 - The dated atlas", items:[
     { label:"The dated atlas (every headline, pinned)", src:"module-f7-atlas/widgets/dated-atlas/index.html" },
   ]},
+  { m:"F8 - The drafting room (capstone)", items:[
+    { label:"Design a frontier model - then run it", src:"module-f8-capstone/widgets/drafting-room/index.html" },
+    { label:"nanofrontier - watch a real model train in your browser", src:"nanofrontier/index.html" },
+  ]},
 ];
 
 const LESSONS = {
+  "F8 - The drafting room (capstone)": { q:"You have watched every lab make its choices. Can you make yours - one dial per module - and do you understand what each one costs?",
+    aha:"The frontier is a small set of DIALS, and every famous 2026 model is one path through them - attention (F2), modality (F1/F5), training (F3), deployment (F4), foundation (F6). This capstone runs a loop: DESIGN (each dial inks a Rough.js blueprint), PREDICT (D3 meters price it; your dot settles beside its nearest real model - 'you just designed ~Qwen3.5'), RUN (a real ~900-weight transformer trains live in the page - models/nanomodel in JavaScript - and the Attention dial swaps genuine full/sparse/linear code), and MEASURE (the KV-memory curve verifies the prediction: Full grows with every token, Linear stays flat - F2's 'KV cache abolished'). The serving bill it computes is the doorway to Track 5. You can rebuild the frontier from principles - so next year's headline is already readable. Verified as of 2026-07." },
   "F7 - The dated atlas": { q:"You have met about fifty 2026 headlines across F1-F6. How do they relate - and when a new one drops next week, where does it go?",
     aha:"Every headline attacks a principle you already own. The atlas pins each exhibit (name, month, source) to the principle it attacks and the lane it sits in, then lets you filter. Pick 'predict the next token' and watch it hit from Foundation (diffusion, world models, JEPA) AND the Body lane (world-action robots) - and DEFENDED from Tokens (the autoregressive image generator that beats diffusion at its own game). Pick a lane to walk one chapter. A timeline rail plots the shown pins across 2025->2026; UNVERIFIED items are flagged, counter-exhibits marked. The page ages; the columns it sorts into do not. Verified as of 2026-07." },
   "F6 - Tokens versus worlds": { q:"Reading, talking, looping, moving - Cortex did all of it by predicting the next token. In 2026, roughly two billion dollars of new labs bet that foundation is wrong. What do they predict instead?",

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>nanomodel, running in your browser</title>
+<!-- The models track's runnable code (models/nanomodel/*.py) ported to JavaScript,
+     so the REAL model trains live in the page - keyless, offline, no server. Same
+     math as model.py / autograd.py / train.py: a scalar autograd engine + a tiny
+     causal transformer + next-token SGD. This is the seed of nanofrontier: once a
+     real model trains in the browser, F8's dials can drive which one. 2026-07. -->
+<link rel="stylesheet" href="../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:920px; margin:30px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:23px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:6px 0 14px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  .bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  button { font:inherit; font-size:14px; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+           border-radius:9px; padding:7px 16px; cursor:pointer; }
+  button.go { border-color:var(--blue); background:#12222b; color:#bfe9f5; }
+  button:hover:not(:disabled) { border-color:var(--blue); }
+  button:disabled { opacity:.4; cursor:default; }
+  .cfg { font:11px var(--mono); color:var(--faint); }
+  .cfg b { color:var(--dim); }
+  .grid { display:flex; gap:12px; align-items:stretch; }
+  .panel { border:1px solid var(--line); border-radius:12px; background:#0b0e12; padding:12px 14px; }
+  .lossP { flex:1; min-width:0; }
+  .genP { width:360px; min-width:340px; }
+  .th { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:8px; }
+  #loss { width:100%; height:auto; display:block; }
+  .readout { display:flex; gap:16px; margin-top:8px; font:12px var(--mono); color:var(--dim); }
+  .readout b { color:var(--ink); }
+  .gen { font:13.5px/1.7 var(--mono); background:#12161c; border:1px solid var(--line); border-radius:8px;
+         padding:10px 12px; min-height:88px; white-space:pre-wrap; word-break:break-word; }
+  .gen .seed { color:var(--faint); }
+  .gen .out { color:var(--green); }
+  .gen.babble .out { color:#c98b6b; }
+  .note { font-size:12px; color:var(--dim); margin-top:9px; }
+  .foot { color:var(--faint); font-size:11.5px; margin-top:16px; line-height:1.55; }
+  .foot code { color:var(--dim); }
+  @media (max-width:760px){ .grid{ flex-direction:column; } .genP{ width:auto; min-width:0; } }
+</style>
+</head>
+<body>
+<h1>nanomodel, running in your browser</h1>
+<div class="stamp">TRACK 4 . nanofrontier (seed) . verified as of 2026-07 . keyless, offline, no server</div>
+<p class="sub">This is the models track's <b>runnable code</b> - <code>models/nanomodel/*.py</code> - ported to
+JavaScript, so the <b>real model trains live in this page</b>. Same math as the widgets draw: a hand-written
+scalar autograd engine, a tiny causal transformer, and next-token SGD. Press train and watch the loss fall while
+the babble sharpens into words.</p>
+
+<div class="bar">
+  <button class="go" id="run">train &#9654;</button>
+  <button id="reset">reset</button>
+  <span class="cfg" id="cfg"></span>
+</div>
+
+<div class="grid">
+  <div class="panel lossP"><div class="th">training loss (next-token cross-entropy, live)</div>
+    <canvas id="loss" width="460" height="200"></canvas>
+    <div class="readout"><span>step <b id="rStep">0</b></span><span>loss <b id="rLoss">-</b></span><span id="rTrend"></span></div>
+  </div>
+  <div class="panel genP"><div class="th">what it generates (from "the capital of ")</div>
+    <div class="gen babble" id="gen"><span class="seed">the capital of </span><span class="out" id="genOut">...</span></div>
+    <div class="note" id="genNote">before training, the next token is a coin-flip over characters - pure babble.</div>
+  </div>
+</div>
+
+<p class="foot">Every number here is a <code>Value</code> that tracks its own gradient (<code>autograd.py</code>);
+the model is embed &rarr; one causal attention head &rarr; MLP &rarr; logits (<code>model.py</code>); training is
+a random window, cross-entropy against the next token, <code>backward()</code>, then SGD (<code>train.py</code>) -
+about 900 weights on a two-line corpus. Real models are this <i>exact</i> math, scaled a trillion-fold. Nothing
+leaves your browser. <b>Next:</b> F8's dials pick which version of this runs - full/sparse/linear attention,
+autoregressive vs diffusion - so you design a model and then actually run it.</p>
+
+<script>
+/* ================== autograd engine (autograd.py, in JS) ================== */
+class Value {
+  constructor(data, children=[], op=""){ this.data=data; this.grad=0; this._backward=()=>{}; this._prev=children; this._op=op; }
+  add(o){ o=o instanceof Value?o:new Value(o); const out=new Value(this.data+o.data,[this,o],"+");
+    out._backward=()=>{ this.grad+=out.grad; o.grad+=out.grad; }; return out; }
+  mul(o){ o=o instanceof Value?o:new Value(o); const out=new Value(this.data*o.data,[this,o],"*");
+    out._backward=()=>{ this.grad+=o.data*out.grad; o.grad+=this.data*out.grad; }; return out; }
+  pow(p){ const out=new Value(Math.pow(this.data,p),[this],"**"+p);
+    out._backward=()=>{ this.grad+=(p*Math.pow(this.data,p-1))*out.grad; }; return out; }
+  exp(){ const out=new Value(Math.exp(this.data),[this],"exp");
+    out._backward=()=>{ this.grad+=out.data*out.grad; }; return out; }
+  log(){ const d=Math.max(this.data,1e-9); const out=new Value(Math.log(d),[this],"log");   // floor: no log(0)
+    out._backward=()=>{ this.grad+=(1/d)*out.grad; }; return out; }
+  tanh(){ const t=Math.tanh(this.data); const out=new Value(t,[this],"tanh");
+    out._backward=()=>{ this.grad+=(1-t*t)*out.grad; }; return out; }
+  neg(){ return this.mul(-1); }
+  sub(o){ return this.add(o instanceof Value?o.neg():-o); }
+  div(o){ return o instanceof Value?this.mul(o.pow(-1)):this.mul(1/o); }
+  backward(){ const topo=[], vis=new Set();
+    const build=v=>{ if(!vis.has(v)){ vis.add(v); for(const c of v._prev) build(c); topo.push(v); } };
+    build(this); this.grad=1; for(let i=topo.length-1;i>=0;i--) topo[i]._backward(); }
+}
+const V=x=>new Value(x);
+function softmax(logits){ let m=-Infinity; for(const v of logits) if(v.data>m) m=v.data;
+  const exps=logits.map(v=>v.sub(m).exp()); let s=exps[0]; for(let i=1;i<exps.length;i++) s=s.add(exps[i]);
+  return exps.map(e=>e.div(s)); }
+function crossEntropy(logits, ix){ return softmax(logits)[ix].log().neg(); }
+
+/* ================== the tiny transformer (model.py, in JS) ================== */
+function makeRng(seed){ let s=seed>>>0; return ()=>{ s=(Math.imul(s,1664525)+1013904223)>>>0; return (s/4294967296)*2-1; }; }
+class Linear {
+  constructor(nin,nout,rnd){ const sc=1/Math.sqrt(nin); this.W=[]; this.b=[];
+    for(let o=0;o<nout;o++){ const row=[]; for(let i=0;i<nin;i++) row.push(V(rnd()*sc)); this.W.push(row); this.b.push(V(0)); } }
+  call(x){ const out=[]; for(let o=0;o<this.W.length;o++){ let acc=this.b[o]; const row=this.W[o];
+    for(let i=0;i<row.length;i++) acc=acc.add(row[i].mul(x[i])); out.push(acc); } return out; }
+  params(){ const p=[]; for(const row of this.W) for(const w of row) p.push(w); for(const b of this.b) p.push(b); return p; }
+}
+class Attention {
+  constructor(d,rnd){ this.d=d; this.q=new Linear(d,d,rnd); this.k=new Linear(d,d,rnd); this.v=new Linear(d,d,rnd); this.proj=new Linear(d,d,rnd); }
+  call(hs){ const T=hs.length, Q=hs.map(h=>this.q.call(h)), K=hs.map(h=>this.k.call(h)), Vv=hs.map(h=>this.v.call(h));
+    const scale=1/Math.sqrt(this.d), out=[];
+    for(let t=0;t<T;t++){ const scores=[];
+      for(let s=0;s<=t;s++){ let dot=V(0); for(let j=0;j<this.d;j++) dot=dot.add(Q[t][j].mul(K[s][j])); scores.push(dot.mul(scale)); }
+      const w=softmax(scores); const blended=[]; for(let j=0;j<this.d;j++) blended.push(V(0));
+      for(let s=0;s<=t;s++) for(let j=0;j<this.d;j++) blended[j]=blended[j].add(w[s].mul(Vv[s][j]));
+      out.push(this.proj.call(blended)); }
+    return out; }
+  params(){ return [...this.q.params(),...this.k.params(),...this.v.params(),...this.proj.params()]; }
+}
+class MLP {
+  constructor(d,hidden,rnd){ this.fc=new Linear(d,hidden,rnd); this.proj=new Linear(hidden,d,rnd); }
+  call(h){ return this.proj.call(this.fc.call(h).map(x=>x.tanh())); }
+  params(){ return [...this.fc.params(),...this.proj.params()]; }
+}
+class NanoModel {
+  constructor(vocab,block,d=8,hidden=16,seed=1337){ const rnd=makeRng(seed); this.vocab=vocab; this.block=block; this.d=d;
+    this.tok=[]; for(let t=0;t<vocab;t++){ const r=[]; for(let j=0;j<d;j++) r.push(V(rnd()*0.1)); this.tok.push(r); }
+    this.pos=[]; for(let p=0;p<block;p++){ const r=[]; for(let j=0;j<d;j++) r.push(V(rnd()*0.1)); this.pos.push(r); }
+    this.attn=new Attention(d,rnd); this.mlp=new MLP(d,hidden,rnd); this.head=new Linear(d,vocab,rnd); }
+  forward(idx){ let hs=idx.map((t,p)=>{ const r=[]; for(let j=0;j<this.d;j++) r.push(this.tok[t][j].add(this.pos[p][j])); return r; });
+    const a=this.attn.call(hs); hs=hs.map((h,i)=>h.map((x,j)=>x.add(a[i][j])));
+    const m=hs.map(h=>this.mlp.call(h)); hs=hs.map((h,i)=>h.map((x,j)=>x.add(m[i][j])));
+    return hs.map(h=>this.head.call(h)); }
+  params(){ const p=[]; for(const r of this.tok) for(const w of r) p.push(w); for(const r of this.pos) for(const w of r) p.push(w);
+    return [...p,...this.attn.params(),...this.mlp.params(),...this.head.params()]; }
+  generate(idx, n, temp, rnd){ idx=idx.slice();
+    for(let s=0;s<n;s++){ const window=idx.slice(-this.block); const logits=this.forward(window)[window.length-1];
+      const probs=softmax(logits.map(l=>l.mul(1/temp))); let draw=(rnd()+1)/2, cum=0, pick=probs.length-1;   // rnd is [-1,1] -> map to [0,1]
+      for(let i=0;i<probs.length;i++){ cum+=probs[i].data; if(draw<cum){ pick=i; break; } } idx.push(pick); }
+    return idx; }
+}
+
+/* ================== corpus + tokenizer (train.py, in JS) ================== */
+const CORPUS = "the capital of france is paris.\nthe capital of spain is madrid.\n";
+const CHARS = [...new Set(CORPUS)].sort();
+const stoi = {}, itos = {}; CHARS.forEach((c,i)=>{ stoi[c]=i; itos[i]=c; });
+const encode = s => [...s].map(c=>stoi[c]);
+const decode = ix => ix.map(i=>itos[i]).join("");
+const DATA = encode(CORPUS);
+const BLOCK=6, D=8, HIDDEN=16, LR0=0.25, LRmin=0.02, BATCH=4, SEED=1337;   // SGD with lr decay, tuned for a stable live demo
+
+/* ================== the training driver (live, in the page) ================== */
+let model, params, step, ema, first, running=false, losses=[], genRng=makeRng(7), winRng;
+function initModel(){
+  model=new NanoModel(CHARS.length, BLOCK, D, HIDDEN, SEED);
+  params=model.params(); step=0; ema=null; first=null; losses=[]; winRng=makeRng(SEED);
+  document.getElementById("cfg").innerHTML="<b>"+CHARS.length+"</b> tokens . block <b>"+BLOCK+"</b> . d <b>"+D+"</b> . <b>"+params.length+"</b> weights";
+  drawLoss(); updateReadout(); regen(true);
+}
+function windowLoss(){
+  const start=Math.floor(((winRng()+1)/2)*(DATA.length-BLOCK-1));   // a random training window
+  const xs=DATA.slice(start,start+BLOCK), ys=DATA.slice(start+1,start+BLOCK+1);
+  const logits=model.forward(xs);
+  let loss=crossEntropy(logits[0],ys[0]);
+  for(let t=1;t<BLOCK;t++) loss=loss.add(crossEntropy(logits[t],ys[t]));
+  return loss.mul(1/BLOCK);
+}
+function trainStep(){
+  let loss=windowLoss();                                            // average over a small batch (smoother SGD)
+  for(let b=1;b<BATCH;b++) loss=loss.add(windowLoss());
+  loss=loss.mul(1/BATCH);
+  for(const p of params) p.grad=0;
+  loss.backward();                                                  // the autograd engine earns its keep
+  const lr=LR0*Math.pow(LRmin/LR0, step/MAX);                       // anneal the step size -> settles into a low loss
+  for(const p of params) p.data-=lr*p.grad;                         // SGD step
+  ema = ema===null ? loss.data : 0.9*ema+0.1*loss.data;
+  if(first===null) first=ema;
+  step++; losses.push(ema);
+}
+function regen(babble){
+  const seed=encode("the capital of ");
+  const out=model.generate(seed, 16, 0.22, genRng);
+  const text=decode(out.slice(seed.length)).replace(/\n/g," / ");
+  const g=document.getElementById("gen"); g.classList.toggle("babble", !!babble);
+  document.getElementById("genOut").textContent=text;
+  document.getElementById("genNote").textContent = babble
+    ? 'before training, the next token is a coin-flip over characters - pure babble.'
+    : (ema!==null && ema<1.0 ? 'it learned the pattern: "capital of" leads to france / spain, then paris / madrid. A ~900-weight toy slurs the words - but this IS the autoregressive loop.'
+                             : 'the shape is emerging: common letters first, then whole words.');
+}
+function updateReadout(){
+  document.getElementById("rStep").textContent=step;
+  document.getElementById("rLoss").textContent = ema===null ? "-" : ema.toFixed(3);
+  document.getElementById("rTrend").textContent = (first!==null&&ema!==null) ? "("+first.toFixed(2)+" → "+ema.toFixed(2)+")" : "";
+}
+const cv=document.getElementById("loss"), cx=cv.getContext("2d");
+function drawLoss(){
+  cx.clearRect(0,0,cv.width,cv.height); const W=cv.width,H=cv.height,pad=26;
+  cx.strokeStyle="#2a3038"; cx.lineWidth=1; cx.beginPath(); cx.moveTo(pad,6); cx.lineTo(pad,H-18); cx.lineTo(W-6,H-18); cx.stroke();
+  if(losses.length<2){ cx.fillStyle="#5b6470"; cx.font="11px ui-monospace,monospace"; cx.fillText("press train",pad+10,H/2); return; }
+  const mx=Math.max.apply(null,losses), mn=Math.min.apply(null,losses), rng=Math.max(0.2,mx-mn);
+  const X=i=>pad+i/(losses.length-1)*(W-pad-8), Yv=v=>6+(1-(v-mn)/rng)*(H-24);
+  cx.strokeStyle="#58c4dd"; cx.lineWidth=1.8; cx.beginPath();
+  losses.forEach((v,i)=>{ const x=X(i),y=Yv(v); i?cx.lineTo(x,y):cx.moveTo(x,y); }); cx.stroke();
+  cx.fillStyle="#5b6470"; cx.font="10px ui-monospace,monospace";
+  cx.fillText(mx.toFixed(1),2,Yv(mx)+3); cx.fillText(mn.toFixed(1),2,Yv(mn)+3);
+}
+const MAX=1300, PER_FRAME=1, GEN_EVERY=10;
+function loop(){
+  if(!running) return;
+  for(let k=0;k<PER_FRAME && step<MAX;k++) trainStep();
+  drawLoss(); updateReadout();
+  if(step%GEN_EVERY < PER_FRAME) regen(step<20);
+  if(step>=MAX){ running=false; document.getElementById("run").textContent="done ✓"; document.getElementById("run").disabled=true; regen(false); return; }
+  requestAnimationFrame(loop);
+}
+document.getElementById("run").onclick=function(){
+  if(step>=MAX) return;
+  running=!running; this.textContent=running?"pause ‖":"train ▶"; this.classList.toggle("go",!running);
+  if(running) requestAnimationFrame(loop);
+};
+document.getElementById("reset").onclick=function(){
+  running=false; const b=document.getElementById("run"); b.textContent="train ▶"; b.classList.add("go"); b.disabled=false; initModel();
+};
+initModel();
+</script>
+</body>
+</html>
