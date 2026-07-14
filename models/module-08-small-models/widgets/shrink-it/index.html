@@ -318,7 +318,7 @@ function renderMech(i) {
     const caps2 = [
       "Act 2: distillation, precisely. The student does not train on raw web text - it trains on the TEACHER. Run the big model over data, and use its per-token output distributions as the targets.",
       "The heart of it is 'soft targets'. A hard label is one-hot: the answer is token 3, nothing else. The teacher's soft distribution also says how much probability tokens 1, 2, 4 got - the near-misses. That 'dark knowledge' is where the teacher's generalization lives.",
-      "So the loss is a divergence: make the student's distribution match the teacher's (KL divergence), often alongside a little ordinary cross-entropy. The student is literally trained to take the shape of the teacher's mind.",
+      "So the loss is a divergence: make the student's distribution match the teacher's (KL - Kullback-Leibler - divergence), often alongside a little ordinary cross-entropy. The student is literally trained to take the shape of the teacher's mind.",
       "Concretely and verified: DeepSeek ran R1's reasoning traces as training data for small Qwen and Llama students (1.5B, 7B, 32B). The distilled small models out-reasoned same-size models trained with RL from scratch - the reasoning transferred.",
       "Why it beats from-scratch: a small model trained on raw data must rediscover all the structure itself. A distilled one is handed the teacher's already-solved structure. Less compute, and usually a better small model.",
       "The honest limit: distillation COPIES a mind, it does not surpass it. The student's ceiling is roughly the teacher. It is the best tool for shrinking a known-good model - and useless for pushing the frontier, which still needs the big expensive run.",

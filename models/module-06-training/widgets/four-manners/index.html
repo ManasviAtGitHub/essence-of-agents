@@ -351,7 +351,7 @@ function renderMech(i) {
         '<div class="mbox train"><div class="sq" style="width:64px;height:20px">B</div>d x r</div>' +
         '<span class="lop">&times;</span>' +
         '<div class="mbox train"><div class="sq" style="width:20px;height:64px">A</div>r x d</div></div>' +
-        '<span class="calc src">LoRA (Hu et al. 2021): the base W never moves. The whole adaptation is a low-rank &Delta;W = B&middot;A - two skinny matrices with a small rank r.</span>';
+        '<span class="calc src">LoRA - Low-Rank Adaptation (Hu et al. 2021): the base W never moves. The whole adaptation is a low-rank &Delta;W = B&middot;A - two skinny matrices with a small rank r.</span>';
     } else if (k === 4) {   // LoRA arithmetic
       mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">full &Delta;W: d x d (d = 8192, one attn matrix)</span><span class="rhs">8192&sup2; = ' + Mp(fullP) + ' params</span></div>' +
         '<div class="row"><span class="lhs">LoRA B&middot;A: 2 x d x r (rank r = 16)</span><span class="rhs">2 x 8192 x 16 = ' + Kp(loraP) + ' params</span></div>' +
