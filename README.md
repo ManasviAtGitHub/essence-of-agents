@@ -1,5 +1,9 @@
 # agents
 
+**Open the course:** https://manasviatgithub.github.io/essence-of-agents/
+(all four tracks - the agent loop, production, inside the model, the frontier -
+run right in the browser, no setup).
+
 Two things live here:
 
 1. **`claude_harness/`** - a small, reusable Claude agent harness (the agent loop +
