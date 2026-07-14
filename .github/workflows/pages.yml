@@ -22,9 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # NOTE: Pages must be enabled once in the UI first:
-      # Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+      # enablement:true lets the workflow switch Pages on itself (fresh repos),
+      # equivalent to Settings -> Pages -> Source: "GitHub Actions".
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
