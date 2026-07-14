@@ -30,12 +30,13 @@
   .panel .hd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em;
                color:var(--faint); margin-bottom:7px; }
 
-  .diap { flex:1.1; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .diap { flex:1.1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
   /* per-head K,V boxes collapsing into one latent */
-  .heads { display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin:6px 0; min-height:60px; align-items:center; }
+  .heads { display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin:6px 0; align-items:center; }
+  .heads:empty { display:none; }
   .hbox { width:13px; height:26px; border-radius:3px; background:#243b45; border:1px solid #3a5a6a; transition:all .3s; }
   .hbox.v { background:#3a3320; border-color:#5a4a1a; }
-  .hbox.gone { opacity:.12; transform:scale(.5); }
+  .hbox.gone { opacity:.28; transform:scale(.6); }
   .latent { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--gold); border-radius:7px;
             background:var(--panel); color:var(--gold); font:11px var(--mono); padding:4px 10px; opacity:0; transition:opacity .3s; }
   .latent.on { opacity:1; box-shadow:0 0 10px rgba(255,211,92,.25); }
@@ -49,6 +50,34 @@
   .phead { border:1px solid var(--blue); border-radius:7px; padding:4px 9px; font:10.5px var(--mono); color:var(--blue); }
   .phead.mtp { border-color:var(--gold); color:var(--gold); opacity:.4; transition:opacity .3s; }
   .phead.mtp.on { opacity:1; box-shadow:0 0 8px rgba(255,211,92,.2); }
+
+  /* Act 3 resource-attack map: three bottlenecks, the tricks that attack each */
+  .resmap { display:flex; gap:10px; justify-content:center; align-items:flex-start; flex-wrap:wrap; margin:4px 0; }
+  .reslane { border:1px solid var(--line); border-radius:9px; background:#0d1116; padding:8px 10px; flex:1 1 0; min-width:96px; }
+  .reslane .rlh { font:9px var(--mono); text-transform:uppercase; letter-spacing:.05em; color:var(--faint); margin-bottom:6px; }
+  .rlh.mem { color:#83c167; } .rlh.comp { color:#c07cfc; } .rlh.spd { color:#58c4dd; }
+  .reschip { display:block; font:11px var(--mono); border:1px solid var(--line); border-radius:6px; padding:3px 7px; margin:4px 0; color:var(--dim); text-align:left; }
+  .reschip.on { border-color:var(--gold); color:#e9ebee; background:#12140c; box-shadow:0 0 8px rgba(255,211,92,.15); }
+  .reschip .rc-how { display:block; font-size:9px; color:var(--faint); }
+
+  /* MTP scene: context -> shared trunk -> two heads (n+1 main, n+2 draft) -> commit */
+  .mtpscene { display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; padding:2px 0; }
+  .mtprow { display:flex; gap:5px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .ctok { font:11px var(--mono); border:1px solid var(--line); border-radius:6px; padding:2px 7px; color:var(--dim); background:#0e141b; }
+  .ctxrow .ctok:last-child { border-color:var(--blue); color:#cfe6f0; }
+  .mtparr { color:var(--faint); font:12px var(--mono); line-height:1; }
+  .mtptrunk { font:11px var(--mono); border:1px solid var(--line); border-radius:8px; padding:5px 16px; color:#cdd3da; background:var(--panel); }
+  .mtpbranch { gap:16px; align-items:flex-start; }
+  .mtphead { border:1px solid var(--blue); border-radius:8px; padding:5px 11px; min-width:104px; background:#0e141b; transition:opacity .25s; }
+  .mtphead .hl { font:9px var(--mono); text-transform:uppercase; letter-spacing:.05em; color:var(--faint); }
+  .mtphead .hv { font:12px var(--mono); color:#cfe6f0; margin-top:2px; }
+  .mtphead.draft { border-color:var(--gold); border-style:dashed; background:#12140c; }
+  .mtphead.draft .hv { color:var(--gold); }
+  .mtphead.off { opacity:.2; }
+  .mtpout { font:12px var(--mono); color:var(--dim); }
+  .mtpout .nw { color:var(--green); border:1px solid #2f5a2a; border-radius:5px; padding:1px 5px; background:#0e1a0c; }
+  .mtpcompare { font:10.5px var(--mono); color:var(--faint); margin-top:2px; text-align:center; }
+  .mtpcompare b { color:#c7e7ad; }
 
   .metp { flex:.9; min-width:0; }
   .barrow { display:flex; align-items:center; gap:7px; margin:5px 0; }
@@ -91,9 +120,9 @@
 <body>
 <h1>DeepSeek's moves: MLA and MTP</h1>
 <p class="sub">Module 3 left a wall: the KV cache is the memory bill for long context, and it is huge.
-DeepSeek-V3 runs 128k context cheaply anyway - with two targeted moves. <b>MLA</b> shrinks the cache
-(Module 3's wall); <b>MTP</b> speeds up decoding (Module 0's one-pass-per-token loop). Each attacks
-ONE resource - the skill is spotting which.</p>
+DeepSeek-V3 runs 128k context cheaply anyway - with two targeted moves. <b>MLA (Multi-head Latent
+Attention)</b> shrinks the cache (Module 3's wall); <b>MTP (Multi-Token Prediction)</b> speeds up
+decoding (Module 0's one-pass-per-token loop). Each attacks ONE resource - the skill is spotting which.</p>
 
 <div class="modes">
   <button class="modebtn on" data-mode="int">intuition (the two moves)</button>
@@ -115,6 +144,7 @@ ONE resource - the skill is spotting which.</p>
     <div class="latent" id="latent">one latent c_KV (d_c = 512)</div>
     <div class="rope" id="rope">+ decoupled RoPE key (64)</div>
     <div class="mtp" id="mtpBox" style="display:none"></div>
+    <div class="resmap" id="resmap" style="display:none"></div>
   </div>
   <div class="panel metp">
     <div class="hd">KV cache per token (DeepSeek-V3 scale, computed)</div>
@@ -190,12 +220,37 @@ function showAttn(type) {
   document.querySelectorAll(".attnbtn").forEach(x => x.classList.toggle("on", x.dataset.a === type));
 }
 
+/* MTP diagram: fills the panel and shows the mechanism. stage 0=main head only,
+   1=MTP head drafts n+2, 2=verify + commit two tokens in one pass. */
+function mtpScene(stage){
+  const ctx = ["the","capital","of","france","is"].map(function(t){return '<span class="ctok">'+t+'</span>';}).join("");
+  const draft = stage>=1, ver = stage>=2;
+  const main = '<div class="mtphead"><div class="hl">main head</div><div class="hv">n+1: "Paris"'+(ver?' &#10003;':'')+'</div></div>';
+  const mtp  = '<div class="mtphead draft'+(draft?'':' off')+'"><div class="hl">MTP head</div><div class="hv">n+2: "."'+(ver?' &#10003;':(draft?' (draft)':''))+'</div></div>';
+  const stream = ver
+    ? '<div class="mtprow"><span class="mtpout">... france is <span class="nw">Paris</span> <span class="nw">.</span></span></div>'
+    : '<div class="mtprow"><span class="mtpout" style="opacity:.45">... france is <span style="color:var(--faint)">?</span></span></div>';
+  const note = stage===0 ? 'one forward pass commits exactly ONE token - decode is sequential (Module 0)'
+             : stage===1 ? 'a small MTP head also predicts n+2 - in the SAME pass'
+             : '<b>two tokens per pass</b> when the draft is accepted (vs one for autoregressive)';
+  return '<div class="mtpscene">'+
+    '<div class="mtprow ctxrow">'+ctx+'</div>'+
+    '<div class="mtparr">&#8595;</div>'+
+    '<div class="mtptrunk">shared trunk &middot; 61 layers &middot; one forward pass</div>'+
+    '<div class="mtparr">&#8595;</div>'+
+    '<div class="mtprow mtpbranch">'+main+mtp+'</div>'+
+    stream+
+    '<div class="mtpcompare">'+note+'</div>'+
+  '</div>';
+}
+
 /* ---------- INTUITION: 10 steps ---------- */
 function renderInt(i) {
-  mach.hidden = true; mtpBox.style.display = "none"; $("diap").style.display = "flex";
+  mach.hidden = true; mtpBox.style.display = "none"; $("resmap").style.display = "none"; $("diap").style.display = "flex";
+  heads.innerHTML = ""; arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope";   // clean slate: any step renders correctly even when jumped-to
   const F = [
-    () => { drawHeads(0, false); arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope";
-      drawBars([MHA_ROW], MHA_b); diaHd.textContent = "Module 3's wall, at DeepSeek-V3 scale"; mnote.textContent = "dense MHA would need " + MB(MHA_b) + " per token"; },
+    () => { drawHeads(16, false); arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope";
+      drawBars([MHA_ROW], MHA_b); diaHd.textContent = "Module 3's wall, at DeepSeek-V3 scale"; mnote.textContent = "every token caches a full K + V for all 128 heads - " + MB(MHA_b) + "/token"; },
     () => { drawHeads(V3.heads > 16 ? 16 : V3.heads, false); arrowdn.style.visibility = "hidden";
       drawBars([MHA_ROW], MHA_b); diaHd.textContent = "the cost: full K + V for every head (128 of them)"; mnote.textContent = "16 pairs drawn - really 128 heads x (K,V)"; },
     () => { drawHeads(16, false); arrowdn.style.visibility = "hidden";
@@ -210,11 +265,11 @@ function renderInt(i) {
       drawBars([MHA_ROW, MLA_ROW], MHA_b); diaHd.textContent = "the payoff: 128k context that actually fits";
       mnote.textContent = "at 128k: " + GB(MHA_b * CTX) + " (MHA) -> " + GB(MLA_b * CTX) + " (MLA)"; },
     () => { $("diap").style.display = "flex"; heads.innerHTML = ""; arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope";
-      mtpBox.style.display = "flex"; mtpBox.innerHTML = '<div class="trunk">one forward pass</div><div class="heads2"><span class="phead">token n+1</span></div>';
+      mtpBox.style.display = "flex"; mtpBox.innerHTML = mtpScene(0);
       drawBars([MLA_ROW], MLA_b); diaHd.textContent = "second move - MTP. Recall Module 0:"; mnote.textContent = "one forward pass commits exactly ONE token - decode is sequential"; },
-    () => { mtpBox.style.display = "flex"; mtpBox.innerHTML = '<div class="trunk">one forward pass</div><div class="heads2"><span class="phead">token n+1</span><span class="phead mtp on">token n+2 (MTP head)</span></div>';
+    () => { mtpBox.style.display = "flex"; mtpBox.innerHTML = mtpScene(1);
       drawBars([MLA_ROW], MLA_b); diaHd.textContent = "MTP: a small extra head predicts n+2 too"; mnote.textContent = "it DRAFTS the next token; the main model VERIFIES it in the same pass"; },
-    () => { mtpBox.style.display = "flex"; mtpBox.innerHTML = '<div class="trunk">one pass -> TWO tokens (when accepted)</div><div class="heads2"><span class="phead">n+1 &#10003;</span><span class="phead mtp on">n+2 &#10003;</span></div>';
+    () => { mtpBox.style.display = "flex"; mtpBox.innerHTML = mtpScene(2);
       drawBars([MLA_ROW], MLA_b); diaHd.textContent = "the aha: two moves, two different resources"; mnote.textContent = "MLA -> memory (M3). MTP -> decode passes (M0)."; },
   ];
   F[i]();
@@ -257,8 +312,23 @@ function renderInt(i) {
 /* ---------- MECHANISM: 18 steps, 3 acts ---------- */
 const MECH_ACTS = [["MLA: compress the cache", 7], ["MTP: draft + verify", 5], ["the principle + the map", 6]];
 let scaleSel = "mha";
+/* Act 3 visual: three bottlenecks, and the tricks that attack each - revealed as the step advances */
+function resMap(k){
+  const revealed = k >= 3 ? 4 : k + 1;              // GQA, MLA, MoE, MTP unlock in order
+  const cur = k <= 3 ? k : -1;                      // the one this step names
+  const TR = [ {n:"GQA (M2)", res:0, how:"share KV heads"},
+               {n:"MLA (M5)", res:0, how:"compress K,V to a latent"},
+               {n:"MoE (M4)", res:1, how:"wake few experts"},
+               {n:"MTP (M5)", res:2, how:"draft + verify tokens"} ];
+  const L = [ {lab:"Memory / KV cache", c:"mem"}, {lab:"Compute / FLOPs", c:"comp"}, {lab:"Speed / decode", c:"spd"} ];
+  return L.map(function(ln, li){
+    const chips = TR.map(function(t, ti){ return (ti < revealed && t.res === li)
+      ? '<span class="reschip' + (ti === cur ? " on" : "") + '">' + t.n + '<span class="rc-how">' + t.how + '</span></span>' : ""; }).join("");
+    return '<div class="reslane"><div class="rlh ' + ln.c + '">' + ln.lab + '</div>' + (chips || '<span class="reschip" style="opacity:.35">(none yet)</span>') + '</div>';
+  }).join("");
+}
 function renderMech(i) {
-  mach.hidden = false;
+  mach.hidden = false; $("resmap").style.display = "none";
   if (i <= 6) {  // ---- ACT 1: MLA computed ----
     $("diap").style.display = "flex"; mtpBox.style.display = "none";
     if (i <= 1) { drawHeads(16, false); arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope"; }
@@ -317,11 +387,11 @@ function renderMech(i) {
     $("diap").style.display = "flex"; heads.innerHTML = ""; arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope";
     mtpBox.style.display = "flex"; drawBars([MLA_ROW], MLA_b); mnote.textContent = "";
     diaHd.textContent = k <= 1 ? "training time" : "inference time (speculative decode)";
-    if (k === 0) mtpBox.innerHTML = '<div class="trunk">shared trunk (the layers)</div><div class="heads2"><span class="phead">head: predict n+1</span></div>';
-    else if (k === 1) mtpBox.innerHTML = '<div class="trunk">shared trunk</div><div class="heads2"><span class="phead">predict n+1</span><span class="phead mtp on">MTP head: predict n+2</span></div>';
-    else if (k === 2) mtpBox.innerHTML = '<div class="trunk">one pass</div><div class="heads2"><span class="phead">n+1 = " Paris"</span><span class="phead mtp on">draft n+2 = " ."</span></div>';
-    else if (k === 3) mtpBox.innerHTML = '<div class="trunk">verify in the same pass</div><div class="heads2"><span class="phead">n+1 &#10003;</span><span class="phead mtp on">n+2 &#10003; accepted</span></div>';
-    else mtpBox.innerHTML = '<div class="trunk">2 tokens / pass when accepted</div><div class="heads2"><span class="phead">n+1</span><span class="phead mtp on">n+2</span></div>';
+    if (k === 0) mtpBox.innerHTML = mtpScene(0);
+    else if (k === 1) mtpBox.innerHTML = mtpScene(1);
+    else if (k === 2) mtpBox.innerHTML = mtpScene(1);
+    else if (k === 3) mtpBox.innerHTML = mtpScene(2);
+    else mtpBox.innerHTML = mtpScene(2);
     if (k === 0) mach.innerHTML = '<span class="formula">training: extra loss - also predict token n+2 at every position</span><div class="calc"><span class="calc src">MTP hangs a small second head off the same trunk and asks it to predict TWO tokens ahead. That is a denser training signal - more to learn from at each position - which improves the main model too.</span></div>';
     else if (k === 1) mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">main head</span><span class="rhs">token n+1 (as always)</span></div><div class="row"><span class="lhs">MTP head (depth D=1, verified)</span><span class="rhs">token n+2</span></div><span class="calc src">V3 uses one MTP module (predicts one extra token). Small and cheap next to the 61-layer trunk.</span></div>';
     else if (k === 2) mach.innerHTML = '<span class="formula">inference: MTP head DRAFTS the next token cheaply</span><div class="calc"><span class="calc src">this is speculative decoding: a cheap draft proposes the upcoming token so the expensive main model does not have to generate it from a standing start.</span></div>';
@@ -350,6 +420,7 @@ function renderMech(i) {
     $("diap").style.display = "flex"; heads.innerHTML = ""; mtpBox.style.display = "none";
     arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope";
     diaHd.textContent = "the meta-lesson"; drawBars([MHA_ROW, GQA_ROW, MLA_ROW], MHA_b); mnote.textContent = "";
+    $("resmap").style.display = "flex"; $("resmap").innerHTML = resMap(k);
     if (k <= 3) {
       const map = [
         ["GQA (M2)", "KV-cache memory", "share KV heads"],
