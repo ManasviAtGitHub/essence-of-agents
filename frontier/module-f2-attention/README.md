@@ -17,12 +17,15 @@ winner):
 - **SPARSE: learn where to look.** A cheap learned INDEXER scores all past
   tokens; exact attention runs only over the top-k. The reads collapse
   (128k -> ~2k); the cache itself survives until compression joins in.
-  Lineage: NSA (Feb 2025) -> DSA's lightning indexer (V3.2, Sep 2025) ->
-  V4's CSA+HCA compression (Jun 2026: ~27% of V3.2's per-token FLOPs, ~10%
-  of its KV) -> adopted by GLM-5 (+IndexShare) and MiniMax M3's MSA (2026).
+  Lineage (all DeepSeek until noted): NSA, Native Sparse Attention (Feb
+  2025) -> DSA, DeepSeek Sparse Attention - the "lightning indexer"
+  (DeepSeek V3.2, Sep 2025) -> DeepSeek V4's CSA+HCA compression stages
+  (Jun 2026: ~27% of V3.2's per-token FLOPs, ~10% of its KV) -> adopted by
+  GLM-5 (+IndexShare) and MiniMax M3's MSA (2026).
 - **LINEAR: stop keeping the list.** Replace the growing KV with a
-  FIXED-SIZE state updated as tokens stream past - a backpack instead of a
-  wagon train. O(1) memory at any context. Lineage: Gated DeltaNet
+  FIXED-SIZE state updated as tokens stream past - a small notebook instead
+  of a wagon train (the widget draws it as a 4-slot notebook). O(1) memory
+  at any context. Lineage: Gated DeltaNet
   (Qwen3-Next, Sep 2025) -> Kimi KDA (Oct 2025: 75% KV cut, ~6x decode at
   1M) -> Qwen3.5 (Feb 2026: ~75% of a FLAGSHIP's layers are linear).
 - **THE DISSENT: pay full price.** MiniMax - the linear pioneer - went BACK
@@ -35,7 +38,7 @@ redesigned; the first frontier change to that layer in a decade.
 ## See it (no key)
 `widgets/three-escapes/index.html` - two passes:
 - **intuition (7 steps):** the two bills return; the spotlight (sparse); the
-  backpack (linear); the retreat (dissent); the open argument.
+  notebook (linear); the retreat (dissent); the open argument.
 - **mechanism (14 steps, 3 acts):** act 1 computes SPARSE on a toy context -
   a 2-D indexer scores 8 past tokens live, top-3 selected, exact attention
   reads 3 not 8; the lineage dated; the indexer's own cost as the new

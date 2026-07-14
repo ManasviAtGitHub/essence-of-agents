@@ -1,7 +1,9 @@
 # Challenge - price the image, name the door
 
 The two-door rule from this module: images ENTER by projection (continuous
-vectors), images and speech LEAVE by codebook (discrete menu entries).
+vectors), images and speech LEAVE by codebook (discrete menu entries). Speech
+is the special case: the Omni recipe runs INPUT audio through the same
+codebook too - one audio menu, both directions.
 
 ## Part 1 - count the tokens (be the projector's accountant)
 Using the standard recipes from the widget:
@@ -39,13 +41,19 @@ entries) or CODEBOOK OUT (discrete, the menu literally grows) - and why:
   entries involved; attention sees vectors it can attend over.
 - **B - codebook out.** To EMIT pixels autoregressively the model needs a
   discrete menu of image tokens to sample from - M0's loop needs a menu.
-- **C - projection in** (in the Omni recipe the input side maps audio
-  features into the stream; understanding does not require sampling).
+- **C - codebook in (the Omni recipe).** The wave is sliced into ~20ms
+  frames and each frame is SNAPPED to its nearest entry in the learned audio
+  menu - the same discrete tokens the model later speaks with. Understanding
+  does not REQUIRE sampling, so a projection would also work - but Omni
+  shares one audio menu across both directions, and that is what the widget
+  computes.
 - **D - codebook out.** Speech is emitted as codebook tokens rendered to
   waveform - the dice of M0, rolling over sound.
 
-The rule of thumb: READING needs a projection; SAYING needs a menu, because
-sampling (M0) only works over discrete choices.
+The rule of thumb: READING can ride a projection; SAYING needs a menu,
+because sampling (M0, the loop module) only works over discrete choices.
+Speech-in is the exception that proves the rule: Omni snaps input audio onto
+the very menu it speaks from.
 </details>
 
 ## The point

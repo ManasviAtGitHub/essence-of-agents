@@ -21,6 +21,8 @@ over it next to words?
 - **The output door (discrete):** to EMIT an image or speech, the menu
   literally grows - a learned CODEBOOK of image/audio tokens the model
   predicts autoregressively, exactly like words (M0's loop, unchanged).
+  Speech is the special case: the Omni recipe runs INPUT audio through the
+  same codebook - one audio menu, used in both directions.
 One transformer, one stream; "multimodal" is new entrances, not a new brain.
 
 ## Dated exhibits (rule 10)

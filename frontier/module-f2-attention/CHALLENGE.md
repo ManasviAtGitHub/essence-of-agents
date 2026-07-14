@@ -16,10 +16,10 @@ Context: 128,000 tokens already read; one new token arrives.
 2. Reads only **2,048** (~1.6%) - but the INDEXER first scored all 128,000
    (cheaply, low precision). Storage is still the full cache: DSA cuts
    READS, not memory - until compression (V4's CSA/HCA) shrinks storage too.
-3. Reads a **constant-size state** (the backpack) - independent of context.
+3. Reads a **constant-size state** (the notebook) - independent of context.
    Stores only that state: O(1) memory at any length.
 4. FULL: the n^2 bill itself (cost). SPARSE: the indexer becomes the new
-   bottleneck (why GLM-5.2 added IndexShare) and can mis-rank what matters.
+   bottleneck (why GLM-5 added IndexShare) and can mis-rank what matters.
    LINEAR: documented reasoning degradation at scale - MiniMax M2 reverted
    to full attention after hybrids lost multi-hop reasoning (Oct 2025).
 </details>

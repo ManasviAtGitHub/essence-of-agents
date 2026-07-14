@@ -145,7 +145,7 @@ function calc(){
   const t=Math.floor(hpx/p)*Math.floor(wpx/p);
   $("tokOut").textContent = Math.floor(wpx/p)+" x "+Math.floor(hpx/p)+" = "+t.toLocaleString()+" tokens";
   $("kvOut").textContent = "~"+(t*BPT_M3/1e6).toFixed(0)+" MB";
-  $("calcNote").textContent = "KV rate: Llama-3-70B's ~320 KB/token, used as the illustration rate. Recipes: ViT (224/16=14, 14x14=196); Qwen-VL merges 14px patches 2x2 -> 28px effective.";
+  $("calcNote").textContent = "KV rate: Llama-3-70B's ~328 KB/token (327,680 bytes), used as the illustration rate. Recipes: ViT (224/16=14, 14x14=196); Qwen-VL merges 14px patches 2x2 -> 28px effective.";
 }
 $("selSize").onchange=calc; $("selPatch").onchange=calc;
 
@@ -169,7 +169,11 @@ new p5(function(p){
   p.draw=function(){
     if(p.pixelDensity()!==density()) p.pixelDensity(density());
     p.background(11,14,18); tick();
-    if(MODE==="int") drawInt(); else drawMech();
+    try { if(MODE==="int") drawInt(); else drawMech(); }
+    catch(e){ /* a stage error must paint itself, never blank the canvas */
+      p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(12); p.textAlign(p.LEFT);
+      p.text("stage error at "+MODE+" step "+(STEP+1)+": "+String(e).slice(0,90), 40, 60);
+      p.text("(please report this line)", 40, 84); p.pop(); }
   };
 
   /* ---------- shared pieces ---------- */

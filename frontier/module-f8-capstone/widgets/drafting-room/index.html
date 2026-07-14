@@ -131,7 +131,7 @@ models until it <b>settles beside the one it most resembles</b>.</p>
 </div>
 
 <div class="readouts">
-  <div class="constel"><div class="th">the design sky - real 2026 models as stars, your design the moving dot</div>
+  <div class="constel"><div class="th">the design sky - real 2026 models as stars, your design the moving dot (axes illustrative: design abstractions, not measurements)</div>
     <svg id="sky" viewBox="0 0 620 300" preserveAspectRatio="xMidYMid meet" aria-label="design space of frontier models"></svg></div>
   <div class="side">
     <div class="reveal" id="reveal" hidden></div>
@@ -143,17 +143,17 @@ models until it <b>settles beside the one it most resembles</b>.</p>
 <div class="trainbox" id="trainbox">
   <div class="tbhead">
     <div><span class="th2">now run the model you designed</span>
-      <span class="tbsub">the Attention dial swaps <b>real</b> full / sparse / linear code - F8 <i>predicted</i> the costs; this <i>measures</i> them, in your browser</span></div>
+      <span class="tbsub">the Attention dial swaps <b>real</b> full / sparse / linear code - the room above <i>predicted</i> the costs; this <i>measures</i> loss and speed, in your browser</span></div>
     <button id="trainBtn" disabled>set the Attention dial to build &#9654;</button>
   </div>
-  <div class="tiptext"><span class="n">try this:</span> press <b>build &amp; train</b> and watch the loss fall on the left (it's a real ~900-weight transformer learning "the capital of france is paris"). Then switch the <b>Attention</b> dial to <b>Linear</b> and train again - the <b>memory chart</b> on the right shows why F2 matters: same model, very different cost as context grows.</div>
+  <div class="tiptext"><span class="n">try this:</span> press <b>build &amp; train</b> and watch the loss fall on the left (it's a real ~900-weight transformer learning "the capital of france is paris"). Then switch the <b>Attention</b> dial to <b>Linear</b> and train again - the <b>memory chart</b> on the right shows why F2 (attention) matters: same model, very different cost as context grows.</div>
   <div class="tgrid">
     <div class="tpanel"><div class="th">training loss - live, real backprop (nanomodel, in JS)</div>
       <canvas id="tloss" width="440" height="150"></canvas>
       <div class="trow"><span>step <b id="tStep">0</b></span><span>loss <b id="tLoss">-</b></span><span>attention <b id="tAttn">-</b></span></div>
       <div class="gen" id="tgen"><span class="seed">the capital of </span><span class="out" id="tgenOut">...</span></div>
     </div>
-    <div class="tpanel"><div class="th">memory as context grows - the real mechanism</div>
+    <div class="tpanel"><div class="th">memory as context grows - computed from each mechanism (loss + ms are measured; this curve is the formula)</div>
       <canvas id="tkv" width="300" height="150"></canvas>
       <div class="verdict" id="verdict">Pick an <b>Attention</b> dial to preview its memory curve; press build to measure the real run.</div>
     </div>
@@ -173,29 +173,29 @@ are dated exhibits, not verdicts (rule 12). Verified as of 2026-07.</p>
 /* ================= the five dials (one per module) ================= */
 const LANE = { attn:"#83c167", modality:"#58c4dd", train:"#ffd35c", deploy:"#c07cfc", found:"#b6a6ff" };
 const DIALS = [
-  { key:"modality", name:"Modality", mod:"F1 / F5", opts:[
+  { key:"modality", name:"Modality", mod:"F1 tokens / F5 body", opts:[
     { v:"text", n:"Text",  m:{cost:0,speed:0,ctx:0,risk:0} },
     { v:"vl",   n:"Vision-Language", m:{cost:12,speed:-3,ctx:-8,risk:2}, note:"patches join the stream" },
     { v:"omni", n:"Omni", m:{cost:20,speed:-5,ctx:-10,risk:5}, note:"+ speech as codebook tokens" },
     { v:"vla",  n:"+ Actions", m:{cost:26,speed:-6,ctx:-8,risk:12}, note:"a body: action tokens out" },
   ]},
-  { key:"attn", name:"Attention", mod:"F2", opts:[
+  { key:"attn", name:"Attention", mod:"F2 attention", opts:[
     { v:"full",   n:"Full",   m:{cost:30,speed:-15,ctx:-10,risk:-5}, note:"exact, but pays n^2 (MiniMax M2's bet)" },
     { v:"sparse", n:"Sparse", m:{cost:8,speed:12,ctx:30,risk:3}, note:"a learned indexer reads top-k (V4: ~27% of the FLOPs)" },
     { v:"linear", n:"Linear", m:{cost:-5,speed:25,ctx:35,risk:18}, note:"fixed-size state, KV abolished (KDA: ~6x decode)", warn:"m2" },
-    { v:"hybrid", n:"Hybrid", m:{cost:6,speed:15,ctx:25,risk:8}, note:"mostly linear + a few full layers (Qwen3.5)" },
+    { v:"hybrid", n:"Hybrid", m:{cost:6,speed:15,ctx:25,risk:8}, note:"mostly linear + a few full layers (Qwen3.5); the toy trainer runs its linear path" },
   ]},
-  { key:"train", name:"Training", mod:"F3", opts:[
+  { key:"train", name:"Training", mod:"F3 rewards", opts:[
     { v:"classic", n:"SFT+RLHF", m:{cost:8,speed:0,ctx:0,risk:0}, note:"the classic manners pipeline" },
     { v:"grpo",    n:"GRPO reasoning", m:{cost:15,speed:0,ctx:0,risk:6}, note:"critic-free reasoning RL" },
     { v:"rubric",  n:"Rubric rewards", m:{cost:18,speed:0,ctx:0,risk:16}, note:"RLVR into open-ended work - graders you can game", warn:"rubric" },
     { v:"distill", n:"Specialists+distill", m:{cost:22,speed:8,ctx:0,risk:4}, note:"GRPO teachers -> one distilled student (V4)" },
   ]},
-  { key:"deploy", name:"Deployment", mod:"F4", opts:[
+  { key:"deploy", name:"Deployment", mod:"F4 agents", opts:[
     { v:"single", n:"Single agent", m:{cost:0,speed:0,ctx:0,risk:0}, note:"one trained loop" },
     { v:"swarm",  n:"Trained swarm", m:{cost:30,speed:20,ctx:0,risk:18}, note:"a trained orchestrator spawns workers (PARL: ~4.5x wall-clock)", warn:"swarm" },
   ]},
-  { key:"found", name:"Foundation", mod:"F6", opts:[
+  { key:"found", name:"Foundation", mod:"F6 dissent", opts:[
     { v:"ar",    n:"Autoregressive", m:{cost:0,speed:0,ctx:0,risk:0}, note:"predict the next token, left to right" },
     { v:"diff",  n:"Diffusion", m:{cost:5,speed:22,ctx:-5,risk:14}, note:"denoise the whole line (>1000 tok/s) - still tokens", warn:"diff" },
     { v:"world", n:"World-model", m:{cost:25,speed:-8,ctx:0,risk:30}, note:"predict the world, not the word - the boldest dial", warn:"world" },
@@ -249,6 +249,12 @@ const $ = id => document.getElementById(id);
 const sel = { modality:null, attn:null, train:null, deploy:null, found:null };
 const rc = rough.canvas($("bp"));
 const bpx = $("bp").getContext("2d");
+/* supersample >=2x and poll the pixel ratio on every draw (canvas-crispness rule:
+   browser zoom inside an iframe fires no resize event, so we re-check each time) */
+function crisp(c){ const D=Math.max(2,window.devicePixelRatio||1);
+  if(!c._lw){ c._lw=c.width; c._lh=c.height; }
+  if(c._d!==D){ c._d=D; c.width=c._lw*D; c.height=c._lh*D; }
+  const x=c.getContext("2d"); x.setTransform(D,0,0,D,0,0); return x; }
 
 /* ---- dials ---- */
 $("dials").innerHTML = DIALS.map(d =>
@@ -299,6 +305,7 @@ const BOX = {
   deploy:   { x:448, y:186, w:150, h:60, seed:55, title:"DEPLOYMENT" },
 };
 function drawBlueprint(){
+  crisp($("bp"));
   bpx.clearRect(0,0,620,286);
   // forward-path arrows modality -> attention -> foundation, and training -> attention
   const arrow=(x1,y1,x2,y2,on)=>{ bpx.save(); bpx.strokeStyle=on?"#5b6470":"#2a3038"; bpx.lineWidth=1.4; bpx.setLineDash(on?[]:[4,4]);
@@ -309,7 +316,7 @@ function drawBlueprint(){
   arrow(174,87,236,87, !!sel.modality);
   arrow(386,87,448,87, !!sel.attn);
   arrow(311,186,311,120, !!sel.train);
-  arrow(523,186,523,120, false);
+  arrow(523,186,523,120, !!sel.deploy);
   for (const k in BOX){
     const b=BOX[k], o=optFor(k), on=!!o, col=LANE[k];
     rc.rectangle(b.x,b.y,b.w,b.h, on
@@ -437,7 +444,8 @@ let NM=null,Nparams,Nstep=0,Nema=null,Nlosses=[],Nrunning=false,NwinRng,NgenRng=
 const RUNS={};
 function renderRuns(){$("runs").innerHTML='<span class="runlbl">your runs:</span> '+[["full","Full"],["sparse","Sparse"],["linear","Linear"]].map(function(mn){const m=mn[0],r=RUNS[m];
   if(!r)return '<span class="runchip off">'+mn[1]+': not run yet</span>';
-  return '<span class="runchip'+(m===Nmode?' cur':'')+'">'+mn[1]+': loss '+r.loss.toFixed(2)+' &middot; '+r.ms.toFixed(1)+'ms &middot; KV@1k '+kvSize(m,1000).toLocaleString()+(m==="linear"?" (flat)":m==="sparse"?" (capped)":" (grows)")+'</span>';}).join(" ");}
+  return '<span class="runchip'+(m===Nmode?' cur':'')+'">'+mn[1]+': loss '+r.loss.toFixed(2)+' &middot; '+r.ms.toFixed(1)+'ms &middot; KV@1k '+kvSize(m,1000).toLocaleString()+(m==="linear"?" (flat)":m==="sparse"?" (capped)":" (grows)")+'</span>';}).join(" ")+
+  (Object.keys(RUNS).length? ' <span class="runlbl" style="text-transform:none;letter-spacing:0">ms here is toy-scale (6-token context) - linear\'s bookkeeping only pays off at long context; the meters price that regime</span>':'');}
 function syncTrain(){const b=$("trainBtn");if(Nrunning)return;
   if(sel.attn){b.disabled=false;b.textContent="build & train this "+DIALS[1].opts.find(o=>o.v===sel.attn).n+" design \u25b6";}
   else{b.disabled=true;b.textContent="set the Attention dial to build \u25b6";}}
@@ -455,20 +463,27 @@ function NtrainStep(){const t0=performance.now();let loss=null;
   loss=loss.mul(1/NBAT);for(const p of Nparams)p.grad=0;loss.backward();
   const lr=NLR0*Math.pow(NLRmin/NLR0,Nstep/NMAX);for(const p of Nparams)p.data-=lr*p.grad;
   Nema=Nema===null?loss.data:0.9*Nema+0.1*loss.data;Nstep++;Nlosses.push(Nema);NmsAcc+=performance.now()-t0;NmsN++;}
-function Nloop(){if(!Nrunning)return;const PF=Nmode==="linear"?1:2;for(let k=0;k<PF&&Nstep<NMAX;k++)NtrainStep();
-  drawTLoss();$("tStep").textContent=Nstep;$("tLoss").textContent=Nema.toFixed(3);
-  if(Nstep%12<PF){const out=NM.gen(Nenc("the capital of "),15,0.25,NgenRng);$("tgenOut").textContent=Ndec(out.slice(15)).replace(/\n/g," / ");}
-  if(Nstep>=NMAX){Nrunning=false;finishTrain();return;}requestAnimationFrame(Nloop);}
+function Nloop(){if(!Nrunning)return;
+  try{
+    const PF=Nmode==="linear"?1:2;for(let k=0;k<PF&&Nstep<NMAX;k++)NtrainStep();
+    drawTLoss();$("tStep").textContent=Nstep;$("tLoss").textContent=Nema.toFixed(3);
+    if(Nstep%12<PF){const out=NM.gen(Nenc("the capital of "),15,0.25,NgenRng);$("tgenOut").textContent=Ndec(out.slice(15)).replace(/\n/g," / ");}
+    if(Nstep>=NMAX){Nrunning=false;finishTrain();return;}
+  }catch(e){ /* a dead trainer must never present as silent stillness */
+    Nrunning=false;const x=crisp($("tloss"));x.fillStyle="#fc6255";x.font="11px ui-monospace,monospace";x.textAlign="left";
+    x.fillText("trainer error at step "+Nstep+": "+String(e).slice(0,50),24,18);x.fillText("(please report this line)",24,34);
+    $("trainBtn").textContent="trainer crashed - see the loss panel";return;}
+  requestAnimationFrame(Nloop);}
 function finishTrain(){syncTrain();const out=NM.gen(Nenc("the capital of "),15,0.2,NgenRng);$("tgenOut").textContent=Ndec(out.slice(15)).replace(/\n/g," / ");
   RUNS[Nmode]={loss:Nema,ms:NmsAcc/Math.max(1,NmsN)};renderRuns();drawVerdict();$("guideLine").textContent=guideText();}
-function drawTLoss(){const c=$("tloss"),x=c.getContext("2d"),W=c.width,H=c.height,pad=22;x.clearRect(0,0,W,H);
+function drawTLoss(){const c=$("tloss"),x=crisp(c),W=c._lw,H=c._lh,pad=22;x.clearRect(0,0,W,H);
   x.strokeStyle="#2a3038";x.lineWidth=1;x.beginPath();x.moveTo(pad,6);x.lineTo(pad,H-14);x.lineTo(W-6,H-14);x.stroke();
   if(Nlosses.length<2){x.fillStyle="#5b6470";x.font="10px ui-monospace,monospace";x.textAlign="left";x.fillText("press build & train",pad+8,H/2);return;}
   const mx=Math.max.apply(null,Nlosses),mn=Math.min.apply(null,Nlosses),rg=Math.max(0.2,mx-mn);
   const X=i=>pad+i/(Nlosses.length-1)*(W-pad-6),Y=v=>6+(1-(v-mn)/rg)*(H-20);
   x.strokeStyle="#58c4dd";x.lineWidth=1.8;x.beginPath();Nlosses.forEach((v,i)=>{const xx=X(i),yy=Y(v);i?x.lineTo(xx,yy):x.moveTo(xx,yy);});x.stroke();
   x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText(mx.toFixed(1),2,Y(mx)+3);x.fillText(mn.toFixed(1),2,Y(mn)+3);}
-function drawKV(hl){const c=$("tkv"),x=c.getContext("2d"),W=c.width,H=c.height,pad=26;x.clearRect(0,0,W,H);
+function drawKV(hl){const c=$("tkv"),x=crisp(c),W=c._lw,H=c._lh,pad=26;x.clearRect(0,0,W,H);
   x.strokeStyle="#2a3038";x.lineWidth=1;x.beginPath();x.moveTo(pad,8);x.lineTo(pad,H-16);x.lineTo(W-6,H-16);x.stroke();
   const Tmax=48,ymax=Tmax*ND,px=T=>pad+(T/Tmax)*(W-pad-8),py=v=>(H-16)-(v/ymax)*(H-26);
   [["full","#fc6255"],["sparse","#58c4dd"],["linear","#83c167"]].forEach(function(mc){const m=mc[0],col=mc[1],on=m===hl;
@@ -476,13 +491,13 @@ function drawKV(hl){const c=$("tkv"),x=c.getContext("2d"),W=c.width,H=c.height,p
     x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign="left";x.fillText(m,px(Tmax)-32,py(kvSize(m,Tmax))+(m==="full"?-3:m==="linear"?12:4));});
   x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText("memory (values)",pad+2,16);x.textAlign="right";x.fillText("context length \u2192",W-8,H-3);x.textAlign="left";}
 function drawVerdict(){const mode=Nmode,ms=(NmsAcc/Math.max(1,NmsN)).toFixed(1),predCtx=Math.round(meterVals().ctx),projFull=(1000*ND).toLocaleString(),proj=kvSize(mode,1000);let line;
-  if(mode==="linear")line="Your <b>Linear</b> attention keeps a <b>fixed</b> state of d&sup2; = "+ND*ND+" values - forever. Full attention would hold "+projFull+" at 1,000 tokens; yours holds <b>"+proj+"</b>. That is F2's <span class=hi>&ldquo;KV cache abolished, not shrunk&rdquo;</span> - in your running model.";
-  else if(mode==="sparse")line="Your <b>Sparse</b> attention reads only the last 3 positions, so memory caps at <b>"+kvSize("sparse",1000)+"</b> values - Full would grow to "+projFull+" at 1,000 tokens. <span class=hi>Reads collapse; storage is capped.</span>";
+  if(mode==="linear")line="Your <b>Linear</b> attention keeps a <b>fixed</b> state of d&sup2; = "+ND*ND+" values - forever. Full attention would hold "+projFull+" at 1,000 tokens; yours holds <b>"+proj+"</b>. That is F2 (attention)'s <span class=hi>&ldquo;KV cache abolished, not shrunk&rdquo;</span> - in your running model.";
+  else if(mode==="sparse")line="Your toy <b>Sparse</b> is a sliding <b>window</b>: it keeps only the last 3 positions, so its memory caps at <b>"+kvSize("sparse",1000)+"</b> values. Real 2026 sparse (DeepSeek V4's learned indexer) is different - <span class=hi>reads collapse, but storage survives</span>: the indexer needs the whole cache to rank it (F2 attention, F7 atlas).";
   else line="Your <b>Full</b> attention stores every past token ("+ND+" values each), growing without limit - <b>"+projFull+"</b> at 1,000 tokens. Exact, but it <span class=hi>pays for every token</span> (MiniMax M2's bet).";
   const bill=mode==="full"?"~"+(100*kvSize("full",1000)).toLocaleString()+" values live and still climbing":mode==="linear"?"a flat "+(100*ND*ND).toLocaleString()+" values, whatever the context":"~"+(100*kvSize("sparse",1000)).toLocaleString()+" values, capped";
-  $("verdict").innerHTML="<b>Measured</b> from the real run: ~"+ms+" ms / train-step, final loss "+Nema.toFixed(2)+".<br>"+line+
+  $("verdict").innerHTML="<b>Measured</b> from the real run: ~"+ms+" ms / train-step, final loss "+Nema.toFixed(2)+". The memory numbers below are <i>computed from the mechanism's formula</i>, not probed from this run.<br>"+line+
     "<br><span style='color:#8a93a0'>The serving bill: that KV must be held for <b>every</b> concurrent user at once - at 100 users, "+bill+". Paying it at real scale is <b style='color:#b6a6ff'>Track 5</b>.</span>"+
-    "<br><span style='color:#6b7480'>F8 predicted a context score of "+predCtx+"/100 for this design - the curve on the left is why.</span>";}
+    "<br><span style='color:#6b7480'>The drafting room predicted a context score of "+predCtx+"/100 for this design - the memory chart above is why.</span>";}
 function setConfig(cfg){DIALS.forEach(function(d){sel[d.key]=cfg?cfg[d.key]:null;
   document.querySelectorAll('.opt[data-dial="'+d.key+'"]').forEach(function(o){const on=o.dataset.v===sel[d.key];
     o.classList.toggle("on",on);o.style.background=on?LANE[d.key]:"";o.style.borderColor=on?LANE[d.key]:"";});});update();}

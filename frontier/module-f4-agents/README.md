@@ -38,9 +38,10 @@ it - and what does "the orchestration is trained" actually mean?
 - **mechanism (14 steps, 3 acts):** act 1 computes Tongyi's leave-one-out
   advantage on a toy trajectory group (each attempt judged against the
   OTHERS' mean, live). Act 2 computes why serial collapse happens and how
-  reward shaping fixes it (wall-clock arithmetic, labeled illustrative-
-  mechanism); the swarm drawn live. Act 3: the plumbing (dated), the
-  trained-vs-scripted ledger, the attack map.
+  reward shaping fixes it (wall-clock arithmetic, labeled "the mechanism,
+  simplified"); the swarm drawn live. Act 3: the plumbing (dated), the
+  trained-vs-scripted ledger, and the finale - the trained loop running on
+  its own.
 
 ## The aha
 Your course-1 code was not wasted - it was the CURRICULUM. The loop you

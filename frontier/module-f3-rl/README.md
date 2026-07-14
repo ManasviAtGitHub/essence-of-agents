@@ -34,16 +34,19 @@ tidy pipeline?
 
 ## See it (no key)
 `widgets/reward-everywhere/index.html` - two passes:
-- **intuition (7 steps):** M6's pipeline returns, then gets invaded stage by
-  stage; rewards outgrow the verifier; the V4 twist; the aha.
-- **mechanism (15 steps, 3 acts):** act 1 recomputes GRPO's advantage on a
-  toy group, then computes Dr.GRPO's length-bias fix on two wrong answers
-  (per-token penalty 10x apart) and states what each other descendant fixes.
-  Act 2 computes the invasion: RLP's information-gain reward on one token
-  (log-ratio, live) and TTRL's majority vote -> pseudo-rewards (live);
-  agentic mid-training dated. Act 3 computes one on-policy-distillation
-  token grade (student samples, teacher's log-ratio correction) and closes
-  with rubric rewards + the attack map.
+- **intuition (7 steps):** a school fable - the robot Cortex learns to talk.
+  First it only copies; then a teacher scores the final drills; then the
+  scoring spreads - live, at the very start, into a brand-new middle class -
+  until every phase of its schooling is graded. That is the aha.
+- **mechanism (15 steps, 3 acts):** act 1 computes GRPO's advantage as
+  geometry (each answer's distance from the class average, in std-widths),
+  then Dr.GRPO's length-bias fix on two wrong answers (-0.020 vs -0.002 per
+  word, live) and the zoo of named descendants. Act 2 spreads the score:
+  RLP's information-gain reward (log(0.42/0.15), live) and TTRL's majority
+  vote -> pseudo-rewards (live), with the school phases mapped to pipeline
+  stages on screen. Act 3 computes one on-policy-distillation word grade,
+  merges drilled specialists into one student, and closes with rubric
+  rewards + the schooling scored throughout. Exhibit stamps date each act.
 
 ## The aha
 "Post-training" is dying as a phrase. Reward is becoming an ingredient

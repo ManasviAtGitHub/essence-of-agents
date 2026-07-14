@@ -21,9 +21,10 @@ escapes - and what does each predict instead of the next token?
 2. **World models (change the TARGET).** Predict the next FRAME of a world, given
    the past frames and your action: `p(frame t+1 | frames so far, action)`. The
    "token" is now a frame - and you can steer it.
-3. **JEPA (change the target AND generate nothing).** Encode the world to a gist
-   and predict the next gist; the loss lives in representation space, and no pixels
-   are ever drawn. Understanding without generating.
+3. **JEPA (Joint-Embedding Predictive Architecture - predict in representation
+   space, not pixels): change the target AND generate nothing.** Encode the world
+   to a gist and predict the next gist; the loss lives in representation space,
+   and no pixels are ever drawn. Understanding without generating.
 
 **The honest counter (rule 12):** this same year, images, audio and actions all
 BECAME tokens (F1, F5); the best image generator is autoregressive (tokens beating
@@ -38,7 +39,8 @@ is a **bet**, currently winning, and now seriously contested for the first time.
   Jan 2026); Cosmos 3 (Jun 2026) unifies simulation + reasoning + action; Sora 2
   (Sep 2025) as a passive world simulator.
 - **The institutional bet against tokens:** LeCun exits Meta (Nov 2025) -> AMI
-  Labs, $1.03B seed (Mar 2026), V-JEPA lineage, "predict in representation space";
+  Labs (LeCun's Advanced Machine Intelligence startup), $1.03B seed (Mar 2026),
+  V-JEPA lineage, "predict in representation space";
   World Labs Marble + $1B (Feb 2026), the world as a persistent 3D structure.
   Roughly $2B wagered against next-token prediction.
 - **The counter-exhibit:** the frontier image generator is autoregressive (~1,290

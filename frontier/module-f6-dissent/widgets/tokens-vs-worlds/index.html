@@ -38,7 +38,7 @@ who never speaks in tokens - it predicts the <b>world</b>.</p>
 
 <div class="modes">
   <button class="modebtn on" data-mode="int">intuition (Cortex meets Somni)</button>
-  <button class="modebtn" data-mode="mech">mechanism (word vs world, computed)</button>
+  <button class="modebtn" data-mode="mech">mechanism (word vs world, step by step)</button>
   <span class="modehint">toy sentence + falling-ball physics hand-authored (labeled); dates and $ are narrative color</span>
 </div>
 
@@ -350,28 +350,28 @@ new p5(function(p){
 
 /* ===== captions ===== */
 const CAPS_INT=[
-["Every skill you have watched Cortex learn - reading, talking, looping, moving - runs on one move: predict the next token. That single bet is the foundation under all of it. In 2026, about two billion dollars of new labs bet the foundation is wrong.","cortex","neutral","One move, under everything I do."],
-["Meet Somni. Ask them both what happens when a ball rolls off a table. Cortex predicts the next WORD - the token 'falls'. Somni never speaks: it closes its eyes and shows the whole scene - the ball arcing down and landing. A word, versus a world.","somni","dream","...i don't say it. i see it."],
-["Escape 1 changes HOW you write. Cortex writes left to right, one token at a time. The diffusion rival starts from pure noise and sharpens the WHOLE line at once - same words, no left-to-right. That parallelism can make it much faster.","bit","think","Two ways to write the same line."],
-["Escape 2 changes WHAT you predict: not the next word, the next FRAME of a world. Steer it and it dreams the next frame from the last - it never read a physics engine, it learned the world from watching video. This is Somni's home.","somni","happy","step in - i'll dream where you go."],
-["Escape 3 goes furthest: predict, but generate NOTHING you can see. Encode the world to a gist - a handful of numbers - and predict the next gist. Understanding without painting a single pixel. (LeCun's bet.)","somni","think","the idea of what happens - not the picture."],
-["So the debate. Same falling ball. Cortex hands you a token: 'falls'. Somni hands you a world: the ball landing. Both are right - but is 'the next token' the true foundation, or a clever shortcut around actually understanding the world?","cortex","reach","Is my word enough - or do I need her world?"],
-["The honest other side: this SAME year, Cortex's token bet kept winning. Images, audio, and actions all BECAME tokens (F1, F5). Even the best image generator is a token model, and most diffusion models are converted from token models. The incumbent is strong.","bit","happy","The token loop keeps eating the menu."],
-["The aha: 'predict the next token' was never physics - it is a bet. Currently winning, and for the first time seriously contested. You now hold both arguments: one loop that turns everything into tokens, and a rival that predicts the world itself.","bit","neutral","Not a law - a bet, with a real challenger."]];
+["Every skill you have watched Cortex learn - reading, talking, looping, moving - runs on one move: predict the next token. In 2026, about two billion dollars of new labs bet that foundation is wrong.","cortex","neutral","One move, under everything I do."],
+["Meet Somni: ask both what happens when a ball rolls off a table. Cortex predicts the next WORD - the token 'falls' - while Somni never speaks: its bubble shows the whole scene, a WORLD.","somni","dream","(Somni's bubble: the ball rolls off, arcs, lands.)"],
+["Escape 1 changes HOW you write: Cortex goes left to right, one token at a time. The diffusion rival sharpens the WHOLE line from noise at once - no left-to-right, so it can be much faster.","bit","think","Two ways to write the same line."],
+["Escape 2 changes WHAT you predict: not the next word, the next FRAME of a world. Steer it and it dreams each frame from the last - learned from watching video, never a physics engine.","somni","happy","(Somni walks its own dream; the world forms ahead.)"],
+["Escape 3 goes furthest - JEPA (Joint-Embedding Predictive Architecture - predict in representation space, not pixels). Encode the world to a gist, predict the next gist, and generate nothing you can see (LeCun's bet).","cortex","think","Somni predicts the gist - a few numbers, no picture."],
+["The debate, on the same falling ball: Cortex hands you a token ('falls'), Somni a world (the ball landing). Both are right - but is next-token the true foundation, or a shortcut around understanding?","cortex","reach","Is my word enough - or do I need its world?"],
+["The honest other side: this SAME year, images, audio and actions all BECAME tokens - see F1 (tokens) and F5 (the body). Even the best image generator is a token model, and most diffusion models are converted from token models.","bit","happy","The token loop keeps eating the menu."],
+["The aha: 'predict the next token' was never physics - it is a bet, currently winning and now seriously contested for the first time. You hold both arguments: one loop that turns everything into tokens, and a rival that predicts the world itself.","bit","neutral","Not a law - a bet, with a real challenger."]];
 const CAPS_MECH=[
-["Autoregression - the loop under F1 through F5. Predict one token from everything before it, lock it in, then predict the next. Six words is six steps, strictly in order. High quality, but sequential.","cortex","read","One word, then the next, then the next."],
+["Autoregression, the loop under F1 (tokens) through F5 (the body): predict one token from everything before it, lock it in, then predict the next. Six words is six steps - strictly in order, high quality, sequential.","cortex","read","One word, then the next, then the next."],
 ["The diffusion rival starts the opposite way: the whole sentence at once, every position pure noise. Nothing is written left to right - it is all present, just unreadable.","bit","think","Start with everything, blurred."],
-["Then it denoises in parallel: each refinement step sharpens ALL positions together. A few passes - here four - and the noise resolves into words. Steps, not word-count.","bit","read","Sharpen the whole line at once."],
-["The trade, in toy numbers: autoregression takes six sequential steps; diffusion takes about four parallel refinements. Fewer, parallel passes mean far faster (Mercury 2 reports >1000 tok/s). The cost: it may have to revise, and can wobble.","bit","neutral","Faster - if you can revise."],
-["But note what did NOT change: diffusion still predicts TOKENS - same menu, same target, just a different order. Many diffusion LLMs are literally converted from token models. Escape 1 bends the loop; it does not leave it.","cortex","happy","Still my tokens - just shuffled."],
-["Escape 2 swaps the target. Instead of the next word, predict the next FRAME of a world, given the past frames and your action. Same next-thing loop - the 'token' is now a frame.","somni","dream","the next thing i predict is a world."],
-["Play it. Every step, the model takes the last frame plus your steering and dreams the next one. Genie became a consumer product this year. (A toy cartoon here - a real one dreams the pixels.)","somni","happy","move, and i draw where you go."],
+["Then it denoises in parallel: each refinement step sharpens ALL positions together. A few passes - here four - and the noise resolves into words; the bill scales with steps, not word-count.","bit","read","Sharpen the whole line at once."],
+["The trade, in toy numbers: autoregression takes six sequential steps; diffusion about four parallel refinements, so far faster (Mercury 2 reports >1000 tok/s). The cost: it may have to revise, and can wobble.","bit","neutral","Faster - if you can revise."],
+["But what did NOT change: diffusion still predicts TOKENS - same menu, same target, just a different order - and many diffusion LLMs are literally converted from token models. Escape 1 bends the loop; it does not leave it.","cortex","happy","Still my tokens - just shuffled."],
+["Escape 2 swaps the target: predict the next FRAME of a world, given the past frames and your action. Same next-thing loop - the 'token' is now a frame.","cortex","think","Somni swaps my word for a frame."],
+["Play it: every step, the model takes the last frame plus your steering and dreams the next one. Genie became a consumer product this year (a toy cartoon here - a real one dreams the pixels).","somni","happy","(Somni walks the dream; each frame predicted ahead.)"],
 ["The catch: predicting every pixel spends enormous effort on detail that barely matters - each leaf, each speck of grain. A lot of paint for the gist.","bit","think","Most pixels are not the point."],
-["So JEPA predicts the LATENT, not the pixels: encode both frames to a gist, predict the future gist, and put the loss THERE - in representation space. It generates nothing. V-JEPA plans robot moves this way.","somni","think","predict the meaning, skip the picture."],
+["JEPA (Joint-Embedding Predictive Architecture) predicts in representation space: encode both frames to a gist, predict the future gist, and put the loss THERE - no pixels. It generates nothing; V-JEPA plans robot moves this way.","cortex","think","Somni predicts meaning; not one pixel is drawn."],
 ["Line them up: predict the word, predict it out of order, predict the world's frame, predict the world's gist. Four bets on what 'predict the next ___' should mean.","bit","neutral","One blank, four ways to fill it."],
-["The incumbent's case: one loop, one menu. Words, images, audio, actions - all became tokens this year (F1, F5). Simple, unified, and it keeps winning at the other camps' games.","cortex","reach","One loop to predict them all."],
-["The dissent's case: a token model can predict the word 'falls' without ever understanding gravity - a world model must get the world right. The bet is real: LeCun left Meta for a world-model lab, roughly $2B backing the idea that tokens are a dead end.","somni","think","a word can hide what a world cannot."],
-["No winner - the field has not called it (rule 12). Done when you can name the three escapes, say what each predicts instead of the next token, and give the strongest argument FOR tokens. Verified as of 2026-07.","bit","happy","Two live hypotheses - and you hold both."]];
+["The incumbent's case: words, images, audio and actions all became tokens this year - F1 (tokens), F5 (the body). One loop, one menu - and it keeps winning at the other camps' games.","cortex","reach","One loop to predict them all."],
+["The dissent's case: a token model can predict the word 'falls' without ever understanding gravity - a world model must get the world right. The bet is real: LeCun left Meta for a world-model lab, roughly $2B backing the idea that tokens are a dead end.","somni","think","(Somni's bubble: the whole fall - nothing hidden.)"],
+["No winner - the field has not called it (rule 12); verified as of 2026-07. Done when you can name the three escapes, what each predicts instead of the next token, and the strongest argument FOR tokens.","bit","happy","Two live hypotheses - and you hold both."]];
 const MECH_ACTS=[["writing: L-to-R vs all-at-once",5],["predicting a world",5],["the argument",3]];
 
 let tl=null;
@@ -381,7 +381,7 @@ function render(i){
   caption.textContent=c[0]; react(c[1],c[2],c[3]);
   insight.className="insight";
   insight.innerHTML = MODE==="int"
-    ? (i>=7?"<b>The aha:</b> next-token prediction is a bet, not a law - and now seriously contested. Switch to <b>mechanism</b> to compute word-vs-world."
+    ? (i>=7?"<b>The aha:</b> next-token prediction is a bet, not a law - and now seriously contested. Switch to <b>mechanism</b> to walk word-vs-world step by step."
           :"One idea: <b>three escapes from 'predict the next token, left to right' - reorder it (diffusion), retarget it to a world (world models), or predict only its gist (JEPA) - against a token loop that keeps winning.</b>")
     : (i<=4?"Act 1: <b>same sentence, two ways to write it</b> - left-to-right tokens vs denoise-all-at-once. Faster, but still tokens."
       : i<=9?"Act 2: <b>predict a world, not a word</b> - frames as tokens (world models), or the gist in latent space (JEPA - generate nothing)."

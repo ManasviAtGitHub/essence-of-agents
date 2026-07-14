@@ -4,9 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>The loop gets a body</title>
-<!-- Frontier F5. Verified as of 2026-07. Toy wave/DCT coefficients + Hz numbers
-     hand-authored (labeled); token counts illustrative. Rule 12: the two-speed
-     argument (actions-as-tokens vs continuous control) is taught, not a winner. -->
+<!-- Frontier F5. Verified as of 2026-07. Toy wave/DCT coefficients hand-authored
+     (labeled); Hz figures are the vendors' own (see README); token counts
+     illustrative. Rule 12: the two-speed argument (actions-as-tokens vs
+     continuous control) is taught, not a winner. -->
 <link rel="stylesheet" href="../../../../assets/theme.css" />
 <style>
   body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
@@ -37,7 +38,7 @@ is a <b>camera</b>. The chip you have followed slots into a robot - and its outp
 <div class="modes">
   <button class="modebtn on" data-mode="int">intuition (Cortex gets a body)</button>
   <button class="modebtn" data-mode="mech">mechanism (frame -> motor, computed)</button>
-  <span class="modehint">toy wave + Hz numbers hand-authored (labeled); token counts illustrative</span>
+  <span class="modehint">toy wave hand-authored (labeled); Hz figures are the vendors' own (see README); the clock animation is illustrative</span>
 </div>
 
 <div id="canvas" aria-label="Cortex embodied in a robot; actions become tokens"></div>
@@ -131,7 +132,7 @@ new p5(function(p){
     if(upto>=2){ for(let i=0;i<KEPT;i++){ const x=560+i*70;
       p.fill(24,30,38); p.stroke("#ffd35c"); p.strokeWeight(1.2); p.rect(x,py-12,58,26,6);
       p.noStroke(); p.fill("#ffd35c"); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text("act #"+(i+1),x+29,py+1); }
-      if(showN){ p.fill("#83c167"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); p.text("a 1-second motion = ~"+TOK1S+" tokens",640,py+52); } }
+      if(showN){ p.fill("#83c167"); p.textSize(10); p.textAlign(p.CENTER,p.BASELINE); p.text(KEPT+" kept per joint x 2 joints -> ~"+TOK1S+" tokens / second",640,py+52); } }
     p.pop(); }
   function arrowR(x1,y,x2,yy){ p.line(x1,y,x2,yy); p.noStroke(); p.fill("#3a4350"); p.triangle(x2+8,yy,x2,yy-5,x2,yy+5); p.stroke("#3a4350"); }
   /* the growing menu: words, image, audio, ACTIONS */
@@ -274,7 +275,7 @@ new p5(function(p){
       if(k2===0){ waveTokens(0,false);
         p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("a joint's path over one second - smooth, continuous. too big to store raw.",CW/2,300); }
       if(k2===1){ waveTokens(1,false);
-        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("DCT rewrites the wave as a few numbers; keep the big "+KEPT+", drop the tiny ones (FAST).",CW/2,300); }
+        p.noStroke(); p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("DCT rewrites the wave as a few numbers; keep the big "+KEPT+", drop the tiny ones - FAST (Physical Intelligence, Apr 2026).",CW/2,300); }
       if(k2===2){ waveTokens(2,true);
         p.noStroke(); p.fill("#83c167"); p.textSize(11); p.textAlign(p.CENTER); p.text("snap each to a codebook + BPE-merge -> discrete tokens. ~"+TOK1S+" per second (toy).",CW/2,300); }
       if(k2===3){ for(let i=0;i<KEPT;i++){ const x=140+i*70; p.fill(24,30,38); p.stroke("#ffd35c"); p.strokeWeight(1.2); p.rect(x,150,58,26,6);
@@ -296,10 +297,12 @@ new p5(function(p){
         cortexChip(CW/2,110,1.0); p.noStroke(); p.fill("#58c4dd"); p.textSize(10); p.textAlign(p.CENTER); p.text("Cortex: thinks in tokens, "+HZT+" Hz - WHAT to do",CW/2,148);
         p.stroke("#83c167"); p.strokeWeight(1.4); p.line(CW/2,158,CW/2,186); p.noStroke(); p.fill("#83c167"); p.triangle(CW/2,194,CW/2-6,184,CW/2+6,184);
         p.fill(20,30,22); p.stroke("#83c167"); p.strokeWeight(1.3); p.rect(CW/2-150,200,300,34,8); p.noStroke(); p.fill("#83c167"); p.textSize(10.5); p.textAlign(p.CENTER,p.CENTER); p.text("a continuous policy: MOVES, "+HZM+" Hz - HOW to move",CW/2,217);
-        p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("this is Figure Helix's design: slow tokens on top, a fast policy below.",CW/2,278); }
+        p.fill("#cdd3da"); p.textSize(11); p.textAlign(p.CENTER); p.text("this is Figure Helix's design (Feb 2025 -> production): slow tokens on top, a fast policy below.",CW/2,278); }
       if(k3>=3){ p.push(); p.textAlign(p.CENTER); p.noStroke();
         p.fill("#fc6255"); p.textSize(11); p.text("ACTIONS ARE TOKENS", 280, 120); p.fill("#98a2b0"); p.textSize(9.5); p.text("(pi-0.7 + FAST: one stream,", 280, 140); p.text("one model does everything)", 280, 156);
+        p.fill("#5b6470"); p.textSize(8.5); p.text("pi-0.7 (Physical Intelligence, Apr 2026)", 280, 172);
         p.fill("#83c167"); p.textSize(11); p.text("KEEP MOTION CONTINUOUS", 640, 120); p.fill("#98a2b0"); p.textSize(9.5); p.text("(Helix: tokens can't move a", 640, 140); p.text("motor smoothly at speed)", 640, 156);
+        p.fill("#5b6470"); p.textSize(8.5); p.text("Figure Helix (Feb 2025 -> production)", 640, 172);
         p.stroke("#3a4350"); p.strokeWeight(1); p.line(CW/2,110,CW/2,175); p.noStroke();
         p.fill("#e9ebee"); p.textSize(11.5); p.text("no winner declared - the field has not (rule 12).", CW/2, 210);
         p.fill("#98a2b0"); p.textSize(10.5); p.text("done when: trace one camera frame to one motor command, and say where tokens end and continuous control begins.", CW/2, 250); p.pop(); }
@@ -324,7 +327,7 @@ const CAPS_MECH=[
 ["Now watch the whole trace run live: one camera frame -> tokens -> Cortex -> action tokens -> joint angles - and the arm actually reaches, grasps, and places the cube. That is a VLA.","cortex","happy","One frame in, a real motion out."],
 ["Zooming into an action: a joint's path over one second is a smooth wave. Continuous, and too big to store raw.","bit","read","A wiggle, in full."],
 ["DCT rewrites the wave as a few numbers; keep the big three, drop the tiny ones. That compression is what FAST does.","bit","read","Most of a wave is noise."],
-["Snap each to a codebook and BPE-merge -> discrete tokens: ~6 for a second of motion (toy). M1's exact algorithm, on a motor.","cortex","happy","My arm has a vocabulary."],
+["Snap each to a codebook and BPE-merge -> discrete tokens: 3 kept per joint x 2 joints is ~6 a second (toy). M1's exact algorithm, on a motor.","cortex","happy","My arm has a vocabulary."],
 ["And it is reversible: the tokens rebuild the wave, and the arm follows it back out. Prediction in, movement out.","cortex","reach","I read my own motion back."],
 ["The action vocabulary grows straight out of M1's menu - not a new brain, just a bigger table of tokens.","bit","neutral","A wider menu, same diner."],
 ["Cortex's think-clock: token by token it can decide about 7 times a second. Fine for choosing WHAT to do.","bit","read","Seven decisions a second."],

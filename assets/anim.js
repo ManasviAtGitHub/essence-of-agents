@@ -88,7 +88,7 @@
       '<button class="scrub-btn" data-a="next" title="Step forward" aria-label="Step forward">&#9654;&#9654;</button>' +
       '<input class="scrub-range" type="range" min="0" max="' + (tl.length - 1) + '" value="0" aria-label="Step" />' +
       '<span class="scrub-count" aria-live="polite"></span>' +
-      '<span class="scrub-note" title="This is a simulation. The numbers are illustrative -- chosen to make the mechanism clear, not measured from a real run.">illustrative</span>';
+      '<span class="scrub-note" title="This is a scripted simulation. Each step labels which numbers are computed live and which are illustrative anchors.">simulation</span>';
     var range = container.querySelector(".scrub-range");
     var count = container.querySelector(".scrub-count");
     var play = container.querySelector('[data-a="toggle"]');

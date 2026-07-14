@@ -111,7 +111,7 @@ const LESSONS = {
   "F2 - Attention unchained": { q:"Track 3 said attention must compare against everything and remember everything. The 2026 flagships do neither. How?",
     aha:"Three positions in a live argument. SPARSE: a cheap learned indexer ranks every past token, exact attention reads only the top-k (NSA -> DSA -> V4; reads collapse, storage survives until compression). LINEAR: replace the growing KV with a fixed-size state folded forward - O(1) memory, but the state must forget (DeltaNet -> KDA -> Qwen3.5). THE DISSENT: MiniMax M2 went BACK to full attention after hybrids degraded multi-hop reasoning at scale. No winner declared - the field has not declared one. Verified as of 2026-07." },
   "F1 - Everything becomes a token": { q:"The model only reads tokens. How is it suddenly looking at photos and answering with pictures?",
-    aha:"The menu grows through two doors. IN: images are cut into patches and PROJECTED into the same vector space as word embeddings (not a menu lookup - attention treats them like any h). OUT: to emit images or speech the menu literally grows - a learned CODEBOOK the model samples autoregressively (for sound, QUANTIZATION snaps each ~20ms frame to its nearest entry). And the names are wiring diagrams, not species: ViT -> CLIP -> VLM (eye + projector + LLM) -> native (seam removed) -> VLA (actions out). Verified as of 2026-07." },
+    aha:"The menu grows through two doors. IN: images are cut into patches and PROJECTED into the same vector space as word embeddings (not a menu lookup - attention treats them like any h). OUT: to emit images or speech the menu literally grows - a learned CODEBOOK the model samples autoregressively (for sound, QUANTIZATION snaps each ~20ms frame to its nearest entry - and the Omni recipe runs speech IN through that same menu). And the names are wiring diagrams, not species: ViT -> CLIP -> VLM (eye + projector + LLM) -> native (seam removed) -> VLA (actions out). Verified as of 2026-07." },
 };
 
 const side=document.getElementById("side"), frame=document.getElementById("frame"),
@@ -124,7 +124,7 @@ const flat=[]; NAV.forEach(g=>g.items.forEach(it=>flat.push({...it, module:g.m})
 side.innerHTML =
   '<div class="brand"><span class="chr" data-c="cortex" data-e="reach"></span><span class="bt">Essence of the Frontier<span class="dot">.</span></span></div>' +
   '<a class="homelink" href="../index.html">&larr; all tracks</a>' +
-  '<div class="gnote" style="padding:6px 18px">Track 4 - every 2026 headline, mapped to a principle you own. Verified as of 2026-07; exhibits age, the mapping does not. Modules land one by one.</div>' +
+  '<div class="gnote" style="padding:6px 18px">Track 4 - every 2026 headline, mapped to a principle you own. Verified as of 2026-07; exhibits age, the mapping does not. All eight modules are live.</div>' +
   NAV.map(g=>'<div class="group"><div class="gh">'+g.m+'</div>'+
     g.items.map(it=>'<button class="navlink" data-src="'+it.src+'">'+it.label+'</button>').join("")+'</div>').join("") +
   '<a class="tolink" href="../models/index.html"><b>&larr; Inside the Model</b><span class="sub2">the principles these exhibits attack</span></a>' +

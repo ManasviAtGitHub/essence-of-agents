@@ -36,15 +36,17 @@ HOW. Actions-as-tokens has limits.
 
 ## See it (no key)
 `widgets/embodied-loop/index.html` - two passes:
-- **intuition (7 steps):** the chip slots into a body; course-1's loop embodied
+- **intuition (8 steps):** the chip slots into a body; course-1's loop embodied
   (see -> think -> move -> observe); the puzzle (a motor takes angles, not words);
   the reveal (a motion chopped into tokens - M1's tokenizer on a motor); the menu
-  grows an ACTIONS row; the two-speed catch; the aha.
+  grows an ACTIONS row; how it learns the moves (imitation, then reward); the
+  two-speed catch; the aha.
 - **mechanism (14 steps, 3 acts):** act 1 traces one camera frame -> patch tokens
   -> Cortex + goal -> action tokens -> joint angles -> the arm moves. Act 2
-  computes the tokenizer: a 1-second wave -> DCT (keep the big 3) -> ~6 BPE
-  tokens, reversibly. Act 3 is the two speeds: Cortex's ~7Hz think-clock vs a
-  ~200Hz motion clock, the Helix two-speed stack, and the live argument.
+  computes the tokenizer: a 1-second wave -> DCT (keep the 3 largest per
+  joint; two joints -> ~6 BPE tokens), reversibly. Act 3 is the two speeds:
+  Cortex's ~7Hz think-clock vs a ~200Hz motion clock, the Helix two-speed
+  stack, and the live argument.
 
 ## The aha
 Course 1's loop and track 3's tokens converge in a robot: the loop is the body's

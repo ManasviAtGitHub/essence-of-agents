@@ -178,7 +178,7 @@ new p5(function(p){
       page({flash:flash});
       answerRow(wi,120);
       meterBar("page reads PER WORD written", NWORDS, NWORDS, "words re-read, every time", 170, "#fc6255");
-      stampEx("full attention - M2/M3, unchanged", 620, 230);
+      stampEx("full attention - track 3's M2/M3, unchanged", 620, 230);
     }
     if(k===1){ // SPARSE skim: spotlight stamps margin scores
       const seen=Math.floor(prog(0,110)*8);
@@ -191,7 +191,7 @@ new p5(function(p){
       page({gold:TOP3, dim:LINES.map((_,i)=>i).filter(i=>TOP3.indexOf(i)<0), margins:U});
       answerRow(wi,120);
       meterBar("page reads PER WORD written", TOPWORDS, NWORDS, "of 56 - only the gold lines", 170, "#ffd35c");
-      stampEx("this move = DSA . Sep 25 (top-2048 of 131,072)", 620, 230);
+      stampEx("this move = DSA, DeepSeek Sparse Attention . Sep 25 (top-2048 of 131,072)", 620, 230);
     }
     if(k===3){ // LINEAR: read once -> notes; overwrites (loops with a hold)
       const cyc=(p.frameCount-stepStart)%(8*38+150);
@@ -230,7 +230,7 @@ new p5(function(p){
     }
     if(k===6){ p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
       p.text("same page, same question - three prices, three risks.", CW/2, 330);
-      p.text("2026 split exactly this way: full (M2) . sparse (DeepSeek) . linear (Qwen3.5)", CW/2, 352); p.pop(); }
+      p.text("2026 split exactly this way: full (MiniMax M2) . sparse (DeepSeek) . linear (Qwen3.5)", CW/2, 352); p.pop(); }
   }
 
   /* ---- MECHANISM: 14 steps, 3 acts - open EVERYTHING ---- */
@@ -287,8 +287,8 @@ new p5(function(p){
         p.push(); p.stroke("#3a4350"); p.line(630,140,890,140);
         TL.forEach((d,i)=>{ const x=644+i*58; p.noStroke(); p.fill(i===3?"#ffd35c":"#58c4dd"); p.circle(x,140,7);
           p.textAlign(p.CENTER); p.textSize(8.5); p.fill("#cdd3da"); p.text(d[0],x,124); p.fill("#5b6470"); p.text(d[1],x,158); p.stroke(0); });
-        p.noStroke(); p.fill("#ffd35c"); p.textSize(9); p.textAlign(p.CENTER); p.text("V4: 27% FLOPs . 10% KV",760,180);
-        p.fill("#fc6255"); p.textSize(9.5); p.text("new bottleneck: the indexer -> IndexShare (2.9x)",760,204); p.pop(); }
+        p.noStroke(); p.fill("#ffd35c"); p.textSize(9); p.textAlign(p.CENTER); p.text("V4: ~27% FLOPs . ~10% KV (DeepSeek's numbers)",760,180);
+        p.fill("#fc6255"); p.textSize(9.5); p.text("new bottleneck: the indexer -> GLM's IndexShare (their ~2.9x)",760,204); p.pop(); }
     } else if(k<=10){ // ACT 2: the notebook, opened
       const k2=k-5;
       question(Q1);
@@ -395,9 +395,9 @@ new p5(function(p){
         p.triangle(ox+pw+14,oy,ox+pw+5,oy-5,ox+pw+5,oy+5);
         p.triangle(ox,top-14,ox-5,top-5,ox+5,top-5);
         p.fill("#98a2b0"); p.textSize(9.5); p.textAlign(p.LEFT);
-        p.text("READS / new token  (M2's n^2 bill) ->", ox+2, oy+22);
+        p.text("READS / new token  (track 3 M2's n^2 bill) ->", ox+2, oy+22);
         p.push(); p.translate(ox-30,(oy+top)/2); p.rotate(-p.HALF_PI); p.textAlign(p.CENTER,p.CENTER);
-        p.text("STORAGE  (M3's KV bill) ->", 0, 0); p.pop();
+        p.text("STORAGE  (track 3 M3's KV bill) ->", 0, 0); p.pop();
         // the two escapes, drawn as dashed attack arrows leaving FULL
         const fx=PX(56),fy=PY(56),sx=PX(21),sy=PY(56),lx=PX(4),ly=PY(4);
         function atk(x1,y1,x2,y2,c,lab){ p.stroke(c); p.strokeWeight(1.3);
@@ -437,7 +437,7 @@ const CAPS_INT=[
 ["SPARSE, part 1: a cheap indexer skims once, scoring every line in the margin.","bit","reach","One skim, eight scores."],
 ["SPARSE, part 2: only the 3 gold lines get read per word now. 21 words instead of 56.","cortex","happy","I read the dog-eared pages only."],
 ["LINEAR: read the page ONCE, keeping 4 notes. Slots fill... then OVERWRITE - watch 'red umbrella' get evicted.","bit","think","The notebook cannot grow. Something must go."],
-["New question: 'What color was it?' The note is gone. Cortex guesses from what survived - wrong.","cortex","panic","I... had that. It got overwritten."],
+["New question: 'What color was it?' The note is gone - all that survived is 'rain' and 'wind', so Cortex guesses a weather color. Wrong.","cortex","panic","I... had that. It got overwritten."],
 ["Three receipts: same page, three highlight patterns, three prices, three risks.","bit","neutral","Pick your bill."],
 ["The aha: n^2 and the KV bill were choices. 2026 split exactly this way.","bit","happy","The rules are being renegotiated."]];
 const CAPS_MECH=[
@@ -445,7 +445,7 @@ const CAPS_MECH=[
 ["ONE score, opened both ways: the arithmetic (0.72 + 0.48 = 1.20) AND the geometry - the score IS the gold shadow k3 casts onto q*. Line 5 casts almost none.","bit","read","The dot product is a shadow. Long shadow, high rank."],
 ["Same arithmetic, all 8 lines, stamped live as the skim passes.","bit","read","Eight dot products. You could do them."],
 ["Top-3 kept: 21 words of 56. At scale: 2,048 of 131,072 (~1.6%).","cortex","happy","Same me, new glasses."],
-["The lineage, dated - and the catch: the indexer itself becomes the bottleneck (IndexShare fixes the fix).","bit","read","Then the scout needed a scout."],
+["The lineage: NSA -> DSA (DeepSeek's sparse-attention line) -> V4. The catch: the indexer becomes the bottleneck - GLM's IndexShare fixes the fix.","bit","read","Then the scout needed a scout."],
 ["The reveal: the notebook's words were the METAPHOR. The machine is a fixed matrix S - notes get smeared into numbers.","bit","reach","Time to open the notebook's real pages."],
 ["One fold, every cell: line 1's k x v^T lands as four multiplications. Then the line is discarded.","bit","read","The line leaves; four numbers remain."],
 ["Lines 2 and 3 fold in - cells ADD. Values change; size never does.","cortex","happy","A million lines? Still four cells."],
@@ -453,8 +453,8 @@ const CAPS_MECH=[
 ["WHY notebooks forget, mechanically: S00 = 3, but whose 3? Line 1 gave 2, line 3 gave 1 - the sum remembers neither. Addition is lossy; gating chooses what it sacrifices.","bit","think","Forgetting is not a bug. It is a plus sign."],
 ["Scale-up, honestly: the 2x2 toy IS linear attention; real states are ~128x128 per head. The arithmetic you checked is the whole idea.","bit","happy","You just audited a flagship's memory."],
 ["Reads vs storage, drawn: two different bills. Sparse cuts reads; linear deletes the cache.","bit","neutral","Different bills - never conflate them."],
-["The retreat: M2's notebook design failed multi-hop questions at scale -> back to full (Oct 25).","cortex","confused","Evidence moves positions."],
-["Attack map: M2's n^2 and M3's KV bill, attacked from two sides. No winner declared.","bit","happy","Ask the two questions that matter."]];
+["The retreat: MiniMax's earlier hybrids (notebook layers) failed multi-hop at scale - their M2 model went back to full (Oct 25).","cortex","confused","Evidence moves positions."],
+["Attack map: track 3's two bills - M2's n^2 reads, M3's KV storage - attacked from two sides. No winner declared.","bit","happy","Ask the two questions that matter."]];
 const MECH_ACTS=[["the indexer, opened",5],["the notebook, opened",6],["the argument",3]];
 
 let tl=null;

@@ -80,13 +80,11 @@ always; structure tests apply.
   insides (it reacts to each operation); F5 gives Cortex a BODY (the chip
   slots into a small robot torso - an outfit/variant, not a new character);
   F6 confronts Cortex with a rival way of thinking.
-- **Cortex's cousins (cast.js VARIANTS, not new characters):** the rival
-  designs. Same chip DNA, different builds - a sparse cousin (goggles: looks
-  at only a few things), a linear cousin (streamlined; a small fixed-size
-  backpack instead of a growing KV sack), a blurry diffusion cousin that
-  sharpens as it thinks. The capstone reveal = your design walking up to
-  stand beside its nearest cousin. Mini-Cortex swarms (M4 precedent) return
-  for PARL.
+- **Cortex's cousins - CUT.** Early drafts planned cast.js variants of Cortex
+  (a sparse cousin, a linear cousin, a blurry diffusion cousin) as the rival
+  designs; they were never built - the rival designs are carried by the F8
+  (capstone) preset stars and warning cards instead. Mini-Cortex swarms (M4
+  precedent) do return, as the helper-Cortex team in F4 (agents).
 - **SOMNI - the one new character (debuts F6).** From Latin somnium, dream
   (nod to the Dreamer world-model papers). Cloud-soft body, eyes closed.
   DESIGN RULE: Somni never uses a speech bubble - it shows a small WORLD in
@@ -129,12 +127,18 @@ always; structure tests apply.
   Sep 2025 -> Kimi KDA Oct 2025 -> Qwen3.5 flagship Feb 2026). THE DISSENT:
   MiniMax M2 (Oct 2025) went BACK to full attention - hybrids degraded
   multi-hop reasoning at scale. Teach the argument (rule 12).
-- Build: the M3 cache visual returns; sparse = a spotlight index sweeping
-  the past (p5), the indexer's own cost as the new bottleneck (IndexShare);
-  linear = the KV sack replaced by a fixed backpack (cousin variant debuts);
-  D3 chart: KV bytes vs context for full/sparse/linear, computed from
-  primary numbers (V4: ~10% of V3.2's KV; KDA: 75% reduction). Act 3 = the
-  M2 retreat, presented straight.
+- Build (as shipped): ONE page-stage fable - an actual 8-line page, read
+  three ways. Intuition: full attention re-reads the whole page for every
+  word written; sparse = a cheap indexer skims once and scores the margin,
+  then only the top-3 gold lines get read; linear = the page folds, line by
+  line, into a small fixed notebook (a live 2x2 state) that must OVERWRITE -
+  the learner watches "red umbrella" get evicted, then miss the question.
+  Mechanism opens every number: keys drawn AS arrows (3b1b-style vector
+  panels; the dot product as a shadow cast onto q*), all eight scores
+  stamped live, the fold into the state matrix S cell by cell, and why
+  addition forgets. Then the dated lineage (NSA -> DSA -> V4; IndexShare as
+  the fix to the fix), the reads-vs-storage bills, the M2 retreat presented
+  straight, and the attack-map close.
 - Aha: the n^2 wall and the KV bill were never laws - they were choices, and
   2026 is the year the field split three ways on them.
 - Done when: given context length and a design (full/sparse-k/linear), the
@@ -152,10 +156,17 @@ always; structure tests apply.
   twist: DeepSeek-V4 (Jun 2026) - GRPO trains SPECIALISTS, on-policy
   distillation fuses them ("RL makes the teachers, distillation makes the
   model" - M7+M8 merged).
-- Build: M6's four-stage pipeline diagram returns, then gets INVADED - RL
-  seeps left and right (p5 flow); D3 sankey of the V4 pipeline (specialists
-  -> distill fusion) with primary token counts; GRPO-zoo table with the flaw
-  each fixes (live toy advantage computation extended from M7's widget).
+- Build (as shipped): a school fable on one p5 stage. Intuition: the robot
+  first COPIES (imitation), then a teacher SCORES its drills at the end -
+  and then the scoring escapes its stage: graded live mid-conversation,
+  graded at the very start, a whole new class added in the middle, until
+  every phase is scored. Mechanism: act 1 opens the scoring rule (five
+  answers to one question, advantage = (score - mean)/std computed live, the
+  ramble flaw and its fix, the zoo debugged flaw by flaw, scaling laws);
+  act 2 spreads the score (a thought-before-token reward computed, majority-
+  vote self-grading live, the teacher marking word by word); act 3
+  industrializes it (specialists drilled then distilled into one student,
+  rubric rewards and how a checklist gets gamed).
 - Aha: "post-training" is dying as a phrase - reward is becoming an
   ingredient, not a stage.
 - Done when: the learner can place RLP / mid-training / GRPO / TTRL on a
@@ -171,10 +182,16 @@ always; structure tests apply.
   to ~100 sub-agents, what to delegate ("serial collapse" as the named
   failure). Plumbing standardized underneath: MCP -> Agentic AI Foundation
   (Dec 2025), A2A v1.0 signed agent identity (Apr 2026).
-- Build: course 1's loop-cycle visual returns, then the script FADES and the
-  same choreography re-emerges from a reward signal (p5); PARL = mini-Cortex
-  swarm spawning (D3 force graph of orchestrator + workers, live task
-  decomposition); act 3 = serial collapse, shown then fixed.
+- Build (as shipped): a fading-script loop on one p5 stage. Intuition:
+  course 1's hand-written loop runs, then the SCRIPT FADES and the same
+  choreography re-runs from learned habits; running tests emerges from
+  reward; Cortex learns to be a manager spawning a helper-Cortex team, with
+  the lazy-manager failure shown; the handshake and the sandbox stay code.
+  Mechanism: act 1 grades four full journeys with no teacher (leave-one-out
+  advantages computed live, one grade stamping a whole journey, self-
+  invented tasks); act 2 trains only the manager and computes serial
+  collapse vs delegation (time 8 / reward 0.60 vs time 2 / 0.90); act 3
+  draws the line - verbs in weights, walls in code.
 - Aha: the loop you built by hand is now a thing models LEARN - your course-1
   code was the curriculum.
 - Done when: the learner can say what is trained vs scripted in a 2026 agent
@@ -246,30 +263,38 @@ Antigravity, Cowork, benchmark numbers - all labeled per rule 11).
   stages, GRPO variant, rubric rewards, distill-fusion), deployment (F4:
   single agent / trained swarm), foundation (F6: AR tokens / diffusion /
   world-model bet - the boldest dial).
-- Build (the three-layer stack in full): Rough.js blueprint table - the
-  model starts as pencil sketch, each committed dial INKS that subsystem in;
-  each dial choice fires a short p5 choreography of the mechanism chosen;
-  D3 meters (cost / speed / context / capability risk) recompute live from
-  PRIMARY numbers only (V4 27% FLOPs, KDA 6x decode, PARL 4.5x wall-clock,
-  MSA 1/20 compute at 1M - each cited on hover); and the D3 CONSTELLATION:
-  real 2026 models as labeled stars in design space, your design a glowing
-  dot that drifts as you turn dials. THE REVEAL: your dot settles beside its
-  nearest star - "you just designed ~Qwen3.5" - with the real model card
-  cited, and the matching cousin walks on stage. Warnings are exhibits: pick
-  linear attention and the M2-retreat card appears; pick rubric rewards and
-  the reward-hacking card appears (rule 12 as gameplay).
-- Two closing beats: (1) THE SERVING BILL - your design's KV-per-user and
-  batch economics, computed from YOUR dial choices, with the door: "paying
-  this bill is Track 5." (2) READ THE FRONTIER WITHOUT US - three fresh
-  headlines drop (from the atlas feed); the learner drags each onto the
-  attack map. Pass = the track achieved its purpose.
+- Build (as shipped): Rough.js blueprint table - the model starts as pencil
+  sketch, each committed dial INKS that subsystem in. D3 meters (cost /
+  speed / context / capability risk) recompute live from the dials; meter
+  deltas are hand-authored and illustrative (rule 11), and the anchor
+  figures on hover (V4 27% FLOPs, KDA 6x decode, PARL 4.5x wall-clock, MSA
+  1/20 compute at 1M) are the labs' own claims, not measured. The D3
+  CONSTELLATION: real 2026 models as labeled stars in design space, your
+  design a glowing dot that drifts as you turn dials. THE REVEAL: your dot
+  settles beside its nearest star - "you just designed ~Qwen3.5" - with the
+  real model card cited; presets let you load MiniMax M2 / Qwen3.5 /
+  DeepSeek V4 directly. Warnings are counter-exhibits: pick linear attention
+  and the M2-retreat card appears; pick rubric rewards and the
+  reward-hacking card appears (rule 12 as gameplay). Bit guides the room.
+- The closing beat (as shipped): RUN THE MODEL YOU DESIGNED - a real
+  ~900-weight transformer (nanomodel, in JS) built from the Attention dial
+  trains live in the browser; loss and ms are MEASURED, the memory-vs-
+  context curve is computed from each mechanism's formula; swap the dial and
+  train again to compare. The verdict includes THE SERVING BILL - your
+  design's KV held for every concurrent user - with the door: "paying this
+  bill is Track 5."
+- Future polish (not built): cast theatre - cousin variants walking on
+  stage, Cortex reacting to each dial, Somni waiting at the foundation
+  dial - and a READ THE FRONTIER WITHOUT US beat where three fresh headlines
+  drop from the atlas feed and the learner drags each onto the attack map.
 - Aha: you can rebuild the frontier from principles - which means next
   year's frontier is already readable.
-- Done when: the learner can defend their design's tradeoffs against a
-  cousin's design, and correctly place an unseen headline on the attack map.
-- Cast: Bit at the drafting table (the architect arc completes); Cortex as
-  the model being designed, reacting to each dial; cousins as rivals; Somni
-  waiting at the foundation dial.
+- Done when: the learner can defend their design's tradeoffs against its
+  nearest star's design, and correctly place an unseen headline on the
+  attack map.
+- Cast: Bit as the guide at the drafting table (the architect arc
+  completes); the rival designs appear as preset stars and warning cards
+  (the cousins were cut - see the cast section).
 
 ## Layout & build order
 

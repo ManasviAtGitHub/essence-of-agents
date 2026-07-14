@@ -73,8 +73,8 @@ the babble sharpens into words.</p>
 the model is embed &rarr; one causal attention head &rarr; MLP &rarr; logits (<code>model.py</code>); training is
 a random window, cross-entropy against the next token, <code>backward()</code>, then SGD (<code>train.py</code>) -
 about 900 weights on a two-line corpus. Real models are this <i>exact</i> math, scaled a trillion-fold. Nothing
-leaves your browser. <b>Next:</b> F8's dials pick which version of this runs - full/sparse/linear attention,
-autoregressive vs diffusion - so you design a model and then actually run it.</p>
+leaves your browser. <b>Next:</b> the F8 drafting room's Attention dial picks which version of this runs - full, sparse
+or linear attention - so you design a model and then actually run it.</p>
 
 <script>
 /* ================== autograd engine (autograd.py, in JS) ================== */
@@ -194,7 +194,7 @@ function regen(babble){
   document.getElementById("genOut").textContent=text;
   document.getElementById("genNote").textContent = babble
     ? 'before training, the next token is a coin-flip over characters - pure babble.'
-    : (ema!==null && ema<1.0 ? 'it learned the pattern: "capital of" leads to france / spain, then paris / madrid. A ~900-weight toy slurs the words - but this IS the autoregressive loop.'
+    : (ema!==null && ema<1.0 ? 'it learned the shape: after "capital of" come country and city words - france, paris, madrid. A 6-character window cannot bind country to capital, so the toy slurs - but this IS the autoregressive loop.'
                              : 'the shape is emerging: common letters first, then whole words.');
 }
 function updateReadout(){
@@ -203,8 +203,14 @@ function updateReadout(){
   document.getElementById("rTrend").textContent = (first!==null&&ema!==null) ? "("+first.toFixed(2)+" \u2192 "+ema.toFixed(2)+")" : "";
 }
 const cv=document.getElementById("loss"), cx=cv.getContext("2d");
+/* supersample >=2x, re-checked every draw (zoom in an iframe fires no resize event) */
+function crisp(c){ const D=Math.max(2,window.devicePixelRatio||1);
+  if(!c._lw){ c._lw=c.width; c._lh=c.height; }
+  if(c._d!==D){ c._d=D; c.width=c._lw*D; c.height=c._lh*D; }
+  const x=c.getContext("2d"); x.setTransform(D,0,0,D,0,0); return x; }
 function drawLoss(){
-  cx.clearRect(0,0,cv.width,cv.height); const W=cv.width,H=cv.height,pad=26;
+  crisp(cv);
+  const W=cv._lw,H=cv._lh,pad=26; cx.clearRect(0,0,W,H);
   cx.strokeStyle="#2a3038"; cx.lineWidth=1; cx.beginPath(); cx.moveTo(pad,6); cx.lineTo(pad,H-18); cx.lineTo(W-6,H-18); cx.stroke();
   if(losses.length<2){ cx.fillStyle="#5b6470"; cx.font="11px ui-monospace,monospace"; cx.fillText("press train",pad+10,H/2); return; }
   const mx=Math.max.apply(null,losses), mn=Math.min.apply(null,losses), rng=Math.max(0.2,mx-mn);
@@ -217,10 +223,15 @@ function drawLoss(){
 const MAX=1300, PER_FRAME=1, GEN_EVERY=10;
 function loop(){
   if(!running) return;
-  for(let k=0;k<PER_FRAME && step<MAX;k++) trainStep();
-  drawLoss(); updateReadout();
-  if(step%GEN_EVERY < PER_FRAME) regen(step<20);
-  if(step>=MAX){ running=false; document.getElementById("run").textContent="done \u2713"; document.getElementById("run").disabled=true; regen(false); return; }
+  try{
+    for(let k=0;k<PER_FRAME && step<MAX;k++) trainStep();
+    drawLoss(); updateReadout();
+    if(step%GEN_EVERY < PER_FRAME) regen(step<20);
+    if(step>=MAX){ running=false; document.getElementById("run").textContent="done \u2713"; document.getElementById("run").disabled=true; regen(false); return; }
+  }catch(e){ /* a dead trainer must never present as silent stillness */
+    running=false; const x=crisp(cv); x.fillStyle="#fc6255"; x.font="11px ui-monospace,monospace"; x.textAlign="left";
+    x.fillText("trainer error at step "+step+": "+String(e).slice(0,50), 28, 20); x.fillText("(please report this line)", 28, 36);
+    document.getElementById("run").textContent="crashed - see the loss panel"; return; }
   requestAnimationFrame(loop);
 }
 document.getElementById("run").onclick=function(){
