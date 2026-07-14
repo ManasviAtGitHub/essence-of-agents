@@ -78,10 +78,10 @@ const RES = {
 };
 /* each trick: which resource, its effect on the state, and the receipt line */
 const TRICKS = [
-  { id:"gqa",  name:"GQA",          mod:"M2", res:"mem",   tt:"share KV heads",         buys:"KV memory 500 -> 32 GB (8x)" },
-  { id:"mla",  name:"MLA",          mod:"M5", res:"mem",   tt:"compress K,V to a latent", buys:"KV memory -> 9 GB (~57x vs MHA)" },
-  { id:"moe",  name:"MoE",          mod:"M4", res:"flops", tt:"wake a few experts",     buys:"compute/token 100% -> ~15% active" },
-  { id:"mtp",  name:"MTP",          mod:"M5", res:"speed", tt:"draft + verify a 2nd token", buys:"decode ~1 -> ~1.9 tokens/pass" },
+  { id:"gqa",  name:"GQA",          mod:"M2", res:"mem",   tt:"Grouped-Query Attention - share KV heads",         buys:"KV memory 500 -> 32 GB (8x)" },
+  { id:"mla",  name:"MLA",          mod:"M5", res:"mem",   tt:"Multi-head Latent Attention - compress K,V to a latent", buys:"KV memory -> 9 GB (~57x vs MHA)" },
+  { id:"moe",  name:"MoE",          mod:"M4", res:"flops", tt:"Mixture of Experts - wake a few experts",     buys:"compute/token 100% -> ~15% active" },
+  { id:"mtp",  name:"MTP",          mod:"M5", res:"speed", tt:"Multi-Token Prediction - draft + verify a 2nd token", buys:"decode ~1 -> ~1.9 tokens/pass" },
   { id:"quant",name:"Quantize int4",mod:"M8", res:"bytes", tt:"4 bits per weight",       buys:"model bytes / 4" },
   { id:"distil",name:"Distill 7B",  mod:"M8", res:"bytes", tt:"copy the mind, smaller",  buys:"70B -> 7B student (10x fewer params)" },
 ];
