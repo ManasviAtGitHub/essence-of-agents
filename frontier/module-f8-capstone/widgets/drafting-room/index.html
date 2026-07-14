@@ -558,7 +558,7 @@ function drawVerdict(){const v=$("verdict");if(!v)return;
   if(!allSet()){v.innerHTML='Set <b>Attention</b> + <b>Foundation</b> to preview the cost curves; all five dials to price the whole design.';return;}
   const km=kvMode(),fw=foundMode();
   const compute=CFACT.modality[sel.modality]*CFACT.reason[sel.train];
-  const workers=SERVE[sel.deploy].n, thru=workers*THRU[fw];
+  const workers=SERVE[sel.deploy].n, thru=workers*THRU[sel.found];  // world-model is a costly rollout (0.7x), distinct from AR
   const memWord=km==="linear"?"stays <b>flat</b> (a fixed notebook)":sel.attn==="sparse"?"is <b>capped</b> (a window)":"<b>grows</b> with every token";
   const passWord=fw==="diff"?"stay ~<b>flat</b> (parallel rounds)":"<b>grow</b> one per token";
   const bill=(100*kvSize(km,1000)).toLocaleString();
