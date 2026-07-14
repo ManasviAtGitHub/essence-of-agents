@@ -437,16 +437,16 @@ let NM=null,Nparams,Nstep=0,Nema=null,Nlosses=[],Nrunning=false,NwinRng,NgenRng=
 const RUNS={};
 function renderRuns(){$("runs").innerHTML='<span class="runlbl">your runs:</span> '+[["full","Full"],["sparse","Sparse"],["linear","Linear"]].map(function(mn){const m=mn[0],r=RUNS[m];
   if(!r)return '<span class="runchip off">'+mn[1]+': not run yet</span>';
-  return '<span class="runchip'+(m===Nmode?' cur':'')+'">'+mn[1]+': loss '+r.loss.toFixed(2)+' · '+r.ms.toFixed(1)+'ms · KV@1k '+kvSize(m,1000).toLocaleString()+(m==="linear"?" (flat)":m==="sparse"?" (capped)":" (grows)")+'</span>';}).join(" ");}
+  return '<span class="runchip'+(m===Nmode?' cur':'')+'">'+mn[1]+': loss '+r.loss.toFixed(2)+' &middot; '+r.ms.toFixed(1)+'ms &middot; KV@1k '+kvSize(m,1000).toLocaleString()+(m==="linear"?" (flat)":m==="sparse"?" (capped)":" (grows)")+'</span>';}).join(" ");}
 function syncTrain(){const b=$("trainBtn");if(Nrunning)return;
-  if(sel.attn){b.disabled=false;b.textContent="build & train this "+DIALS[1].opts.find(o=>o.v===sel.attn).n+" design ▶";}
-  else{b.disabled=true;b.textContent="set the Attention dial to build ▶";}}
+  if(sel.attn){b.disabled=false;b.textContent="build & train this "+DIALS[1].opts.find(o=>o.v===sel.attn).n+" design \u25b6";}
+  else{b.disabled=true;b.textContent="set the Attention dial to build \u25b6";}}
 function buildAndTrain(){if(!sel.attn||Nrunning)return;
   Nmode=kvMode();NM=new NModel(NCH.length,NBLK,ND,NHID,1337,Nmode);
   Nparams=NM.p();Nstep=0;Nema=null;Nlosses=[];NwinRng=nrng(1337);NgenRng=nrng(7);NmsAcc=0;NmsN=0;Nrunning=true;
-  const b=$("trainBtn");b.disabled=true;b.textContent="training …";
-  $("tAttn").textContent=Nmode+(sel.attn==="hybrid"?" (hybrid→linear)":"");
-  $("verdict").innerHTML="<span style='color:#6b7480'>training the model you designed, live …</span>";
+  const b=$("trainBtn");b.disabled=true;b.textContent="training \u2026";
+  $("tAttn").textContent=Nmode+(sel.attn==="hybrid"?" (hybrid\u2192linear)":"");
+  $("verdict").innerHTML="<span style='color:#6b7480'>training the model you designed, live &hellip;</span>";
   $("guideLine").textContent="Training your design - real backprop, live in the browser. Watch the loss fall on the left.";
   drawKV(Nmode);requestAnimationFrame(Nloop);}
 function NtrainStep(){const t0=performance.now();let loss=null;
@@ -474,9 +474,9 @@ function drawKV(hl){const c=$("tkv"),x=c.getContext("2d"),W=c.width,H=c.height,p
   [["full","#fc6255"],["sparse","#58c4dd"],["linear","#83c167"]].forEach(function(mc){const m=mc[0],col=mc[1],on=m===hl;
     x.strokeStyle=on?col:col+"3a";x.lineWidth=on?2.4:1.1;x.beginPath();for(let T=1;T<=Tmax;T++){const xx=px(T),yy=py(kvSize(m,T));T===1?x.moveTo(xx,yy):x.lineTo(xx,yy);}x.stroke();
     x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign="left";x.fillText(m,px(Tmax)-32,py(kvSize(m,Tmax))+(m==="full"?-3:m==="linear"?12:4));});
-  x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText("memory (values)",pad+2,16);x.textAlign="right";x.fillText("context length →",W-8,H-3);x.textAlign="left";}
+  x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText("memory (values)",pad+2,16);x.textAlign="right";x.fillText("context length \u2192",W-8,H-3);x.textAlign="left";}
 function drawVerdict(){const mode=Nmode,ms=(NmsAcc/Math.max(1,NmsN)).toFixed(1),predCtx=Math.round(meterVals().ctx),projFull=(1000*ND).toLocaleString(),proj=kvSize(mode,1000);let line;
-  if(mode==="linear")line="Your <b>Linear</b> attention keeps a <b>fixed</b> state of d² = "+ND*ND+" values - forever. Full attention would hold "+projFull+" at 1,000 tokens; yours holds <b>"+proj+"</b>. That is F2's <span class=hi>“KV cache abolished, not shrunk”</span> - in your running model.";
+  if(mode==="linear")line="Your <b>Linear</b> attention keeps a <b>fixed</b> state of d&sup2; = "+ND*ND+" values - forever. Full attention would hold "+projFull+" at 1,000 tokens; yours holds <b>"+proj+"</b>. That is F2's <span class=hi>&ldquo;KV cache abolished, not shrunk&rdquo;</span> - in your running model.";
   else if(mode==="sparse")line="Your <b>Sparse</b> attention reads only the last 3 positions, so memory caps at <b>"+kvSize("sparse",1000)+"</b> values - Full would grow to "+projFull+" at 1,000 tokens. <span class=hi>Reads collapse; storage is capped.</span>";
   else line="Your <b>Full</b> attention stores every past token ("+ND+" values each), growing without limit - <b>"+projFull+"</b> at 1,000 tokens. Exact, but it <span class=hi>pays for every token</span> (MiniMax M2's bet).";
   const bill=mode==="full"?"~"+(100*kvSize("full",1000)).toLocaleString()+" values live and still climbing":mode==="linear"?"a flat "+(100*ND*ND).toLocaleString()+" values, whatever the context":"~"+(100*kvSize("sparse",1000)).toLocaleString()+" values, capped";
@@ -491,7 +491,7 @@ document.querySelector(".presets").addEventListener("click",function(e){const b=
 function guideText(){const n=Object.values(sel).filter(Boolean).length;
   if(n===0)return "Start here - turn each of the five dials below (one per module), or load a real design above.";
   if(n<5)return n+" of 5 dials set. Finish the rest - then you can build & train your design for real.";
-  if(Nstep===0)return "Design complete - you built ~"+nearest(coords(sel)).name+". Now go to “run the model you designed” below and press build & train.";
+  if(Nstep===0)return "Design complete - you built ~"+nearest(coords(sel)).name+". Now go to \u201crun the model you designed\u201d below and press build & train.";
   return "Trained! Now flip the Attention dial (try Linear vs Full) and train again - watch the memory chart change. That is F2's lesson, measured.";}
 $("trainBtn").onclick=buildAndTrain;
 syncTrain();drawTLoss();drawKV(kvMode());renderRuns();

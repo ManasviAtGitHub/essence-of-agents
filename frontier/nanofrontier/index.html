@@ -200,7 +200,7 @@ function regen(babble){
 function updateReadout(){
   document.getElementById("rStep").textContent=step;
   document.getElementById("rLoss").textContent = ema===null ? "-" : ema.toFixed(3);
-  document.getElementById("rTrend").textContent = (first!==null&&ema!==null) ? "("+first.toFixed(2)+" → "+ema.toFixed(2)+")" : "";
+  document.getElementById("rTrend").textContent = (first!==null&&ema!==null) ? "("+first.toFixed(2)+" \u2192 "+ema.toFixed(2)+")" : "";
 }
 const cv=document.getElementById("loss"), cx=cv.getContext("2d");
 function drawLoss(){
@@ -220,16 +220,16 @@ function loop(){
   for(let k=0;k<PER_FRAME && step<MAX;k++) trainStep();
   drawLoss(); updateReadout();
   if(step%GEN_EVERY < PER_FRAME) regen(step<20);
-  if(step>=MAX){ running=false; document.getElementById("run").textContent="done ✓"; document.getElementById("run").disabled=true; regen(false); return; }
+  if(step>=MAX){ running=false; document.getElementById("run").textContent="done \u2713"; document.getElementById("run").disabled=true; regen(false); return; }
   requestAnimationFrame(loop);
 }
 document.getElementById("run").onclick=function(){
   if(step>=MAX) return;
-  running=!running; this.textContent=running?"pause ‖":"train ▶"; this.classList.toggle("go",!running);
+  running=!running; this.textContent=running?"pause \u2016":"train \u25b6"; this.classList.toggle("go",!running);
   if(running) requestAnimationFrame(loop);
 };
 document.getElementById("reset").onclick=function(){
-  running=false; const b=document.getElementById("run"); b.textContent="train ▶"; b.classList.add("go"); b.disabled=false; initModel();
+  running=false; const b=document.getElementById("run"); b.textContent="train \u25b6"; b.classList.add("go"); b.disabled=false; initModel();
 };
 initModel();
 </script>
