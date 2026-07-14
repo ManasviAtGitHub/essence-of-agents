@@ -25,7 +25,21 @@
          + '<line x1="' + (x2 - 9) + '" y1="' + (y - t) + '" x2="' + (x2 + 9) + '" y2="' + (y + t) + '" stroke="' + INK + '" stroke-width="3" stroke-linecap="round"/>';
   }
 
-  function cortex(e) {
+  /* Cousin variants (F8 capstone): the same Cortex chip re-tinted per attention
+     bet, with one distinguishing accessory. Single-source rule: variants live
+     HERE, widgets request them via data-v. */
+  var COUSIN = {
+    full:   { c: "#fc6255", fill: "#3a1d1c",
+              badge: '<rect x="26" y="88" width="20" height="4" rx="2" fill="#fc6255"/><rect x="26" y="82" width="20" height="4" rx="2" fill="#fc6255" opacity=".75"/><rect x="26" y="76" width="20" height="4" rx="2" fill="#fc6255" opacity=".5"/>' }, // the ever-growing cache, carried proudly
+    sparse: { c: "#ffd35c", fill: "#3a3112",
+              badge: '<circle cx="72" cy="58" r="17" fill="none" stroke="#ffd35c" stroke-width="2.5"/><line x1="84" y1="70" x2="92" y2="78" stroke="#ffd35c" stroke-width="2.5" stroke-linecap="round"/>' }, // the indexer's scout lens
+    linear: { c: "#83c167", fill: "#1c3018",
+              badge: '<rect x="24" y="76" width="16" height="18" rx="2" fill="#0f1216" stroke="#83c167" stroke-width="2"/><line x1="27" y1="82" x2="37" y2="82" stroke="#83c167" stroke-width="1.6"/><line x1="27" y1="87" x2="37" y2="87" stroke="#83c167" stroke-width="1.6"/>' }, // the fixed notebook
+    hybrid: { c: "#83c167", fill: "#1c3018",
+              badge: '<circle cx="60" cy="20" r="4" fill="#ffd35c"/>' } // linear body, a few full-attention layers up top
+  };
+
+  function cortex(e, v) {
     var M = {
       neutral:  { dx: 0, dy: 2, mouth: '<path d="M50,80 Q60,86 70,80" fill="none" stroke="' + DK + '" stroke-width="3" stroke-linecap="round"/>', brow: null, x: "" },
       think:    { dx: 5, dy: -4, mouth: '<line x1="52" y1="82" x2="66" y2="82" stroke="' + DK + '" stroke-width="3" stroke-linecap="round"/>', brow: -3, x: '<text x="96" y="30" font-size="16" fill="' + BL + '">?</text>' },
@@ -36,12 +50,13 @@
       confused: { dx: -5, dy: 0, mouth: '<path d="M50,82 q6,-6 10,0 q4,6 10,0" fill="none" stroke="' + DK + '" stroke-width="3" stroke-linecap="round"/>', brow: 4, x: '<text x="94" y="30" font-size="18" fill="' + BL + '">?</text>' }
     }[e] || {};
     var ey = M.style === "happy" ? eyes(48, 72, 58, 10, 0, 0, "happy") : eyes(48, 72, 58, 12, M.dx || 0, M.dy || 0, M.style);
+    var VC = COUSIN[v], C = VC ? VC.c : BL, FILL = VC ? VC.fill : "#12303a";
     return '<svg viewBox="0 0 120 120">'
-      + '<rect x="18" y="26" width="84" height="74" rx="20" fill="#12303a" stroke="' + BL + '" stroke-width="3"/>'
-      + '<line x1="18" y1="50" x2="8" y2="50" stroke="' + BL + '" stroke-width="3" stroke-linecap="round"/><line x1="18" y1="76" x2="8" y2="76" stroke="' + BL + '" stroke-width="3" stroke-linecap="round"/>'
-      + '<line x1="102" y1="50" x2="112" y2="50" stroke="' + BL + '" stroke-width="3" stroke-linecap="round"/><line x1="102" y1="76" x2="112" y2="76" stroke="' + BL + '" stroke-width="3" stroke-linecap="round"/>'
-      + '<circle cx="60" cy="20" r="4" fill="' + BL + '"/><line x1="60" y1="24" x2="60" y2="26" stroke="' + BL + '" stroke-width="3"/>'
-      + (M.brow != null ? brows(48, 72, 40, M.brow) : "") + ey + M.mouth + M.x + '</svg>';
+      + '<rect x="18" y="26" width="84" height="74" rx="20" fill="' + FILL + '" stroke="' + C + '" stroke-width="3"/>'
+      + '<line x1="18" y1="50" x2="8" y2="50" stroke="' + C + '" stroke-width="3" stroke-linecap="round"/><line x1="18" y1="76" x2="8" y2="76" stroke="' + C + '" stroke-width="3" stroke-linecap="round"/>'
+      + '<line x1="102" y1="50" x2="112" y2="50" stroke="' + C + '" stroke-width="3" stroke-linecap="round"/><line x1="102" y1="76" x2="112" y2="76" stroke="' + C + '" stroke-width="3" stroke-linecap="round"/>'
+      + '<circle cx="60" cy="20" r="4" fill="' + C + '"/><line x1="60" y1="24" x2="60" y2="26" stroke="' + C + '" stroke-width="3"/>'
+      + (M.brow != null ? brows(48, 72, 40, M.brow) : "") + ey + M.mouth + M.x + (VC ? VC.badge : "") + '</svg>';
   }
 
   function bit(e) {
@@ -81,7 +96,9 @@
 
   function render(root) {
     (root || document).querySelectorAll(".chr").forEach(function (s) {
-      s.innerHTML = (s.dataset.c === "bit" ? bit : s.dataset.c === "somni" ? somni : cortex)(s.dataset.e || "neutral");
+      s.innerHTML = s.dataset.c === "bit" ? bit(s.dataset.e || "neutral")
+        : s.dataset.c === "somni" ? somni(s.dataset.e || "neutral")
+        : cortex(s.dataset.e || "neutral", s.dataset.v);
     });
   }
 

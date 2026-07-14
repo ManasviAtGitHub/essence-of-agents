@@ -283,10 +283,16 @@ Antigravity, Cowork, benchmark numbers - all labeled per rule 11).
   train again to compare. The verdict includes THE SERVING BILL - your
   design's KV held for every concurrent user - with the door: "paying this
   bill is Track 5."
-- Future polish (not built): cast theatre - cousin variants walking on
-  stage, Cortex reacting to each dial, Somni waiting at the foundation
-  dial - and a READ THE FRONTIER WITHOUT US beat where three fresh headlines
-  drop from the atlas feed and the learner drags each onto the attack map.
+- Cast theatre (shipped 2026-07): Cortex IS the design and reacts to each
+  dial with a lesson-tied line; Somni appears at the Foundation dial (stage
+  directions only - it never speaks; "dream" emote on world-model); the
+  nearest star's COUSIN walks into the reveal card defending its bet
+  (rule 12). Cousins are cast.js variants (data-v: full/sparse/linear/
+  hybrid) - single-source, one accessory each (cache stack / scout lens /
+  notebook / gold antenna).
+- Future polish (not built): a READ THE FRONTIER WITHOUT US beat where
+  three fresh headlines drop from the atlas feed and the learner drags each
+  onto the attack map.
 - Aha: you can rebuild the frontier from principles - which means next
   year's frontier is already readable.
 - Done when: the learner can defend their design's tradeoffs against its
