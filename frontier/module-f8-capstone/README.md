@@ -41,9 +41,7 @@ And the capstone's spine is a loop: **design -> predict -> run -> measure.**
 `widgets/drafting-room/index.html` - one page, three layers (Rough.js blueprint,
 D3 sky + meters, a live in-browser trainer). Load a preset (MiniMax M2, Qwen3.5,
 DeepSeek V4) or turn the dials yourself; then train with Full attention, switch
-to Linear, and compare the two runs' memory curves. A companion page,
-`nanofrontier/index.html`, is the trainer on its own - "the models track,
-running in the browser."
+to Linear, and compare the two runs' memory curves.
 
 ## The aha
 You can rebuild the frontier from the principles you own - not just name a model,
