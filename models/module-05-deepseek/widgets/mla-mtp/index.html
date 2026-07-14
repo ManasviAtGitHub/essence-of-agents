@@ -135,6 +135,10 @@ decoding (Module 0's one-pass-per-token loop). Each attacks ONE resource - the s
   <button class="chip attnbtn" data-a="gqa">GQA-8</button>
   <button class="chip attnbtn" data-a="mla">MLA</button>
 </div>
+<div class="modehint" style="margin:-6px 0 12px; line-height:1.55">
+  <b style="color:#b9c0ca">MHA</b> = Multi-Head Attention (every head keeps its own K,V) &middot;
+  <b style="color:#b9c0ca">GQA</b> = Grouped-Query Attention (heads share K,V) &middot;
+  <b style="color:#b9c0ca">MLA</b> = Multi-head Latent Attention (compress K,V into one latent)</div>
 
 <div class="flow" role="group" aria-label="MLA compressing the KV cache, and MTP predicting extra tokens">
   <div class="panel diap" id="diap">
@@ -276,7 +280,7 @@ function renderInt(i) {
   const caps = [
     "Module 3 ended on a wall: the KV cache is the memory cost of looking back, and it scales with layers x heads x head_dim. At DeepSeek-V3's size, dense attention would need ~" + MB(MHA_b) + " of cache PER TOKEN. 128k of that is half a terabyte. So how does V3 serve 128k context?",
     "The cost, drawn: standard multi-head attention stores a full KEY and VALUE for every one of its 128 heads, every token, every layer. That is a lot of boxes to keep.",
-    "Module 2's GQA already trimmed this: share KV heads (say 8 instead of 128). That is a real 16x cut here - but it is still storing per-head keys and values, just fewer of them.",
+    "Module 2's GQA (Grouped-Query Attention) already trimmed this: share KV heads (say 8 instead of 128). That is a real 16x cut here - but it is still storing per-head keys and values, just fewer of them.",
     "MLA - Multi-head Latent Attention - makes a bolder move: do not store per-head K and V at all. Instead, COMPRESS the token's whole key-value content down into one small shared latent vector.",
     "Cache only that latent (dimension 512) plus one tiny key that carries position (64 more). Look at the green bar - next to MHA it is barely visible. Same token, a fraction of the memory.",
     "The trick that makes it work: at read time, the latent is DECOMPRESSED back into per-head keys and values via learned up-projection matrices. You pay a little extra compute to unpack, and save an enormous amount of memory. (And it performs as well as full MHA - not just cheaper.)",
@@ -318,7 +322,7 @@ function resMap(k){
   const cur = k <= 3 ? k : -1;                      // the one this step names
   const TR = [ {n:"GQA (M2)", res:0, how:"share KV heads"},
                {n:"MLA (M5)", res:0, how:"compress K,V to a latent"},
-               {n:"MoE (M4)", res:1, how:"wake few experts"},
+               {n:"MoE (M4)", res:1, how:"Mixture of Experts - wake few experts"},
                {n:"MTP (M5)", res:2, how:"draft + verify tokens"} ];
   const L = [ {lab:"Memory / KV cache", c:"mem"}, {lab:"Compute / FLOPs", c:"comp"}, {lab:"Speed / decode", c:"spd"} ];
   return L.map(function(ln, li){
@@ -425,7 +429,7 @@ function renderMech(i) {
       const map = [
         ["GQA (M2)", "KV-cache memory", "share KV heads"],
         ["MLA (M5)", "KV-cache memory", "compress K,V to a latent"],
-        ["MoE (M4)", "compute per token (FLOPs)", "wake few experts"],
+        ["MoE (M4)", "compute per token (FLOPs)", "Mixture of Experts - wake few experts"],
         ["MTP (M5)", "decode passes (speed)", "draft + verify extra tokens"],
       ];
       mach.innerHTML = '<div class="calc">' + map.slice(0, k + 1).map(m =>
