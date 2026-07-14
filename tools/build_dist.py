@@ -36,6 +36,8 @@ copy_tree(os.path.join(ROOT, "assets"), os.path.join(DIST, "assets"))
 copy_tree(os.path.join(ROOT, "agentic-course"), os.path.join(DIST, "agentic-course"), skip_ext=(".py", ".json"))
 # 3b. the models track (same rules)
 copy_tree(os.path.join(ROOT, "models"), os.path.join(DIST, "models"), skip_ext=(".py", ".json"))
+# 3c. the frontier track (same rules)
+copy_tree(os.path.join(ROOT, "frontier"), os.path.join(DIST, "frontier"), skip_ext=(".py", ".json"))
 # 4. production SITE only: hub + scenes + the stage; NO .py source, providers, or tests
 pdst = os.path.join(DIST, "production")
 os.makedirs(pdst, exist_ok=True)
@@ -54,6 +56,13 @@ for root, _, files in os.walk(DIST):
         if f == ".env" or f.endswith(".py"):
             bad.append(os.path.relpath(os.path.join(root, f), DIST))
 assert not bad, "secret/source leaked into dist: " + ", ".join(bad)
+
+# safety: every door on the launcher must resolve inside dist (a track missing
+# here ships as a live 404 -- exactly how the frontier track went missing once)
+import re
+launcher = open(os.path.join(DIST, "index.html"), encoding="utf-8").read()
+for href in sorted(set(re.findall(r'href="([^"#]+\.html)"', launcher))):
+    assert os.path.exists(os.path.join(DIST, *href.split("/"))), "launcher door 404s in dist: " + href
 
 n = sum(len(fs) for _, _, fs in os.walk(DIST))
 print(f"dist/ built: {n} files, no .env, no .py. Serve dist/ (entry: index.html).")
