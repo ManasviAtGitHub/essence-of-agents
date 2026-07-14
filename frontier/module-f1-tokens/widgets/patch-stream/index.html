@@ -277,6 +277,12 @@ new p5(function(p){
       p.text("ViT (2020): p=16 -> a 224x224 image = 14 x 14 = 196 tokens", 60, 102);
       if(k>=7) p.text("Qwen-VL (2024-25): 14px patches merged 2x2 -> p=28 effective, native resolution", 60, 120);
       p.pop();
+      if(k===6){ /* step 1 only drew the formula - fill the empty canvas: the recipe made visual, a 14x14 patch grid = 196 tokens */
+        p.push(); const gx=363, gy=150, cell=12, gap=2, N=14; p.noStroke();
+        for(let r=0;r<N;r++) for(let c=0;c<N;c++){ p.fill(88,196,221, 34+((r+c)%2)*18); p.rect(gx+c*(cell+gap), gy+r*(cell+gap), cell, cell, 2); }
+        p.textAlign(p.LEFT); p.fill("#98a2b0"); p.textSize(11); p.text("224px / 16px = 14 patches per side", gx, gy-12);
+        p.textAlign(p.CENTER); p.fill("#ffd35c"); p.textSize(13); p.text("14 x 14 = 196 tokens", gx+N*(cell+gap)/2-1, gy+N*(cell+gap)+16);
+        p.pop(); }
       if(k>=7){ lane(30,160,860,60,"AREA IS THE BILL");
         p.push(); p.noStroke(); p.textAlign(p.LEFT);
         [[224,196],[448,784],[896,3136]].forEach((d,i)=>{ p.fill("#ffd35c"); p.textSize(11.5);
