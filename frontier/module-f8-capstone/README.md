@@ -3,8 +3,8 @@
 *Verified as of 2026-07. Exhibits age; the principle does not.*
 
 Seven modules taught you to *read* the frontier. This one has you *build* one.
-Turn a dial per module and design a frontier model - then actually **run the
-model you designed**, live in the browser, and watch its costs come true.
+Turn a dial per module and design a frontier model - then **simulate what the
+model you designed would do and cost**, with every dial live, in the browser.
 
 ## Question
 You have watched every lab make its choices. Can you make yours - one dial per
@@ -28,43 +28,54 @@ And the capstone's spine is a loop: **design -> predict -> run -> measure.**
 - **Predict**: D3 meters price the choice (cost / speed / context / risk); your
   dot drifts through a sky of real 2026 models and settles beside its nearest
   star, with the real model card and a rule-12 warning card for risky dials.
-- **Run**: press *build & train* and a **real ~900-weight transformer** trains
-  in the page - `models/nanomodel` ported to JavaScript (scalar autograd, one
-  causal attention head, next-token SGD). The **Attention dial swaps genuine
-  full / sparse / linear code**, so you run the mechanism you chose.
-- **Measure**: the KV-memory curve is computed from the *real* mechanism - Full
-  grows with every token, Linear stays flat (F2's "KV cache abolished") - which
-  *verifies* the context meter F8 only predicted. The serving bill (KV x context
-  x concurrent users) is the doorway to the next track.
+- **Run**: press *run* and a **deterministic simulation** plays the model handling
+  one request - and **all five dials** shape it. **Modality** sets what goes in and
+  out (text / image+text / +audio+speech / camera+action tokens); **Training** sets
+  the reasoning style (direct / GRPO multi-step / rubric-graded / distilled);
+  **Foundation** sets the write order (autoregressive / diffusion-parallel /
+  world-model rollout); **Attention** sets how context is held; **Deployment** sets
+  the serving shape (one loop / orchestrator + workers).
+- **Measure**: the cost is *computed from each mechanism* (rule 11), not guessed.
+  **Memory** vs context (Attention): Full grows with every token, Linear stays flat
+  (F2's "KV cache abolished"). **Passes** vs length (Foundation): autoregressive
+  grows one pass per token, diffusion holds ~flat. Plus per-query compute (modality
+  x reasoning) and throughput (workers). The serving bill (KV x context x users) is
+  the doorway to the next track.
 
 ## See it (no key)
-`widgets/drafting-room/index.html` - one page, three layers (Rough.js blueprint,
-D3 sky + meters, a live in-browser trainer). Load a preset (MiniMax M2, Qwen3.5,
-DeepSeek V4) or turn the dials yourself; then train with Full attention, switch
-to Linear, and compare the two runs' memory curves.
+`widgets/drafting-room/index.html` - one page, four layers (Rough.js blueprint,
+D3 sky + meters, a simulated behavior card, computed cost charts). Load a preset
+(any of six real 2026 models - or click its star in the sky) or turn the dials
+yourself; then press *run* and watch how the design behaves. Flip any dial and
+run again - every one changes what you see.
 
 ## The aha
 You can rebuild the frontier from the principles you own - not just name a model,
-but *design* one and watch it run. Which means next year's frontier is already
-readable: it will be new dial settings, not new physics.
+but *design* one and watch how it would behave and what it would cost. Which means
+next year's frontier is already readable: it will be new dial settings, not new
+physics.
 
 ## Honest notes
-- The runnable model is a deliberate **toy** (~900 weights, 6-char context, a
-  two-line corpus) so it trains in seconds. Real models are this exact math,
-  scaled a trillion-fold.
-- **Attention is the real, working bridge** (full/sparse/linear are genuine
-  swappable code). Because it is a toy, absolute *speed* differences are tiny -
-  which is why the verdict leads with **memory** (the honest, scale-invariant
-  win, and exactly F2's point). Foundation/Modality/Deployment ride along as
-  design choices (labeled); a text toy cannot truly train on images or a swarm.
-- The meter deltas are hand-authored and illustrative (rule 11); the anchor
-  figures on hover are the labs' own claims. Warnings are dated exhibits, not
-  verdicts (rule 12).
+- The "run" is a **deterministic simulation** (rule 11) - the course's native mode
+  - not a trained model. It composes the *expected* behavior of your design from
+  the five dials and prices it from each mechanism's formula. It deliberately does
+  not train a network: a real frontier model can't be trained in a browser, and a
+  from-scratch char toy would only honor two of the five dials - exactly the
+  disconnect this simulation avoids, so **every** dial changes the run.
+- The two **cost curves are computed, not hand-waved**: memory grows / caps / flats
+  with the Attention mechanism (F2); passes grow / flat with the Foundation
+  mechanism (F6). Because absolute speed is scale-dependent, each verdict leads with
+  the **scale-invariant** win (memory, passes) - the wins that hold a trillion-fold up.
+- The behavior samples (a caption, an action trace, a reasoning line) and the
+  compute / throughput multipliers are **illustrative** (rule 11) - the *shape* of
+  what each design does, not a benchmark. The anchor figures on hover are the labs'
+  own claims. Warnings are dated exhibits, not verdicts (rule 12).
 
 ## Done when (the bar for this module)
-You can design a model, say what each dial costs, and - from the *running* model -
-explain why linear attention changes the memory bill while full attention pays
-for every token. `CHALLENGE.md`.
+You can design a model, press run, and read back what each of the five dials did
+to its behavior *and* its cost - why linear attention flattens the memory bill, why
+diffusion writes the whole line at once, why a swarm buys throughput but not a free
+lunch - and why each win only shows at scale. `CHALLENGE.md`.
 
 ## Next
 Track 5 - serving and infrastructure. The serving bill this capstone computes

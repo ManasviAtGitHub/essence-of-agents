@@ -76,7 +76,8 @@
   .tgrid { display:flex; gap:12px; align-items:stretch; }
   .tpanel { flex:1; min-width:0; border:1px solid var(--line); border-radius:10px; background:#0d1116; padding:9px 11px; }
   .tpanel .th { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--faint); margin-bottom:6px; }
-  #tloss,#tkv { width:100%; height:auto; display:block; }
+  #tloss,#tkv,#tpass { width:100%; height:auto; display:block; }
+  #tkv { margin-bottom:6px; }
   .trow { display:flex; gap:14px; margin-top:6px; font:11px var(--mono); color:var(--dim); }
   .trow b { color:var(--ink); }
   .gen { font:12.5px/1.6 var(--mono); background:#12161c; border:1px solid var(--line); border-radius:7px; padding:7px 9px; margin-top:7px; min-height:42px; white-space:pre-wrap; word-break:break-word; }
@@ -111,6 +112,22 @@
   .reveal .cousin .chr svg { width:34px; height:34px; flex:none; }
   .reveal .cousin .cq { font-size:12px; color:#cdd3da; } .reveal .cousin .cq b { color:var(--ink); }
   @media (max-width:900px){ .studio,.readouts,.tgrid{ flex-direction:column; } .dials,.side{ width:auto; min-width:0; } }
+  #runBtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:9px; padding:7px 15px; cursor:pointer; white-space:nowrap; }
+  #runBtn:not(:disabled) { border-color:var(--green); background:#12210c; color:#c7e7ad; }
+  #runBtn:disabled { opacity:.5; cursor:default; }
+  .costcharts { display:flex; flex-direction:column; gap:6px; }
+  .simflow { display:flex; flex-direction:column; gap:6px; font-size:12.5px; }
+  .simhint { color:var(--faint); font-size:13px; text-align:center; padding:22px 10px; border:1px dashed var(--line); border-radius:9px; }
+  .simstage { display:flex; gap:10px; align-items:flex-start; padding:6px 9px; border:1px solid var(--line); border-radius:8px; background:#0d1116; transition:opacity .25s, transform .25s; }
+  .simstage.dim { opacity:.3; transform:translateX(-5px); }
+  .simstage .slab { flex:none; width:56px; font:9px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em; padding-top:3px; }
+  .simstage .sbody { color:#cdd3da; line-height:1.55; }
+  .tok { font:11px var(--mono); border:1px solid var(--line); border-radius:5px; padding:1px 5px; white-space:nowrap; }
+  .stag { font:9px var(--mono); border:1px solid var(--line); border-radius:4px; padding:0 4px; color:var(--faint); margin-left:4px; white-space:nowrap; }
+  .rstep { color:#cdd3da; } .rarrow { color:var(--faint); margin:0 5px; }
+  .simout { font:12.5px var(--mono); color:var(--green); } .simout.act { color:#c07cfc; }
+  .wchip { font:10px var(--mono); border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:var(--dim); }
+  .wchip.orch { border-color:var(--gold); color:var(--gold); } .warrow { color:var(--faint); margin:0 5px; }
 </style>
 </head>
 <body>
@@ -133,13 +150,10 @@ models until it <b>settles beside the one it most resembles</b>.</p>
 
 <div class="steps">
   <span class="step"><b>1.</b> design - turn the five dials</span>
-  <span class="step"><b>2.</b> run - build &amp; train the model you drew</span>
-  <span class="step"><b>3.</b> compare - swap the Attention dial, train again</span>
+  <span class="step"><b>2.</b> run - simulate what your design does &amp; costs</span>
+  <span class="step"><b>3.</b> compare - flip any dial and run again; every dial changes it</span>
 </div>
-<div class="presets">or start from a real design:
-  <button data-model="MiniMax M2">MiniMax M2</button>
-  <button data-model="Qwen3.5">Qwen3.5</button>
-  <button data-model="DeepSeek V4">DeepSeek V4</button>
+<div class="presets">or start from a real design: <span id="presetChips"></span>
   <button data-model="" class="clr">clear</button>
 </div>
 
@@ -152,7 +166,7 @@ models until it <b>settles beside the one it most resembles</b>.</p>
 </div>
 
 <div class="readouts">
-  <div class="constel"><div class="th">the design sky - real 2026 models as stars, your design the moving dot (axes illustrative: design abstractions, not measurements)</div>
+  <div class="constel"><div class="th">the design sky - real 2026 models as stars (click one to load its design), your design the moving dot (axes illustrative: design abstractions, not measurements)</div>
     <svg id="sky" viewBox="0 0 620 300" preserveAspectRatio="xMidYMid meet" aria-label="design space of frontier models"></svg></div>
   <div class="side">
     <div class="reveal" id="reveal" hidden></div>
@@ -161,25 +175,21 @@ models until it <b>settles beside the one it most resembles</b>.</p>
   </div>
 </div>
 
-<div class="trainbox" id="trainbox">
+<div class="trainbox" id="simbox">
   <div class="tbhead">
-    <div><span class="th2">now run the model you designed</span>
-      <span class="tbsub">the Attention dial swaps <b>real</b> full / sparse / linear code - the room above <i>predicted</i> the costs; this <i>measures</i> loss and speed, in your browser</span></div>
-    <button id="trainBtn" disabled>set the Attention dial to build &#9654;</button>
+    <div><span class="th2">run the model you designed</span>
+      <span class="tbsub">Not a training toy - a <b>deterministic simulation</b> of what <i>this</i> design is expected to do and cost. <b>Every dial</b> changes it (rule 11: the course's native mode).</span></div>
+    <button id="runBtn" disabled>set all five dials to run &#9654;</button>
   </div>
-  <div class="tiptext"><span class="n">try this:</span> press <b>build &amp; train</b> and watch the loss fall on the left (it's a real ~900-weight transformer learning "the capital of france is paris"). Then switch the <b>Attention</b> dial to <b>Linear</b> and train again - the <b>memory chart</b> on the right shows why F2 (attention) matters: same model, very different cost as context grows.</div>
   <div class="tgrid">
-    <div class="tpanel"><div class="th">training loss - live, real backprop (nanomodel, in JS)</div>
-      <canvas id="tloss" width="440" height="150"></canvas>
-      <div class="trow"><span>step <b id="tStep">0</b></span><span>loss <b id="tLoss">-</b></span><span>attention <b id="tAttn">-</b></span></div>
-      <div class="gen" id="tgen"><span class="seed">the capital of </span><span class="out" id="tgenOut">...</span></div>
+    <div class="tpanel"><div class="th">expected behavior (simulated) - one request, handled the way your dials define</div>
+      <div id="simFlow" class="simflow"><div class="simhint">Turn all five dials (or load a real design above) to simulate this model.</div></div>
     </div>
-    <div class="tpanel"><div class="th">memory as context grows - computed from each mechanism (loss + ms are measured; this curve is the formula)</div>
-      <canvas id="tkv" width="300" height="150"></canvas>
-      <div class="verdict" id="verdict">Pick an <b>Attention</b> dial to preview its memory curve; press build to measure the real run.</div>
+    <div class="tpanel"><div class="th">expected cost - computed from each mechanism (rule 11)</div>
+      <div class="costcharts"><canvas id="tkv" width="300" height="104"></canvas><canvas id="tpass" width="300" height="104"></canvas></div>
+      <div class="verdict" id="verdict">Set <b>Attention</b> + <b>Foundation</b> to preview the cost curves; all five dials to price the whole design.</div>
     </div>
   </div>
-  <div class="runs" id="runs"></div>
 </div>
 
 <p class="foot">The blueprint (Rough.js), the sky (D3) and the meters recompute live from your dials. Meter
@@ -412,8 +422,12 @@ function buildSky(){
   sky.append("line").attr("x1",PX).attr("y1",PY).attr("x2",PX).attr("y2",SH-PY).attr("stroke","#2a3038").attr("stroke-width",1);
   sky.append("text").attr("x",SW-PX).attr("y",SH-10).attr("text-anchor","end").attr("fill","#5b6470").style("font","9.5px ui-monospace,monospace").text("cheaper . longer context ->");
   sky.append("text").attr("x",PX+2).attr("y",PY-12).attr("fill","#5b6470").style("font","9.5px ui-monospace,monospace").text("^ bolder bet . broader reach");
-  // stars
-  const g = sky.selectAll("g.star").data(MODELS).join("g").attr("class","star").attr("transform",d=>"translate("+sx(d.pos.x)+","+sy(d.pos.y)+")");
+  // stars - clickable: load a real model's dial config to inspect its architecture
+  const g = sky.selectAll("g.star").data(MODELS).join("g").attr("class","star").attr("cursor","pointer").attr("transform",d=>"translate("+sx(d.pos.x)+","+sy(d.pos.y)+")");
+  g.on("click",function(){const d=d3.select(this).datum();lastDial="preset";setConfig(d.cfg);})
+   .on("mouseenter",function(){d3.select(this).select("path").attr("fill","#ffd35c").attr("stroke","#ffd35c");d3.select(this).select("text").attr("fill","#e9ebee");})
+   .on("mouseleave",function(){updateSky();d3.select(this).select("text").attr("fill","#8a93a0");});
+  g.append("circle").attr("r",11).attr("fill","transparent");   // enlarged hit target for easy clicking
   g.append("path").attr("d","M0,-6 L1.6,-1.6 6,0 1.6,1.6 0,6 -1.6,1.6 -6,0 -1.6,-1.6 Z").attr("fill","#6b7480").attr("stroke","#8a93a0").attr("stroke-width",0.6);
   g.append("text").attr("x",9).attr("y",3.5).attr("fill","#8a93a0").style("font","10px ui-monospace,monospace").text(d=>d.name);
   // link (dot -> nearest) + your dot on top
@@ -464,98 +478,67 @@ function drawWarns(){
   $("warns").innerHTML = keys.map(k=>'<div class="warn"><div class="wt">! '+WARN[k].t+'</div><div class="wd">'+WARN[k].d+'</div></div>').join("");
 }
 
-function update(){ drawMeters(); drawBlueprint(); updateSky(); drawReveal(); drawWarns(); drawTheatre(); syncTrain(); drawKV(kvMode()); $("guideLine").textContent=guideText(); }
+function update(){ drawMeters(); drawBlueprint(); updateSky(); drawReveal(); drawWarns(); drawTheatre(); syncRun(); drawKV(kvMode()); drawPasses(foundMode()); renderSim(); drawVerdict(); $("guideLine").textContent=guideText(); }
 
 $("guideLine").textContent = "Start here - turn each of the five dials below (one per module), or load a real design above. The blueprint inks in and the meters price your choice.";
 Cast.render(document);
+$("presetChips").innerHTML = MODELS.map(function(m){return '<button data-model="'+m.name+'">'+m.name+'</button>';}).join("");
 buildSky(); drawMeters(); drawBlueprint(); updateSky(); drawTheatre();
 
-/* ================= nanofrontier: RUN the model you designed ================= */
-/* models/nanomodel ported to JS. The Attention dial swaps REAL full/sparse/linear code. */
-class Value{ constructor(d,c=[]){this.data=d;this.grad=0;this._b=()=>{};this._p=c;}
-  add(o){o=o instanceof Value?o:new Value(o);const r=new Value(this.data+o.data,[this,o]);r._b=()=>{this.grad+=r.grad;o.grad+=r.grad;};return r;}
-  mul(o){o=o instanceof Value?o:new Value(o);const r=new Value(this.data*o.data,[this,o]);r._b=()=>{this.grad+=o.data*r.grad;o.grad+=this.data*r.grad;};return r;}
-  pow(p){const r=new Value(Math.pow(this.data,p),[this]);r._b=()=>{this.grad+=p*Math.pow(this.data,p-1)*r.grad;};return r;}
-  exp(){const r=new Value(Math.exp(this.data),[this]);r._b=()=>{this.grad+=r.data*r.grad;};return r;}
-  log(){const d=Math.max(this.data,1e-9),r=new Value(Math.log(d),[this]);r._b=()=>{this.grad+=(1/d)*r.grad;};return r;}
-  tanh(){const t=Math.tanh(this.data),r=new Value(t,[this]);r._b=()=>{this.grad+=(1-t*t)*r.grad;};return r;}
-  sub(o){return this.add(o instanceof Value?o.mul(-1):-o);} div(o){return o instanceof Value?this.mul(o.pow(-1)):this.mul(1/o);}
-  backward(){const topo=[],vis=new Set();(function bd(v){if(!vis.has(v)){vis.add(v);for(const c of v._p)bd(c);topo.push(v);}})(this);this.grad=1;for(let i=topo.length-1;i>=0;i--)topo[i]._b();}}
-const NV=x=>new Value(x);
-function nsm(a){let m=-1e9;for(const v of a)if(v.data>m)m=v.data;const e=a.map(v=>v.sub(m).exp());let s=e[0];for(let i=1;i<e.length;i++)s=s.add(e[i]);return e.map(x=>x.div(s));}
-function nce(lg,ix){return nsm(lg)[ix].log().mul(-1);}
-function nrng(seed){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return(s/4294967296)*2-1;};}
-class NLin{constructor(ni,no,r){const sc=1/Math.sqrt(ni);this.W=[];this.b=[];for(let o=0;o<no;o++){const row=[];for(let i=0;i<ni;i++)row.push(NV(r()*sc));this.W.push(row);this.b.push(NV(0));}}
-  c(x){const out=[];for(let o=0;o<this.W.length;o++){let a=this.b[o];const row=this.W[o];for(let i=0;i<row.length;i++)a=a.add(row[i].mul(x[i]));out.push(a);}return out;}
-  p(){const r=[];for(const row of this.W)for(const w of row)r.push(w);for(const b of this.b)r.push(b);return r;}}
-/* one head, three REAL mechanisms: full (all past), sparse (last k), linear (fixed running state) */
-class NAttn{constructor(d,r){this.d=d;this.q=new NLin(d,d,r);this.k=new NLin(d,d,r);this.v=new NLin(d,d,r);this.o=new NLin(d,d,r);}
-  soft(hs,win){const T=hs.length,Q=hs.map(h=>this.q.c(h)),K=hs.map(h=>this.k.c(h)),Vv=hs.map(h=>this.v.c(h)),sc=1/Math.sqrt(this.d),out=[];
-    for(let t=0;t<T;t++){const lo=Math.max(0,t-win+1),ss=[];for(let s=lo;s<=t;s++){let dd=NV(0);for(let j=0;j<this.d;j++)dd=dd.add(Q[t][j].mul(K[s][j]));ss.push(dd.mul(sc));}
-      const w=nsm(ss),bl=[];for(let j=0;j<this.d;j++)bl.push(NV(0));for(let si=0;si<w.length;si++){const s=lo+si;for(let j=0;j<this.d;j++)bl[j]=bl[j].add(w[si].mul(Vv[s][j]));}out.push(this.o.c(bl));}return out;}
-  lin(hs){const T=hs.length,out=[],ph=x=>x.map(e=>e.tanh().add(1.001));let S=[],z=[];for(let a=0;a<this.d;a++){z.push(NV(0));S.push([]);for(let b=0;b<this.d;b++)S[a].push(NV(0));}
-    for(let t=0;t<T;t++){const q=ph(this.q.c(hs[t])),k=ph(this.k.c(hs[t])),v=this.v.c(hs[t]);
-      for(let a=0;a<this.d;a++){z[a]=z[a].add(k[a]);for(let b=0;b<this.d;b++)S[a][b]=S[a][b].add(k[a].mul(v[b]));}
-      let dn=NV(1e-3);for(let a=0;a<this.d;a++)dn=dn.add(q[a].mul(z[a]));const num=[];for(let b=0;b<this.d;b++){let s=NV(0);for(let a=0;a<this.d;a++)s=s.add(q[a].mul(S[a][b]));num.push(s.div(dn));}out.push(this.o.c(num));}return out;}
-  call(hs,mode){return mode==="linear"?this.lin(hs):this.soft(hs,mode==="sparse"?3:9999);}
-  p(){return[...this.q.p(),...this.k.p(),...this.v.p(),...this.o.p()];}}
-class NMLP{constructor(d,h,r){this.f=new NLin(d,h,r);this.o=new NLin(h,d,r);}c(h){return this.o.c(this.f.c(h).map(x=>x.tanh()));}p(){return[...this.f.p(),...this.o.p()];}}
-class NModel{constructor(vocab,blk,d,h,seed,mode){const r=nrng(seed);this.vocab=vocab;this.blk=blk;this.d=d;this.mode=mode;
-    this.te=[];for(let t=0;t<vocab;t++){const a=[];for(let j=0;j<d;j++)a.push(NV(r()*0.1));this.te.push(a);}this.pe=[];for(let p=0;p<blk;p++){const a=[];for(let j=0;j<d;j++)a.push(NV(r()*0.1));this.pe.push(a);}
-    this.at=new NAttn(d,r);this.ml=new NMLP(d,h,r);this.hd=new NLin(d,vocab,r);}
-  fwd(idx){let hs=idx.map((t,p)=>{const a=[];for(let j=0;j<this.d;j++)a.push(this.te[t][j].add(this.pe[p][j]));return a;});
-    const a=this.at.call(hs,this.mode);hs=hs.map((h,i)=>h.map((x,j)=>x.add(a[i][j])));const m=hs.map(h=>this.ml.c(h));hs=hs.map((h,i)=>h.map((x,j)=>x.add(m[i][j])));return hs.map(h=>this.hd.c(h));}
-  p(){const r=[];for(const a of this.te)for(const w of a)r.push(w);for(const a of this.pe)for(const w of a)r.push(w);return[...r,...this.at.p(),...this.ml.p(),...this.hd.p()];}
-  gen(idx,n,temp,rnd){idx=idx.slice();for(let s=0;s<n;s++){const w=idx.slice(-this.blk),lg=this.fwd(w)[w.length-1],pr=nsm(lg.map(l=>l.mul(1/temp)));let dr=(rnd()+1)/2,cc=0,pk=pr.length-1;for(let i=0;i<pr.length;i++){cc+=pr[i].data;if(dr<cc){pk=i;break;}}idx.push(pk);}return idx;}}
-const NCORP="the capital of france is paris.\nthe capital of spain is madrid.\n";
-const NCH=[...new Set(NCORP)].sort(),Nsi={},Nit={};NCH.forEach((c,i)=>{Nsi[c]=i;Nit[i]=c;});
-const Nenc=s=>[...s].map(c=>Nsi[c]),Ndec=ix=>ix.map(i=>Nit[i]).join("");
-const NDATA=Nenc(NCORP),NBLK=6,ND=8,NHID=16,NLR0=0.25,NLRmin=0.03,NBAT=3,NMAX=820;
+/* ================= RUN: a deterministic SIMULATION of the designed model =================
+   No training toy. Each of the five dials shapes the expected behavior + cost below.
+   Rule 11: the course's native mode - a keyless deterministic simulation of the expectation. */
+const ND=8;                                                  // illustrative KV values / token, for the memory curve
 function kvSize(mode,T){return mode==="linear"?ND*ND:mode==="sparse"?Math.min(T,3)*ND:T*ND;}
 function kvMode(){return sel.attn==="hybrid"?"linear":sel.attn;}
-let NM=null,Nparams,Nstep=0,Nema=null,Nlosses=[],Nrunning=false,NwinRng,NgenRng=nrng(7),Nmode=null,NmsAcc=0,NmsN=0;
-const RUNS={};
-function renderRuns(){$("runs").innerHTML='<span class="runlbl">your runs:</span> '+[["full","Full"],["sparse","Sparse"],["linear","Linear"]].map(function(mn){const m=mn[0],r=RUNS[m];
-  if(!r)return '<span class="runchip off">'+mn[1]+': not run yet</span>';
-  return '<span class="runchip'+(m===Nmode?' cur':'')+'">'+mn[1]+': loss '+r.loss.toFixed(2)+' &middot; '+r.ms.toFixed(1)+'ms &middot; KV@1k '+kvSize(m,1000).toLocaleString()+(m==="linear"?" (flat)":m==="sparse"?" (capped)":" (grows)")+'</span>';}).join(" ")+
-  (Object.keys(RUNS).length? ' <span class="runlbl" style="text-transform:none;letter-spacing:0">ms here is toy-scale (6-token context) - linear\'s bookkeeping only pays off at long context; the meters price that regime</span>':'');}
-function syncTrain(){const b=$("trainBtn");if(Nrunning)return;
-  if(sel.attn){b.disabled=false;b.textContent="build & train this "+DIALS[1].opts.find(o=>o.v===sel.attn).n+" design \u25b6";}
-  else{b.disabled=true;b.textContent="set the Attention dial to build \u25b6";}}
-function buildAndTrain(){if(!sel.attn||Nrunning)return;
-  Nmode=kvMode();NM=new NModel(NCH.length,NBLK,ND,NHID,1337,Nmode);
-  Nparams=NM.p();Nstep=0;Nema=null;Nlosses=[];NwinRng=nrng(1337);NgenRng=nrng(7);NmsAcc=0;NmsN=0;Nrunning=true;
-  const b=$("trainBtn");b.disabled=true;b.textContent="training \u2026";
-  $("tAttn").textContent=Nmode+(sel.attn==="hybrid"?" (hybrid\u2192linear)":"");
-  $("verdict").innerHTML="<span style='color:#6b7480'>training the model you designed, live &hellip;</span>";
-  $("guideLine").textContent="Training your design - real backprop, live in the browser. Watch the loss fall on the left.";
-  drawKV(Nmode);requestAnimationFrame(Nloop);}
-function NtrainStep(){const t0=performance.now();let loss=null;
-  for(let b=0;b<NBAT;b++){const st=Math.floor(((NwinRng()+1)/2)*(NDATA.length-NBLK-1));const xs=NDATA.slice(st,st+NBLK),ys=NDATA.slice(st+1,st+NBLK+1);const lg=NM.fwd(xs);
-    let wl=nce(lg[0],ys[0]);for(let k=1;k<NBLK;k++)wl=wl.add(nce(lg[k],ys[k]));wl=wl.mul(1/NBLK);loss=loss===null?wl:loss.add(wl);}
-  loss=loss.mul(1/NBAT);for(const p of Nparams)p.grad=0;loss.backward();
-  const lr=NLR0*Math.pow(NLRmin/NLR0,Nstep/NMAX);for(const p of Nparams)p.data-=lr*p.grad;
-  Nema=Nema===null?loss.data:0.9*Nema+0.1*loss.data;Nstep++;Nlosses.push(Nema);NmsAcc+=performance.now()-t0;NmsN++;}
-function Nloop(){if(!Nrunning)return;
-  try{
-    const PF=Nmode==="linear"?1:2;for(let k=0;k<PF&&Nstep<NMAX;k++)NtrainStep();
-    drawTLoss();$("tStep").textContent=Nstep;$("tLoss").textContent=Nema.toFixed(3);
-    if(Nstep%12<PF){const out=NM.gen(Nenc("the capital of "),15,0.25,NgenRng);$("tgenOut").textContent=Ndec(out.slice(15)).replace(/\n/g," / ");}
-    if(Nstep>=NMAX){Nrunning=false;finishTrain();return;}
-  }catch(e){ /* a dead trainer must never present as silent stillness */
-    Nrunning=false;const x=crisp($("tloss"));x.fillStyle="#fc6255";x.font="11px ui-monospace,monospace";x.textAlign="left";
-    x.fillText("trainer error at step "+Nstep+": "+String(e).slice(0,50),24,18);x.fillText("(please report this line)",24,34);
-    $("trainBtn").textContent="trainer crashed - see the loss panel";return;}
-  requestAnimationFrame(Nloop);}
-function finishTrain(){syncTrain();const out=NM.gen(Nenc("the capital of "),15,0.2,NgenRng);$("tgenOut").textContent=Ndec(out.slice(15)).replace(/\n/g," / ");
-  RUNS[Nmode]={loss:Nema,ms:NmsAcc/Math.max(1,NmsN)};renderRuns();drawVerdict();$("guideLine").textContent=guideText();}
-function drawTLoss(){const c=$("tloss"),x=crisp(c),W=c._lw,H=c._lh,pad=22;x.clearRect(0,0,W,H);
-  x.strokeStyle="#2a3038";x.lineWidth=1;x.beginPath();x.moveTo(pad,6);x.lineTo(pad,H-14);x.lineTo(W-6,H-14);x.stroke();
-  if(Nlosses.length<2){x.fillStyle="#5b6470";x.font="10px ui-monospace,monospace";x.textAlign="left";x.fillText("press build & train",pad+8,H/2);return;}
-  const mx=Math.max.apply(null,Nlosses),mn=Math.min.apply(null,Nlosses),rg=Math.max(0.2,mx-mn);
-  const X=i=>pad+i/(Nlosses.length-1)*(W-pad-6),Y=v=>6+(1-(v-mn)/rg)*(H-20);
-  x.strokeStyle="#58c4dd";x.lineWidth=1.8;x.beginPath();Nlosses.forEach((v,i)=>{const xx=X(i),yy=Y(v);i?x.lineTo(xx,yy):x.moveTo(xx,yy);});x.stroke();
-  x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText(mx.toFixed(1),2,Y(mx)+3);x.fillText(mn.toFixed(1),2,Y(mn)+3);}
+const KROUNDS=4;
+function passCount(mode,T){return mode==="diff"?KROUNDS:T;}
+function foundMode(){return sel.found==="diff"?"diff":"ar";}
+
+/* --- what THIS design is expected to do, composed from all five dials --- */
+const SCENE={
+  text:{in:[["txt",'"what is the capital of France?"']],out:'"Paris."',outk:"text"},
+  vl:{in:[["img","[image]"],["txt",'"what is in this scene?"']],out:'"A cat asleep on a mat."',outk:"text"},
+  omni:{in:[["img","[image]"],["aud","[audio]"],["txt",'"describe it, out loud"']],out:'"A cat asleep on a mat."  [speech ~~~]',outk:"text + speech"},
+  vla:{in:[["cam","[camera]"],["txt",'"pick up the red cube"']],out:"[reach] [grasp] [lift] [place]",outk:"action tokens"}
+};
+const REASON={classic:["answer directly"],grpo:["think: a nation-state","recall: seat of govt = Paris","answer"],rubric:["draft an answer","self-grade vs rubric [pass]"],distill:["answer in one shot (distilled specialist)"]};
+const WRITE={ar:"left to right, one token per pass",diff:"the whole line at once, revised in parallel rounds",world:"imagine the next world-state, then read the answer off it"};
+const CTX={full:"holds every past token - memory grows",sparse:"reads a top-k window - memory capped",linear:"a fixed-size notebook - memory flat",hybrid:"mostly notebook + a few full layers"};
+const SERVE={single:{t:"one trained loop handles it",n:1},swarm:{t:"a trained orchestrator spawns workers in parallel",n:3}};
+const TOKCOL={txt:"#58c4dd",img:"#83c167",aud:"#ffd35c",cam:"#c07cfc"};
+const CFACT={modality:{text:1,vl:1.6,omni:2.2,vla:1.8},reason:{classic:1,grpo:2.6,rubric:1.4,distill:0.8}};
+const THRU={ar:1,diff:3,world:0.7};
+const allSet=()=>DIALS.every(d=>sel[d.key]);
+const dname=(k,v)=>{const d=DIALS.find(x=>x.key===k),o=d&&d.opts.find(o=>o.v===v);return o?o.n:v;};
+function stageRow(s,lab,body){return '<div class="simstage" data-s="'+s+'"><span class="slab">'+lab+'</span><span class="sbody">'+body+'</span></div>';}
+function tagChip(k){return ' <span class="stag" style="border-color:'+LANE[k]+';color:'+LANE[k]+'">'+dname(k,sel[k])+'</span>';}
+function renderSim(){const flow=$("simFlow");if(!flow)return;
+  if(!allSet()){flow.innerHTML='<div class="simhint">Turn all five dials (or load a real design above) to simulate this model - '+Object.values(sel).filter(Boolean).length+' of 5 set.</div>';return;}
+  const sc=SCENE[sel.modality];
+  const inHtml=sc.in.map(function(tk){return '<span class="tok" style="border-color:'+TOKCOL[tk[0]]+';color:'+TOKCOL[tk[0]]+'">'+tk[1]+'</span>';}).join(" ");
+  const steps=REASON[sel.train].map(function(x){return '<span class="rstep">'+x+'</span>';}).join('<span class="rarrow">-&gt;</span>');
+  const write="<b>"+dname("found",sel.found)+"</b> - "+WRITE[sel.found];
+  const workers=sel.deploy==="swarm"?'<span class="wchip orch">orchestrator</span><span class="warrow">-&gt;</span>'+[1,2,3].map(function(n){return '<span class="wchip">worker '+n+'</span>';}).join(" "):'<span class="wchip solo">one loop</span>';
+  flow.innerHTML=
+    stageRow("in","in",inHtml+tagChip("modality"))+
+    stageRow("ctx","context",CTX[sel.attn]+tagChip("attn"))+
+    stageRow("reason","reason",steps+tagChip("train"))+
+    stageRow("write","write",write+tagChip("found"))+
+    stageRow("out","out",'<span class="simout '+(sc.outk==="action tokens"?"act":"")+'" id="simOut">'+sc.out+'</span> <span class="stag">'+sc.outk+'</span>')+
+    stageRow("serve","serve",workers+tagChip("deploy"));
+}
+let simTimers=[];
+function playSim(){if(!allSet())return;simTimers.forEach(function(t){clearTimeout(t);clearInterval(t);});simTimers=[];renderSim();
+  const stages=[].slice.call($("simFlow").querySelectorAll(".simstage"));
+  stages.forEach(function(st){st.classList.add("dim");});
+  stages.forEach(function(st,idx){simTimers.push(setTimeout(function(){st.classList.remove("dim");if(st.dataset.s==="out")writeOut();},240*idx));});
+  $("guideLine").textContent="Simulated one request, end to end. Flip any dial and press run again - the whole behavior changes.";}
+function writeOut(){const el=$("simOut");if(!el)return;const full=el.textContent;
+  if(sel.found==="ar"){el.textContent="";let i=0;const iv=setInterval(function(){el.textContent=full.slice(0,++i);if(i>=full.length)clearInterval(iv);},20);simTimers.push(iv);}
+  else if(sel.found==="diff"){let r=0;el.textContent=full.replace(/\S/g,"\u2588");const iv=setInterval(function(){r++;el.textContent=r>=2?full:full.split("").map(function(c,i){return (/\s/.test(c)||i%2===0)?c:"\u2588";}).join("");if(r>=2)clearInterval(iv);},170);simTimers.push(iv);}}
+function syncRun(){const b=$("runBtn");if(!b)return;if(allSet()){b.disabled=false;b.textContent="run this design \u25b6";}else{b.disabled=true;b.textContent="set all five dials to run \u25b6";}}
+
 function drawKV(hl){const c=$("tkv"),x=crisp(c),W=c._lw,H=c._lh,pad=26;x.clearRect(0,0,W,H);
   x.strokeStyle="#2a3038";x.lineWidth=1;x.beginPath();x.moveTo(pad,8);x.lineTo(pad,H-16);x.lineTo(W-6,H-16);x.stroke();
   const Tmax=48,ymax=Tmax*ND,px=T=>pad+(T/Tmax)*(W-pad-8),py=v=>(H-16)-(v/ymax)*(H-26);
@@ -563,14 +546,28 @@ function drawKV(hl){const c=$("tkv"),x=crisp(c),W=c._lw,H=c._lh,pad=26;x.clearRe
     x.strokeStyle=on?col:col+"3a";x.lineWidth=on?2.4:1.1;x.beginPath();for(let T=1;T<=Tmax;T++){const xx=px(T),yy=py(kvSize(m,T));T===1?x.moveTo(xx,yy):x.lineTo(xx,yy);}x.stroke();
     x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign="left";x.fillText(m,px(Tmax)-32,py(kvSize(m,Tmax))+(m==="full"?-3:m==="linear"?12:4));});
   x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText("memory (values)",pad+2,16);x.textAlign="right";x.fillText("context length \u2192",W-8,H-3);x.textAlign="left";}
-function drawVerdict(){const mode=Nmode,ms=(NmsAcc/Math.max(1,NmsN)).toFixed(1),predCtx=Math.round(meterVals().ctx),projFull=(1000*ND).toLocaleString(),proj=kvSize(mode,1000);let line;
-  if(mode==="linear")line="Your <b>Linear</b> attention keeps a <b>fixed</b> state of d&sup2; = "+ND*ND+" values - forever. Full attention would hold "+projFull+" at 1,000 tokens; yours holds <b>"+proj+"</b>. That is F2 (attention)'s <span class=hi>&ldquo;KV cache abolished, not shrunk&rdquo;</span> - in your running model.";
-  else if(mode==="sparse")line="Your toy <b>Sparse</b> is a sliding <b>window</b>: it keeps only the last 3 positions, so its memory caps at <b>"+kvSize("sparse",1000)+"</b> values. Real 2026 sparse (DeepSeek V4's learned indexer) is different - <span class=hi>reads collapse, but storage survives</span>: the indexer needs the whole cache to rank it (F2 attention, F7 atlas).";
-  else line="Your <b>Full</b> attention stores every past token ("+ND+" values each), growing without limit - <b>"+projFull+"</b> at 1,000 tokens. Exact, but it <span class=hi>pays for every token</span> (MiniMax M2's bet).";
-  const bill=mode==="full"?"~"+(100*kvSize("full",1000)).toLocaleString()+" values live and still climbing":mode==="linear"?"a flat "+(100*ND*ND).toLocaleString()+" values, whatever the context":"~"+(100*kvSize("sparse",1000)).toLocaleString()+" values, capped";
-  $("verdict").innerHTML="<b>Measured</b> from the real run: ~"+ms+" ms / train-step, final loss "+Nema.toFixed(2)+". The memory numbers below are <i>computed from the mechanism's formula</i>, not probed from this run.<br>"+line+
-    "<br><span style='color:#8a93a0'>The serving bill: that KV must be held for <b>every</b> concurrent user at once - at 100 users, "+bill+". Paying it at real scale is <b style='color:#b6a6ff'>Track 5</b>.</span>"+
-    "<br><span style='color:#6b7480'>The drafting room predicted a context score of "+predCtx+"/100 for this design - the memory chart above is why.</span>";}
+function drawPasses(hl){const c=$("tpass");if(!c)return;const x=crisp(c),W=c._lw,H=c._lh,pad=26;x.clearRect(0,0,W,H);
+  x.strokeStyle="#2a3038";x.lineWidth=1;x.beginPath();x.moveTo(pad,8);x.lineTo(pad,H-16);x.lineTo(W-6,H-16);x.stroke();
+  const Tmax=48,ymax=Tmax,px=T=>pad+(T/Tmax)*(W-pad-8),py=v=>(H-16)-(v/ymax)*(H-26);
+  [["ar","#8a93a0","autoregressive"],["diff","#83c167","diffusion"]].forEach(function(mc){const m=mc[0],col=mc[1],on=m===hl;
+    x.strokeStyle=on?col:col+"3a";x.lineWidth=on?2.4:1.1;x.beginPath();for(let T=1;T<=Tmax;T++){const xx=px(T),yy=py(passCount(m,T));T===1?x.moveTo(xx,yy):x.lineTo(xx,yy);}x.stroke();
+    x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign="right";x.fillText(mc[2],W-8,py(passCount(m,Tmax))+(m==="ar"?12:-4));});
+  x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText("passes to write it",pad+2,16);x.textAlign="right";x.fillText("output length \u2192",W-8,H-3);x.textAlign="left";}
+
+function drawVerdict(){const v=$("verdict");if(!v)return;
+  if(!allSet()){v.innerHTML='Set <b>Attention</b> + <b>Foundation</b> to preview the cost curves; all five dials to price the whole design.';return;}
+  const km=kvMode(),fw=foundMode();
+  const compute=CFACT.modality[sel.modality]*CFACT.reason[sel.train];
+  const workers=SERVE[sel.deploy].n, thru=workers*THRU[fw];
+  const memWord=km==="linear"?"stays <b>flat</b> (a fixed notebook)":sel.attn==="sparse"?"is <b>capped</b> (a window)":"<b>grows</b> with every token";
+  const passWord=fw==="diff"?"stay ~<b>flat</b> (parallel rounds)":"<b>grow</b> one per token";
+  const bill=(100*kvSize(km,1000)).toLocaleString();
+  v.innerHTML=
+    "<b>Expected cost (simulated):</b> ~<b>"+compute.toFixed(1)+"x</b> compute per query ("+dname("modality",sel.modality).toLowerCase()+" in, "+dname("train",sel.train).toLowerCase()+"); output as <b>"+SCENE[sel.modality].outk+"</b>."+
+    "<br><b>Memory</b> (Attention): "+memWord+" as context grows. <b>Passes</b> (Foundation): "+passWord+" - the two charts above."+
+    "<br><b>Serving</b> (Deployment): "+SERVE[sel.deploy].t+" -&gt; ~<b>"+thru.toFixed(1)+"x</b> throughput. At 100 concurrent users the KV bill is <b>"+bill+"</b> values; paying it at scale is <b style='color:#b6a6ff'>Track 5</b>."+
+    "<br><span style='color:#6b7480'>Every line is a <i>simulated expectation</i> from your dials (rule 11), not a trained toy - change any dial and re-run.</span>";}
+
 function setConfig(cfg){DIALS.forEach(function(d){sel[d.key]=cfg?cfg[d.key]:null;
   document.querySelectorAll('.opt[data-dial="'+d.key+'"]').forEach(function(o){const on=o.dataset.v===sel[d.key];
     o.classList.toggle("on",on);o.style.background=on?LANE[d.key]:"";o.style.borderColor=on?LANE[d.key]:"";});});update();}
@@ -578,11 +575,10 @@ document.querySelector(".presets").addEventListener("click",function(e){const b=
   if(b.dataset.model===""){lastDial=null;setConfig(null);}else{const m=MODELS.find(function(x){return x.name===b.dataset.model;});if(m){lastDial="preset";setConfig(m.cfg);}}});
 function guideText(){const n=Object.values(sel).filter(Boolean).length;
   if(n===0)return "Start here - turn each of the five dials below (one per module), or load a real design above.";
-  if(n<5)return n+" of 5 dials set. Finish the rest - then you can build & train your design for real.";
-  if(Nstep===0)return "Design complete - you built ~"+nearest(coords(sel)).name+". Now go to \u201crun the model you designed\u201d below and press build & train.";
-  return "Trained! Now flip the Attention dial (try Linear vs Full) and train again - watch the memory chart change. That is F2's lesson, measured.";}
-$("trainBtn").onclick=buildAndTrain;
-syncTrain();drawTLoss();drawKV(kvMode());renderRuns();
+  if(n<5)return n+" of 5 dials set. Finish the rest - then press run to simulate how your design behaves.";
+  return "Design complete - you built ~"+nearest(coords(sel)).name+". Press run below to simulate how this design behaves and what it costs.";}
+$("runBtn").onclick=playSim;
+syncRun();drawKV(kvMode());drawPasses(foundMode());renderSim();drawVerdict();
 </script>
 </body>
 </html>
