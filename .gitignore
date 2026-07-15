@@ -5,6 +5,9 @@
 # local tool settings
 .claude/
 
+# macOS
+.DS_Store
+
 # python
 __pycache__/
 *.pyc
