@@ -252,6 +252,7 @@ function renderMech(i) {
 
   else if (i <= 12) {  // ---- ACT 2: GRPO ----
     const k = i - 5;
+    meter(140, 0.85);   // jump-safe: hold the "reasoning achieved" reference, not Act 1's landing value
     genHd.textContent = "GRPO: train the reasoning, with a group";
     if (k === 0) { drawGroup(true, "bars"); mach.innerHTML = '<span class="formula">for one prompt: sample a GROUP of G attempts (here G = 8)</span><div class="calc"><span class="calc src">GRPO (from DeepSeekMath, used by R1). Instead of one attempt, generate a whole group and let them compete against each other.</span></div>'; }
     else if (k === 1) { drawGroup(true, "bars"); mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">each attempt scored by the verifier</span><span class="rhs">1 = correct, 0 = wrong</span></div><div class="row"><span class="lhs">rewards this group</span><span class="rhs">[' + REWARDS.join(", ") + ']</span></div><span class="calc src">rule-based / verifiable reward (R1): checkable-correct, plus format. Verifiable rewards are hard to game - the reward-hacking guard from Module 6.</span></div>'; }
@@ -288,6 +289,7 @@ function renderMech(i) {
   else {  // ---- ACT 3: emergence + limits ----
     const k = i - 13;
     drawGroup(false);
+    meter(140, 0.85);   // jump-safe: same reference as Act 2, independent of arrival path
     genHd.textContent = "what emerged, and where it stops";
     if (k === 0) { chain.innerHTML = '<span class="think">R1-Zero: base model + pure RL, NO reasoning examples</span><br><span class="ans">-> long CoT + self-correction, emergent</span>'; mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">R1-Zero</span><span class="rhs">pure RL, self-correction emerged</span></div><span class="calc src">the striking result: no supervised reasoning data at all, yet the model taught itself to deliberate and re-check. Reasoning is a reachable ATTRACTOR under verifiable reward.</span></div>'; }
     else if (k === 1) { chain.innerHTML = '<span class="dim">R1 added a small SFT "cold start" for readability + language-mixing</span>'; mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">R1-Zero was capable but messy</span><span class="rhs">mixed languages, hard to read</span></div><div class="row"><span class="lhs">R1 fix</span><span class="rhs">a little SFT before/around the RL</span></div><span class="calc src">pure RL reaches capability; a touch of SFT (Module 6) makes it usable. The stages compose.</span></div>'; }
@@ -306,7 +308,8 @@ function renderMech(i) {
         '</div>';
       mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">RL from verifiable rewards (RLVR) needs a cheap, exact verifier</span><span class="rhs">math / code / logic</span></div><span class="calc src">the green card has a checkable answer, so the reward is real; the grey card has no cheap grader, so reasoning RL barely moves it. This is why reasoning models are strongest at math and code.</span></div>'; }
     else if (k === 3) { chain.innerHTML = '<span class="think">once R1 can reason, its chains DISTILL into small models</span>'; mach.innerHTML = '<div class="calc"><div class="row hero"><span class="lhs">R1\'s reasoning -> small model (Module 8)</span><span class="rhs">often beats RL-ing the small model directly</span></div><span class="calc src">a big reasoner\'s traces are training gold for a small student. That is Module 8\'s story - distillation.</span></div>'; }
-    else mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">M6: all 4 training stages</span><span class="rhs">this module = stage 4, in full</span></div><div class="row"><span class="lhs">reasoning</span><span class="rhs">spend inference compute (M0), trained by a verifier (course 1 M6)</span></div><span class="calc src">next: Module 8 shrinks these giants - distillation (R1\'s chains) and quantization.</span></div>';
+    else { chain.innerHTML = '<span class="ans">trained, reasoning, ready to be shrunk -&gt; Module 8</span>';   // jump-safe: final beat sets its own chain, not inherited from k===3
+      mach.innerHTML = '<div class="calc"><div class="row"><span class="lhs">M6: all 4 training stages</span><span class="rhs">this module = stage 4, in full</span></div><div class="row"><span class="lhs">reasoning</span><span class="rhs">spend inference compute (M0), trained by a verifier (course 1 M6)</span></div><span class="calc src">next: Module 8 shrinks these giants - distillation (R1\'s chains) and quantization.</span></div>'; }
     const caps3 = [
       "Act 3: what emerged. R1-Zero started from a base model and pure RL, with zero supervised reasoning examples - and long chains of thought plus self-correction appeared on their own. Under a verifiable reward, careful reasoning is an attractor the model falls into.",
       "The catch: R1-Zero was smart but messy - it mixed languages and was hard to read. So R1 added a small SFT 'cold start' (Module 6) around the RL to clean it up. Pure RL reaches the capability; a little supervised polish makes it usable. The stages compose.",

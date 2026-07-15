@@ -337,7 +337,7 @@ function renderMech(i) {
     $("diap").style.display = "flex"; mtpBox.style.display = "none";
     if (i <= 1) { drawHeads(16, false); arrowdn.style.visibility = "hidden"; latent.className = "latent"; rope.className = "rope"; }
     else if (i <= 3) { drawHeads(16, true); arrowdn.style.visibility = "visible"; latent.className = "latent on"; rope.className = i === 3 ? "rope on" : "rope"; }
-    else { drawHeads(16, true); latent.className = "latent on"; rope.className = "rope on"; }
+    else { drawHeads(16, true); arrowdn.style.visibility = "visible"; latent.className = "latent on"; rope.className = "rope on"; }  // jump-safe: set the compress arrow explicitly, not inherited from i===3
     diaHd.textContent = "one token's KV storage";
     const scale = MHA_b;
     if (i === 0) { drawBars([MHA_ROW], scale);
