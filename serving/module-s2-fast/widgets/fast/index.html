@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Make it fast</title>
+<!-- Serving S2. Verified as of 2026-07. Builds ON models M8 (bits->bytes) by adding the SPEED
+     link. bytes = params x bits/8 and tok/s = bandwidth/bytes computed live; quality numbers are
+     illustrative (rule 11). The matmul-floor is a metaphor for real SIMD/GPU/WebGPU kernels. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:980px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:8px 0 14px; }
+  .modes { display:flex; gap:7px; margin-bottom:14px; flex-wrap:wrap; }
+  .modebtn { border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:999px;
+             padding:6px 14px; cursor:pointer; font:13px system-ui; }
+  .modebtn.on { border-color:var(--blue); color:var(--ink); }
+  .modehint { color:var(--faint); font:12px var(--mono); align-self:center; margin-left:6px; }
+  .cvwrap { border:1px solid var(--line); border-radius:11px; background:#0b0e12; overflow:hidden; }
+  #cv { width:100%; display:block; }
+  .caption { margin:14px 0 0; min-height:44px; }
+  .insight { border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:9px;
+             background:var(--panel); padding:9px 13px; margin-top:12px; font-size:14.5px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { display:flex; gap:11px; align-items:center; border:1px solid var(--line); border-radius:10px;
+           background:var(--panel); padding:8px 12px; margin-top:11px; min-height:44px; }
+  .react .chr svg { width:42px; height:42px; flex:none; }
+  .react .rl { font-size:13.5px; color:#d8dde3; }
+  #scrub { margin-top:15px; }
+</style>
+</head>
+<body>
+<h1>Make it fast</h1>
+<div class="stamp">TRACK 5 . S2 . verified as of 2026-07 - shrink the pile, work the floor</div>
+<p class="sub">S0 gave the clock: tok/s = bandwidth / bytes. With the SAME hardware there are two ways to go faster -
+carry fewer bytes (<b>quantize</b>: fewer bits per weight) and do the one operation that dominates
+(<b>the matmul</b>) with more hands at once (<b>the kernel</b>). This module is both.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">shrink the pile (quantize)</button>
+  <button class="modebtn" data-mode="mech">work the floor (the kernel)</button>
+  <span class="modehint" id="modehint"></span>
+</div>
+
+<div class="cvwrap"><div id="cv"></div></div>
+
+<p class="caption" id="caption"></p>
+<div class="insight" id="insight"></div>
+<div class="react"><span class="chr" id="rchr" data-c="bit" data-e="read"></span><span class="rl" id="rline"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+const BW=900, PARAMS=7;                                   // fixed demo: a 7B model on a 900 GB/s GPU
+const bytesOf=(bits)=>PARAMS*1e9*bits/8;
+const tps=(bits)=>Math.round(BW*1e9/bytesOf(bits));
+const GB=b=>b>=1e9?(b/1e9).toFixed(1)+" GB":(b/1e6).toFixed(0)+" MB";
+
+/* ================= INTUITION: quantize (the shrinking pile) ================= */
+const INT=[
+ {bits:16, focus:"fp16",
+  cap:"Start where S0 left off: a 7B model at 16 bits per weight is 14 GB, read every token. On our 900 GB/s doorway that is a ceiling of ~"+tps(16)+" tokens/sec. The weights are stored as fp16 - full-fat numbers. Watch what happens as we spend fewer bits on each.",
+  ins:"The pile is <b>params x bits/8</b> bytes. Fewer bits per weight = a smaller pile = more tokens/sec, on the same hardware.", who:'bit',emo:'read', rl:"Fourteen gigabytes, hauled per word. Let's put it on a diet."},
+ {bits:8, focus:"int8",
+  cap:"Round each weight to 8 bits (int8). Half the bits, half the bytes - 7 GB now - and the token rate roughly DOUBLES to ~"+tps(8)+"/sec. Same weights, same math, half the traffic through the doorway. Module 8 showed this as smaller storage; here it is directly more speed.",
+  ins:"<b>int8:</b> 2x smaller pile, ~2x the tokens/sec. Quantization is a bandwidth win, not just a disk win (extends M8).", who:'bit',emo:'happy', rl:"Half the bytes, twice the words. I like this trade."},
+ {bits:4, focus:"int4",
+  cap:"Go to 4 bits (int4). A quarter the bytes - 3.5 GB - and ~4x the token rate, ~"+tps(4)+"/sec. This is the mainstream serving default: for most models the answers barely change, and everything runs four times lighter. GGUF's k-quants (Q4_K_M) are exactly this, tuned per layer.",
+  ins:"<b>int4:</b> 4x smaller, ~4x faster - and usually no quality you'd notice. The default that makes local models practical.", good:true, who:'bit',emo:'reach', rl:"Four bits a weight and I still know France's capital. Wild."},
+ {bits:2, focus:"cliff",
+  cap:"So why not 2 bits, or 1? Because precision runs out. Below about 4 bits the model's answers start to break - the quality falls off a cliff (Module 8's exact warning). There is a sweet spot: shrink until just before the cliff. int4 sits right at it; int2 is usually over.",
+  ins:"<b>The cliff:</b> fewer bits buys speed until precision collapses. The art is stopping at the edge - near int4 for most models.", who:'bit',emo:'panic', rl:"Two bits and I start slurring. Some things you can't round away."},
+ {bits:4, focus:"kv",
+  cap:"And it is not only the weights. The KV cache from S1 - the shelf that grows with every token - is numbers too, and it can be quantized (fp8 KV). So both piles shrink: the fixed one (weights) and the growing one (the cache). Long contexts get cheaper the same way.",
+  ins:"<b>Quantize both piles:</b> the weights AND the KV cache (S1/M3). Fewer bits everywhere the doorway has to carry.", good:true, who:'bit',emo:'happy', rl:"Shrink the shelf too. Every byte I don't move is time I don't wait."},
+ {bits:4, focus:"limit",
+  cap:"But shrinking the pile only helps while the DOORWAY is the bottleneck (S0: memory-bound). The compute unit still has to do the math on what arrives - and that math is almost entirely one operation, repeated billions of times. To go faster still, you have to make THAT fast. Switch to 'work the floor'.",
+  ins:"Quantization widens the flow; but the compute unit's own work - the matmul - has its own speed story. That is the kernel.", who:'bit',emo:'read', rl:"Lighter to haul. Now, what am I actually computing when it lands?"}
+];
+
+/* ================= MECHANISM: the kernel (the warehouse floor) ================= */
+const MECH=[
+ {focus:"one", mode:'scalar', who:'bit',emo:'read', rl:"Strip the names away and it's one operation, a billion times.",
+  cap:"Down a level: what is the compute unit DOING? Almost entirely one thing - a matrix multiply (your h times a weight matrix W), the heart of every layer (M2, M4). A matmul is a grid of output numbers, each one a dot product. Make the matmul fast and you have made the model fast.",
+  ins:"The compute is ~one operation: <b>the matmul</b>. Every output cell is a dot product. Speed lives here."},
+ {focus:"scalar", mode:'scalar', who:'bit',emo:'confused', rl:"One clerk, one cell. Correct, and glacial.",
+  cap:"The naive way: one worker, filling the output grid one cell at a time, left to right. Correct, but slow - a modern matrix has millions of cells. This is a plain CPU loop, no tricks.",
+  ins:"<b>Scalar:</b> one worker, one cell at a time. Simple, and far too slow for a real model."},
+ {focus:"simd", mode:'simd', who:'bit',emo:'happy', rl:"Eight cells per instruction. Now my laptop keeps up.",
+  cap:"First trick, on the CPU: SIMD - a single instruction on multiple data. One worker becomes a ROW of lanes that fill 8 (or 16) cells in one step. This is AVX on x86, NEON on ARM phones, and WASM-SIMD in the browser. Same work, a fraction of the steps.",
+  ins:"<b>SIMD:</b> one instruction, a whole row of cells at once (AVX / NEON / WASM-SIMD). How a laptop CPU keeps up."},
+ {focus:"gpu", mode:'gpu', who:'cortex',emo:'reach', rl:"Not one fast worker - a thousand plain ones, all at once.",
+  cap:"Then the GPU: not a row but the whole FLOOR - thousands of workers on thousands of tiles at the same time. A matmul is embarrassingly parallel, and a GPU is a warehouse of tiny workers built for exactly this. WebGPU brings this same floor into a browser tab (S4). This is why the GPU wins: not faster workers, MANY more of them.",
+  ins:"<b>GPU / WebGPU:</b> the whole floor at once - thousands of tiles in parallel. The win is width, not speed per worker.", good:true},
+ {focus:"flash", mode:'gpu', who:'bit',emo:'happy', rl:"Never write the giant matrix. Compute a tile, let it go.",
+  cap:"The state of the art fuses steps to save the doorway. Flash-attention computes attention (M2) tile by tile and NEVER writes the giant scores matrix to memory - it streams through, keeping only what it needs. Less memory traffic (back to S0's doorway) AND full use of the floor. Kernels are where fast serving is really won.",
+  ins:"<b>Fused kernels (flash-attention):</b> compute a tile, never store the whole matrix - less doorway traffic, full floor. Where the speed is.", good:true},
+ {focus:"close", mode:'gpu', who:'bit',emo:'happy', rl:"Lighter pile, fuller floor. That's a fast instance.",
+  cap:"Two levers, one goal: quantization shrinks the pile the doorway must carry; the kernel works the compute floor. Together they turn 'a model that runs' into 'a model that runs fast' - one instance, as quick as the hardware allows. Now: ship that instance anywhere (S3), and run it with no install at all (S4).",
+  ins:"<b>Fast = smaller pile (quantize) + fuller floor (kernel).</b> One instance optimized. Next: ship it (S3), run it in a tab (S4).", good:true}
+];
+
+/* ================= p5 ================= */
+const CW=920, CVH=360;
+let CUR={mode:'int',step:0};
+const col={blue:'#58c4dd',gold:'#ffd35c',green:'#83c167',red:'#fc6255',ink:'#e9ecf1',dim:'#98a2b0',faint:'#5b6470',line:'#2a3038',panel:'#141b22'};
+new p5(pp=>{
+  pp.setup=()=>{ const c=pp.createCanvas(CW,CVH); c.parent('cv'); pp.pixelDensity(Math.max(2,window.devicePixelRatio||1)); pp.textFont('ui-monospace, Menlo, monospace'); };
+  pp.draw=()=>{ pp.background(11,14,18); CUR.mode==='int'?drawQuant(pp,INT[CUR.step]):drawKernel(pp,MECH[CUR.step]); };
+});
+
+function drawQuant(p, s){
+  const bits=s.bits, f=s.focus;
+  // the weight matrix as a grid; cell width ~ bits
+  const gx=40, gy=54, rows=8, cols=14, chpx=Math.max(3, bits*1.5), cellH=20, gap=4;
+  p.noStroke(); p.fill(col.dim); p.textSize(11); p.textAlign(p.LEFT,p.BASELINE);
+  p.text("the weights ("+bits+" bits each)", gx, gy-10);
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const x=gx+c*(chpx+gap), y=gy+r*(cellH+3);
+    p.fill(bits<=2?p.color(252,98,85,150):p.color(88,196,221,190)); p.rect(x,y,chpx,cellH,1.5);
+  }
+  const gridW=cols*(chpx+gap);
+  // pile size + speed readout
+  const rx=gx+Math.max(gridW,240)+50, ry=70;
+  const roLabel=(k,v,c2,y)=>{ p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text(k,rx,y); p.fill(c2||col.ink); p.textSize(15); p.text(v,rx,y+15); };
+  roLabel("pile per token (params x bits/8)", GB(bytesOf(bits)), col.gold, ry);
+  roLabel("tok/s ceiling (bandwidth / bytes)", tps(bits)+" tok/s", col.green, ry+56);
+  // speedup vs fp16
+  p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("vs fp16:", rx, ry+112);
+  p.fill(col.blue); p.textSize(15); p.text((tps(bits)/tps(16)).toFixed(bits>=16?0:1)+"x faster", rx+62, ry+109);
+  // quality meter
+  const q = bits>=8?1 : bits>=4?0.95 : bits>=3?0.7 : bits>=2?0.35 : 0.1;
+  p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("answer quality", rx, ry+150);
+  p.fill('#0e141b'); p.rect(rx,ry+168,220,14,3); p.fill(q>0.6?col.green:col.red); p.rect(rx,ry+168,220*q,14,3);
+  if(f==='cliff'){ p.fill(col.red); p.textSize(11.5); p.text("<- the cliff: precision ran out", rx, ry+188); }
+  // KV callout
+  if(f==='kv'){ p.fill(col.gold); p.textSize(12); p.textAlign(p.LEFT,p.TOP);
+    p.text("+ the KV cache (S1) shrinks too: fp8 KV -> the growing shelf gets lighter as well.", gx, 322); }
+}
+
+function drawKernel(p, s){
+  const mode=s.mode, f=s.focus;
+  const gx=60, gy=54, N=9, M=16, cw=26, ch=22, gap=3;
+  p.noStroke(); p.fill(col.dim); p.textSize(11); p.textAlign(p.LEFT,p.BASELINE);
+  p.text("matmul: output grid C = h x W  (each cell = one dot product)", gx, gy-12);
+  const t=p.frameCount;
+  for(let r=0;r<N;r++) for(let c=0;c<M;c++){ const x=gx+c*(cw+gap), y=gy+r*(ch+gap);
+    let lit=false, hot=false;
+    if(mode==='scalar'){ const k=Math.floor(t/2)%(N*M+12), idx=r*M+c; lit=idx<k; hot=idx===k; }        // one cell at a time
+    else if(mode==='simd'){ const active=Math.floor(t/9)%(N+2); lit=r<active-1; hot=(r===active-1); }   // a whole row at once
+    else { const sweep=(t*0.8)%(N+M+18); lit=(r+c)<sweep-1; hot=Math.abs((r+c)-(sweep-1))<1.2; }        // the whole floor sweeps fast
+    p.fill(hot?col.gold:lit?p.color(88,196,221,170):p.color(40,48,58)); p.rect(x,y,cw,ch,2);
+  }
+  const yb=gy+N*(ch+gap);
+  const labels={scalar:"1 worker - one cell at a time (a plain CPU loop)",simd:"SIMD: a whole ROW of lanes at once (AVX / NEON / WASM-SIMD)",gpu:"GPU / WebGPU: the WHOLE FLOOR - thousands of tiles at once"};
+  p.fill(mode==='gpu'?col.green:col.gold); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text(labels[mode], gx, yb+8);
+  const spd={scalar:"1x",simd:"~8x",gpu:"~1000x"};
+  p.fill(col.dim); p.textSize(11); p.text("relative throughput on this matmul:", gx, yb+30);
+  p.fill(col.blue); p.textSize(13); p.text(spd[mode], gx+248, yb+28);
+  if(f==='flash'){ p.fill(col.gold); p.textSize(11.5); p.text("flash-attention: compute each tile, never store the whole matrix -> less doorway traffic (S0).", gx, yb+50); }
+}
+
+/* ================= wiring ================= */
+const $=id=>document.getElementById(id);
+function react(who,emo,line){ const c=$('rchr'); c.dataset.c=who; c.dataset.e=emo; $('rline').textContent=line; if(window.Cast) Cast.render(document.querySelector('.react')); }
+function render(i){ const isInt=CUR.mode==='int'; const st=(isInt?INT:MECH)[i]; CUR={mode:CUR.mode,step:i};
+  $('caption').textContent=st.cap; $('insight').className='insight'+(st.good?' good':''); $('insight').innerHTML=st.ins;
+  react(st.who||'bit', st.emo||'read', st.rl||"");
+}
+let tl=null;
+function build(mode){ CUR={mode,step:0};
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  $('modehint').textContent = mode==='int' ? 'fewer bits per weight = a lighter pile' : 'the matmul, from one worker to the whole floor';
+  const arr=mode==='int'?INT:MECH;
+  tl=new Anim.Timeline({length:arr.length, autoMs:4200, onStep:(i)=>render(i)});
+  Anim.scrubber($('scrub'), tl, {label:(i=>"step "+(i+1)+" / "+arr.length)});
+}
+document.querySelectorAll('.modebtn').forEach(b=>b.addEventListener('click', ()=>build(b.dataset.mode)));
+build('int');
+</script>
+</body>
+</html>
