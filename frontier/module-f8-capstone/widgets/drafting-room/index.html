@@ -101,6 +101,7 @@
   .runchip.off { color:var(--faint); opacity:.55; }
   .stagebar { display:flex; gap:18px; align-items:center; margin:-6px 0 12px; flex-wrap:wrap; }
   .stagebar .actor { display:flex; gap:9px; align-items:center; }
+  .stagebar .actor[hidden] { display:none; }
   .stagebar .chr svg { width:38px; height:38px; flex:none; }
   .stagebar .say { font-size:12.5px; color:#cdd3da; background:#0e141b; border:1px solid var(--line);
                    border-radius:10px; padding:5px 11px; position:relative; }
@@ -402,7 +403,7 @@ function drawBlueprint(){
       ? { stroke:col, strokeWidth:2, roughness:1.1, bowing:1.4, fill:col, fillStyle:"hachure", fillWeight:0.8, hachureGap:7, seed:b.seed }
       : { stroke:"#3d4550", strokeWidth:1.1, roughness:2.3, bowing:2.2, seed:b.seed });
     bpx.save(); bpx.textAlign="center";
-    bpx.fillStyle=on?col:"#4a5260"; bpx.font="9px ui-monospace, Menlo, monospace";
+    bpx.fillStyle=on?"#c9cfd8":"#4a5260"; bpx.font="9px ui-monospace, Menlo, monospace";   // neutral, not the box hue, so the title reads on the hachure
     bpx.fillText(b.title, b.x+b.w/2, b.y+16);
     if(on){ bpx.fillStyle="#e9ebee"; bpx.font="600 13px ui-monospace, Menlo, monospace"; bpx.fillText(o.n, b.x+b.w/2, b.y+b.h/2+9); }
     else { bpx.fillStyle="#39424d"; bpx.font="15px ui-monospace, monospace"; bpx.fillText("?", b.x+b.w/2, b.y+b.h/2+11); }
@@ -544,14 +545,16 @@ function drawKV(hl){const c=$("tkv"),x=crisp(c),W=c._lw,H=c._lh,pad=26;x.clearRe
   const Tmax=48,ymax=Tmax*ND,px=T=>pad+(T/Tmax)*(W-pad-8),py=v=>(H-16)-(v/ymax)*(H-26);
   [["full","#fc6255"],["sparse","#58c4dd"],["linear","#83c167"]].forEach(function(mc){const m=mc[0],col=mc[1],on=m===hl;
     x.strokeStyle=on?col:col+"3a";x.lineWidth=on?2.4:1.1;x.beginPath();for(let T=1;T<=Tmax;T++){const xx=px(T),yy=py(kvSize(m,T));T===1?x.moveTo(xx,yy):x.lineTo(xx,yy);}x.stroke();
-    x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign="left";x.fillText(m,px(Tmax)-32,py(kvSize(m,Tmax))+(m==="full"?-3:m==="linear"?12:4));});
+    // full label rides its (high) curve; the two near-flat low curves get fixed, well-separated y so they never overprint each other or the axis label
+    x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign="left";x.fillText(m,px(Tmax)-32,m==="full"?py(kvSize(m,Tmax))-3:(m==="linear"?H*0.42:H*0.56));});
   x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText("memory (values)",pad+2,16);x.textAlign="right";x.fillText("context length \u2192",W-8,H-3);x.textAlign="left";}
 function drawPasses(hl){const c=$("tpass");if(!c)return;const x=crisp(c),W=c._lw,H=c._lh,pad=26;x.clearRect(0,0,W,H);
   x.strokeStyle="#2a3038";x.lineWidth=1;x.beginPath();x.moveTo(pad,8);x.lineTo(pad,H-16);x.lineTo(W-6,H-16);x.stroke();
   const Tmax=48,ymax=Tmax,px=T=>pad+(T/Tmax)*(W-pad-8),py=v=>(H-16)-(v/ymax)*(H-26);
   [["ar","#8a93a0","autoregressive"],["diff","#83c167","diffusion"]].forEach(function(mc){const m=mc[0],col=mc[1],on=m===hl;
     x.strokeStyle=on?col:col+"3a";x.lineWidth=on?2.4:1.1;x.beginPath();for(let T=1;T<=Tmax;T++){const xx=px(T),yy=py(passCount(m,T));T===1?x.moveTo(xx,yy):x.lineTo(xx,yy);}x.stroke();
-    x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign="right";x.fillText(mc[2],W-8,py(passCount(m,Tmax))+(m==="ar"?12:-4));});
+    // autoregressive rides steeply to the top-right corner, so label it in the empty upper-left, above the line; diffusion stays low-right
+    x.fillStyle=on?col:col+"77";x.font=(on?"600 ":"")+"9px ui-monospace,monospace";x.textAlign=m==="ar"?"left":"right";x.fillText(mc[2],m==="ar"?pad+8:W-8,m==="ar"?H*0.30:H*0.60);});
   x.fillStyle="#5b6470";x.font="9px ui-monospace,monospace";x.textAlign="left";x.fillText("passes to write it",pad+2,16);x.textAlign="right";x.fillText("output length \u2192",W-8,H-3);x.textAlign="left";}
 
 function drawVerdict(){const v=$("verdict");if(!v)return;

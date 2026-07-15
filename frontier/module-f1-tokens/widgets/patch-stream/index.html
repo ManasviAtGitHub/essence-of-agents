@@ -274,7 +274,7 @@ new p5(function(p){
       p.push(); p.textAlign(p.LEFT); p.noStroke(); p.fill("#cdd3da"); p.textSize(12.5);
       p.text("tokens = floor(H/p) x floor(W/p)", 60, 78);
       p.fill("#98a2b0"); p.textSize(11);
-      p.text("ViT (2020): p=16 -> a 224x224 image = 14 x 14 = 196 tokens", 60, 102);
+      p.text("ViT (Vision Transformer, 2020): p=16 -> a 224x224 image = 14 x 14 = 196 tokens", 60, 102);
       if(k>=7) p.text("Qwen-VL (2024-25): 14px patches merged 2x2 -> p=28 effective, native resolution", 60, 120);
       p.pop();
       if(k===6){ /* step 1 only drew the formula - fill the empty canvas: the recipe made visual, a 14x14 patch grid = 196 tokens */
@@ -283,12 +283,14 @@ new p5(function(p){
         p.textAlign(p.LEFT); p.fill("#98a2b0"); p.textSize(11); p.text("224px / 16px = 14 patches per side", gx, gy-12);
         p.textAlign(p.CENTER); p.fill("#ffd35c"); p.textSize(13); p.text("14 x 14 = 196 tokens", gx+N*(cell+gap)/2-1, gy+N*(cell+gap)+16);
         p.pop(); }
-      if(k>=7){ lane(30,160,860,60,"AREA IS THE BILL");
-        p.push(); p.noStroke(); p.textAlign(p.LEFT);
-        [[224,196],[448,784],[896,3136]].forEach((d,i)=>{ p.fill("#ffd35c"); p.textSize(11.5);
-          p.text(d[0]+"px -> "+d[1]+" tokens", 70+i*220, 196); const s=8+i*7;
-          p.fill(88,196,221,60); p.rect(70+i*220, 204, s*2.2, s*1.1); });
-        p.fill("#98a2b0"); p.textSize(10); p.text("double the side, 4x the tokens", 720, 196); p.pop(); }
+      if(k>=7){ lane(30,150,860,150,"AREA IS THE BILL");
+        p.push(); p.noStroke();
+        p.textAlign(p.CENTER); p.fill("#98a2b0"); p.textSize(11); p.text("double the side of the image -> 4x the AREA -> 4x the tokens", 460, 178);
+        const specs=[[224,196,14],[448,784,28],[896,3136,56]], base=264, cxs=[170,430,710];
+        specs.forEach((d,i)=>{ const side=d[2], cx=cxs[i], bx=cx-side/2, by=base-side;   // side = sqrt(tokens), so the drawn AREA is exactly proportional to the token count
+          p.fill(88,196,221,55); p.stroke(88,196,221,150); p.strokeWeight(1); p.rect(bx,by,side,side); p.noStroke();
+          p.fill("#ffd35c"); p.textSize(11); p.textAlign(p.CENTER); p.text(d[0]+"px", cx, base+16); p.fill("#e9ebee"); p.text(d[1]+" tokens", cx, base+30); });
+        p.pop(); }
       if(k>=8){ lane(30,250,860,70,"THE CACHE FOLLOWS (the KV bill returns)");
         p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#8fb7c8"); p.textSize(12);
         p.text("1,536 tokens x ~328 KB/token (Llama-3-70B's rate) = ~503 MB of KV cache for ONE screenshot", 60, 288);
@@ -343,7 +345,7 @@ new p5(function(p){
           p.text("a decoder renders them back to waveform.", 520, 218);
           p.fill("#98a2b0"); p.textSize(10.5);
           p.text("Qwen3.5-Omni (Mar 2026): Thinker reasons, Talker emits multi-codebook", 520, 246);
-          p.text("speech tokens; ARIA keeps text and audio token rates aligned.", 520, 262);
+          p.text("speech tokens; native models keep text and audio token rates aligned.", 520, 262);
           p.text("113 languages, both directions - all through this one mechanism.", 520, 288);
         }
         p.pop();
@@ -450,7 +452,7 @@ const CAPS_INT=[
    "bit","happy","One transformer. One stream. Bigger menu. That is the whole secret."]];
 const CAPS_MECH=[
   ["Down a level, honestly. A toy 4x4 grayscale image, values hand-authored (0-9 for readability). Everything computed FROM them is live. Cut: four 2x2 patches.","bit","neutral","Toy numbers, real arithmetic. Watch patch #1."],
-  ["Take patch #1 - the top-left 2x2. Four pixel values. A real ViT patch is 16x16x3 = 768 numbers; ours is 4, so you can check every step with a pencil.","bit","read","Four numbers. Small enough to trust your own arithmetic."],
+  ["Take patch #1 - the top-left 2x2. Four pixel values. A real ViT (Vision Transformer) patch is 16x16x3 = 768 numbers; ours is 4, so you can check every step with a pencil.","bit","read","Four numbers. Small enough to trust your own arithmetic."],
   ["FLATTEN: the patch becomes a flat vector, row by row. No learning yet - just reshaping.","cortex","think","A square becomes a list. I can work with lists."],
   ["THE PROJECTOR: a learned matrix W maps the flat patch into the model's embedding space. Ours is 3x4 and hand-authored (labeled); real ones are learned in pretraining. The first output dimension, computed live on screen.","bit","reach","One dot product per dimension. This is the entire door."],
   ["All three dimensions, computed - then a POSITION embedding is added so the model knows WHERE the patch sat (attention has no eyes for layout otherwise).","cortex","read","h = W x patch, plus where-it-was. I have seen this shape before - it is just h."],
@@ -466,7 +468,7 @@ const CAPS_MECH=[
   ["One codebook is too coarse for real audio, so they STACK: each layer quantizes the residual the previous one missed (finer and finer). And OUT is the same door in reverse - the model predicts codec tokens with the same loop, a decoder renders waveform. Omni (Mar 2026) speaks 113 languages through exactly this.","cortex","happy","I hum in tokens now. Coarse token, finer token, finest - then a decoder sings them."],
   ["Place it on the map: this module EXTENDED two things you own - the menu (it grows) and the loop (it samples new kinds of tokens). Nothing was replaced. Next, something IS attacked: the 2026 flagships refuse to pay attention's compare-everything cost or the growing KV bill.","bit","reach","Extension, not attack - this time. Next module, something breaks."],
   ["Done-when check: price an image in tokens, name the door, and explain quantization in one sentence. CHALLENGE.md holds you to it.","bit","neutral","Price the image, name the door, snap the wave. Then you own this module."],
-  ["One act left: the NAMES. You have met the mechanisms - now meet what the world calls them. It starts with CLIP (Feb 2021): two encoders trained to pull matching image-caption pairs together in one shared space. That is where 'images and text living together' was BORN - years before any chat model could see.","bit","read","Before any model could chat about a photo, CLIP taught an eye and a language to share a space."],
+  ["One act left: the NAMES. You have met the mechanisms - now meet what the world calls them. It starts with CLIP (Feb 2021), Contrastive Language-Image Pre-training: two encoders trained to pull matching image-caption pairs together in one shared space. That is where 'images and text living together' was BORN - years before any chat model could see.","bit","read","Before any model could chat about a photo, CLIP taught an eye and a language to share a space."],
   ["Put the pieces in a row and you have named a VLM: a CLIP-style EYE -> a PROJECTOR -> the LLM. LLaVA (Apr 2023) fixed this recipe; Qwen3-VL and InternVL3 (2025) perfected it. Honesty: our act 1 skipped the eye and projected raw patches - the simplest door; most VLMs keep the eye.","cortex","read","So 'VLM' was never a species - it is a wiring diagram: eye, translator, me."],
   ["NATIVE multimodal (Qwen3.5, Feb 2026) is the same diagram with the seam removed: no separate pretrained eye - vision is trained inside the model from token one. That is the entire meaning of the word 'native'.","cortex","happy","They stopped bolting an eye onto me and grew it with me instead."],
   ["And extend the row by one box - an ACTION head - and you have named a VLA (vision-language-action): the same VLM, but its output tokens move a robot. RT-2 proved it (Jul 2023); pi-0.7 runs it (Apr 2026). The body module opens that box. Now the zoo has names: ViT is the eye's skeleton, CLIP its training, VLM the recipe, native the seam removed, VLA the body.","bit","happy","Five names, one diagram growing left to right. You can now read a multimodal model card."]];

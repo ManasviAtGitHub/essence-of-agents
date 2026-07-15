@@ -156,12 +156,20 @@ new p5(function(p){
       p.push(); p.noStroke(); p.fill("#fc6255"); p.textSize(11); p.textAlign(p.LEFT);
       p.text("a lazy manager funnels", 585, 160); p.text("EVERYTHING through one helper -", 585, 180); p.text("a team of 8 working like 1.", 585, 200);
       p.fill("#98a2b0"); p.textSize(9.5); p.text("the fix is in the reward - next.", 585, 234); p.pop(); }
-    if(k===5){ lane(30,50,860,272,"WHAT STAYED HAND-WRITTEN");
-      p.push(); p.noStroke(); p.textAlign(p.LEFT); p.textSize(11);
-      p.fill("#58c4dd"); p.text("how the helper-Cortexes TALK to each other froze into fixed standards -", 60, 140);
-      p.text("boring on purpose, so they never surprise one another.", 80, 164);
-      p.fill("#fc6255"); p.text("and the safety walls (the sandbox) stayed CODE - never a learned habit.", 60, 202);
-      p.fill("#cdd3da"); p.text("the split: what Cortex DOES moved into its weights; the wires and walls stayed ours.", 60, 238); p.pop(); }
+    if(k===5){ lane(30,50,860,272,"WHAT MOVED TO WEIGHTS, WHAT STAYED CODE");
+      p.push(); p.noStroke();
+      const cy=104, chh=150;
+      p.fill("#1a2216"); p.stroke("#ffd35c"); p.strokeWeight(1.3); p.rect(80,cy,360,chh,10);      // learned column
+      p.fill("#111a20"); p.stroke("#58c4dd"); p.strokeWeight(1.3); p.rect(480,cy,360,chh,10);      // hand-written column
+      p.noStroke(); p.textAlign(p.LEFT,p.BASELINE);
+      p.fill("#ffd35c"); p.textSize(11.5); p.text("LEARNED - moved into weights", 98, cy+26);
+      p.fill("#58c4dd"); p.text("HAND-WRITTEN - stays code", 498, cy+26);
+      const LN=["which tool to call, and when","when to split a job & spawn a team","running its own tests, fixing fails"];
+      const HW=["the handshake - how helpers talk","the safety walls - the sandbox"];
+      p.textSize(10);
+      LN.forEach((t,i)=>{ p.fill("#2a2410"); p.stroke("#8a7320"); p.strokeWeight(1); p.rect(98,cy+42+i*32,324,24,5); p.noStroke(); p.fill("#e9d9a0"); p.textAlign(p.LEFT,p.CENTER); p.text(t,112,cy+42+i*32+12); });
+      HW.forEach((t,i)=>{ p.fill("#0e2028"); p.stroke("#2f6b7d"); p.strokeWeight(1); p.rect(498,cy+42+i*32,324,24,5); p.noStroke(); p.fill("#bfe6f0"); p.textAlign(p.LEFT,p.CENTER); p.text(t,512,cy+42+i*32+12); });
+      p.textAlign(p.CENTER); p.fill("#cdd3da"); p.textSize(11); p.text("what Cortex DOES moved into its weights; the wires and walls stayed ours.", CW/2, cy+chh+30); p.pop(); }
     if(k===6){ runningLoop(CW/2,168,62,true);
       p.push(); p.noStroke(); p.fill("#e9ebee"); p.textSize(12.5); p.textAlign(p.CENTER);
       p.text("the loop you hand-wrote is now something Cortex LEARNS to run on its own.", CW/2, 292);
@@ -197,7 +205,7 @@ new p5(function(p){
       p.pop();
     } else if(k<=9){ // ACT 2: the trained team - serial collapse computed on the swarm
       const k2=k-5;
-      lane(30,46,860,250, k2<=0?"ONLY THE MANAGER LEARNS":(k2<=2?"WHY IT LEARNS TO DELEGATE - the mechanism, simplified (toy numbers)":"AT SCALE"));
+      lane(30,46,860,250, k2<=0?"ONLY THE MANAGER LEARNS":(k2<=2?"WHY IT LEARNS TO DELEGATE - the mechanism, simplified (toy numbers)":(k2===3?"AT SCALE":"THE OPEN PART - CREDIT ASSIGNMENT")));
       if(k2===0){ swarm(260,175,8,false);
         p.push(); p.noStroke(); p.textAlign(p.LEFT); p.fill("#cdd3da"); p.textSize(11);
         p.text("only the MANAGER-Cortex learns.", 500, 150); p.text("the helpers are frozen - their", 500, 172); p.text("work is just what it observes.", 500, 192);
@@ -218,9 +226,20 @@ new p5(function(p){
         p.text("at scale: ~4.5x faster on", 600, 150); p.text("wide searches, up to ~100", 600, 170); p.text("helper-Cortexes, ~1,500", 600, 190); p.text("coordinated tool calls -", 600, 210);
         p.fill("#ffd35c"); p.text("all from that one", 600, 236); p.text("shaped reward.", 600, 256);
         p.fill("#5b6470"); p.textSize(8.5); p.textAlign(p.CENTER); p.text("PARL - trained orchestration (Moonshot Kimi K2.5, Jan 2026, their numbers)", CW/2, 288); p.pop(); }
-      if(k2===4){ p.push(); p.noStroke(); p.textAlign(p.CENTER); p.fill("#e9ebee"); p.textSize(12);
-        p.text("the hard part it is still learning: WHICH decision in a long journey actually mattered.", CW/2, 150);
-        p.fill("#98a2b0"); p.textSize(10.5); p.text("the influential fork is rarely the obvious one - credit-assignment is the open frontier here.", CW/2, 178); p.pop(); }
+      if(k2===4){ p.push();
+        // one long journey, a single reward at the end - which step earned it?
+        const js=["search","read","reason","the fork","read","answer"], x0=70, sw=116, bw=98, y=150;
+        js.forEach((s,j)=>{ const cx=x0+j*sw+bw/2, fork=j===3;   // a "+?" over every step: each claims some credit
+          p.noStroke(); p.textAlign(p.CENTER,p.CENTER); p.fill(fork?"#ffd35c":"#39424e"); p.textSize(fork?15:12); p.text("+?",cx,y-36); });
+        js.forEach((s,j)=>{ const x=x0+j*sw, fork=j===3;
+          p.fill(fork?"#2a2410":"#171b21"); p.stroke(fork?"#ffd35c":"#3a4350"); p.strokeWeight(fork?1.8:1.2); p.rect(x,y-13,bw,26,6);
+          p.noStroke(); p.fill(fork?"#ffd35c":"#9aa4b0"); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text(s,x+bw/2,y);
+          if(j<js.length-1){ p.stroke("#3a4350"); p.strokeWeight(1); p.line(x+bw,y,x+sw-2,y); p.noStroke(); } });
+        const rx=x0+js.length*sw+2; p.fill("#14220f"); p.stroke("#83c167"); p.strokeWeight(1.4); p.rect(rx,y-13,54,26,6);
+        p.noStroke(); p.fill("#a6e58a"); p.textSize(11); p.textAlign(p.CENTER,p.CENTER); p.text("r=1",rx+27,y);
+        p.textAlign(p.CENTER); p.fill("#e9ebee"); p.textSize(12); p.text("one reward at the end - but WHICH decision earned it?", CW/2, y+66);
+        p.fill("#ffd35c"); p.textSize(10.5); p.text("the influential fork is rarely the obvious one.", CW/2, y+90);
+        p.fill("#98a2b0"); p.textSize(10); p.text("spreading that one reward across every step is the open frontier: credit assignment.", CW/2, y+112); p.pop(); }
     } else { // ACT 3: learned vs hand-written + the finish
       const k3=k-10;
       lane(30,46,860,250, k3<=0?"WHAT STAYED HAND-WRITTEN":(k3<=2?"LEARNED vs HAND-WRITTEN":"THE LOOP LEARNED ITSELF"));
@@ -229,7 +248,7 @@ new p5(function(p){
         p.fill("#cdd3da"); p.text("a fixed HANDSHAKE (a shared standard) - boring on purpose, so no one surprises anyone.", 82, 132);
         p.fill("#fc6255"); p.text("and the safety walls (the SANDBOX) that stop a dangerous tool call:", 60, 180);
         p.fill("#cdd3da"); p.text("plain CODE - never a learned habit, so it can never be trained away.", 82, 204);
-        p.fill("#98a2b0"); p.textSize(9.5); p.text("(the handshakes: MCP / A2A, 2025-26.  the wall: the same sandbox you built in course 1.)", 60, 246); p.pop(); }
+        p.fill("#98a2b0"); p.textSize(9.5); p.text("(the handshakes: MCP - Model Context Protocol - and A2A - agent-to-agent. the wall: the sandbox from course 1.)", 60, 246); p.pop(); }
       if(k3===1||k3===2){ p.push(); p.textAlign(p.CENTER); p.noStroke();
         p.fill("#83c167"); p.textSize(11); p.text("LEARNED  (in Cortex's weights)", 265, 92);
         p.fill("#58c4dd"); p.text("HAND-WRITTEN  (stays code)", 640, 92);

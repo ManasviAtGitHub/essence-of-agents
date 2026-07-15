@@ -180,7 +180,7 @@ new p5(function(p){
     if(k===1){ school([3],3); kcap("the final drills: a teacher SCORES each answer and it adjusts (that score is reward)"); }
     if(k===2){ school([3,4],4); kcap("...then scored LIVE too - graded even while it is talking to you"); }
     if(k===3){ school([0,3,4],0); kcap("...and scored at the very START, while it is first soaking up words"); }
-    if(k===4){ school([0,1,3,4],1); kcap("...and scored in the middle - they even add a whole new class for it","#ffd35c"); }
+    if(k===4){ school([0,1,3,4],1); kcap("...and scored in the middle too - grading is no longer just the final step","#ffd35c"); }
     if(k===5){ school([0,1,2,3,4],2); kcap("scored at every phase - reward became the whole way it learns","#83c167"); }
     if(k===6){ p.push(); p.noStroke(); p.fill(131,193,103,16); p.rect(KX[0]-52,KY-58,KX[4]-KX[0]+104,150,12); p.pop();
       school([0,1,2,3,4],-1);
@@ -296,12 +296,12 @@ const CAPS_INT=[
 ["Then the drills: it answers, a teacher SCORES the answer, and it adjusts to score higher. That score is a REWARD - learning from a grade, not a copy. For years it lived only here, at the end.","cortex","think","A grade! Now I know if I'm right."],
 ["Why stop at the final exam? Score it LIVE too - graded even while it is mid-conversation with you.","cortex","reach","Marked while I'm still talking?"],
 ["And score it at the very START, while it is first soaking up words - long before any exam.","bit","happy","Graded from day one."],
-["They even add a whole new class in the middle, just to do more of this scoring.","bit","reach","A new class, only for grading?"],
+["Scoring even moves INTO the middle of training - not just the final polish.","bit","reach","Graded mid-training, not just after?"],
 ["Now every phase is scored. The single end-of-school grade multiplied across the robot's entire education.","cortex","happy","I'm graded everywhere I learn."],
 ["The aha: scoring is not a final exam any more. It became part of HOW the robot learns, all the way through.","bit","happy","Reward isn't a test. It's the teacher."]];
 const CAPS_MECH=[
 ["The robot answers ONE question five different ways. A teacher scores each (toy scores). The class average and spread, computed live.","bit","neutral","Five tries, five grades."],
-["advantage = (score - class average) / std - each answer's distance from the class, in std-widths. This is GRPO, the core scoring rule.","bit","read","Am I above the class, or below it?"],
+["advantage = (score - class average) / std - each answer's distance from the class, in std-widths. This is GRPO - Group Relative Policy Optimization - the core scoring rule.","bit","read","Am I above the class, or below it?"],
 ["The catch, computed: a long rambling wrong answer is punished 10x LESS per word than a short wrong one - so the robot learns to RAMBLE. The fix: stop dividing by length.","cortex","confused","The grading paid me to waffle."],
 ["That scoring rule got debugged in public - a small zoo of fixes, each repairing one bad habit.","bit","read","One rule, patched flaw by flaw."],
 ["It even earned scaling laws: spend more on grading, get a predictable gain. Grading became engineering.","bit","happy","Arguing turned into engineering."],

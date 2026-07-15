@@ -294,10 +294,10 @@ grid.addEventListener("click",e=>{ const c=e.target.closest(".card"); if(c) show
 $("rail").addEventListener("click",e=>{ const d=e.target.closest(".rdot"); if(d) showDetail(+d.dataset.i); });
 $("prChips").addEventListener("click",e=>{ const b=e.target.closest(".chip"); if(!b) return;
   prFilter=b.dataset.pr==="all"?null:b.dataset.pr;
-  $("prChips").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b)); draw(); });
+  $("prChips").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b)); selected=null; detail.hidden=true; draw(); });
 $("laneChips").addEventListener("click",e=>{ const b=e.target.closest(".chip"); if(!b) return;
   laneFilter=b.dataset.lane==="all"?null:b.dataset.lane;
-  $("laneChips").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b)); draw(); });
+  $("laneChips").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b)); selected=null; detail.hidden=true; draw(); });
 
 $("guideLine").textContent = "Every headline here attacks a principle you already own. Pick a principle to see it hit from every side; pick a lane to walk one chapter. The pins will date - the columns they sit in will not.";
 Cast.render(document);
