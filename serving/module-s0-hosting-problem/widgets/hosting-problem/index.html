@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The hosting problem</title>
+<!-- Serving S0. Verified as of 2026-07. Bandwidths and model sizes are ILLUSTRATIVE, round
+     figures (rule 11) - real hardware varies. bytes = params x bits/8 and tok/s = bandwidth/bytes
+     are computed live; they are the memory-bound CEILING (real throughput is lower). -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:980px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:8px 0 14px; }
+  .modes { display:flex; gap:7px; margin-bottom:14px; flex-wrap:wrap; }
+  .modebtn { border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:999px;
+             padding:6px 14px; cursor:pointer; font:13px system-ui; }
+  .modebtn.on { border-color:var(--blue); color:var(--ink); }
+  .modehint { color:var(--faint); font:12px var(--mono); align-self:center; margin-left:6px; }
+  .cvwrap { border:1px solid var(--line); border-radius:11px; background:#0b0e12; overflow:hidden; }
+  #cv { width:100%; display:block; }
+  .caption { margin:14px 0 0; min-height:44px; }
+  .insight { border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:9px;
+             background:var(--panel); padding:9px 13px; margin-top:12px; font-size:14.5px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { display:flex; gap:11px; align-items:center; border:1px solid var(--line); border-radius:10px;
+           background:var(--panel); padding:8px 12px; margin-top:11px; min-height:44px; }
+  .react .chr svg { width:42px; height:42px; flex:none; }
+  .react .rl { font-size:13.5px; color:#d8dde3; }
+  #scrub { margin-top:15px; }
+</style>
+</head>
+<body>
+<h1>The hosting problem</h1>
+<div class="stamp">TRACK 5 . S0 . verified as of 2026-07 - bandwidth is the clock</div>
+<p class="sub">Every track so far <b>called</b> a model and got a token back. Your Track-1 agent did it thousands
+of times. Why is each call slow, and why does it cost what it costs? The answer is not the math - it is
+<b>moving the weights</b>. To make one token, the machine must read <i>every</i> weight, through a doorway.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">the machine (watch a token get made)</button>
+  <button class="modebtn" data-mode="mech">the clock (compute the speed)</button>
+  <span class="modehint" id="modehint"></span>
+</div>
+
+<div class="cvwrap"><div id="cv"></div></div>
+
+<p class="caption" id="caption"></p>
+<div class="insight" id="insight"></div>
+<div class="react"><span class="chr" id="rchr" data-c="cortex" data-e="read"></span><span class="rl" id="rline"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+/* ---- illustrative hardware (round GB/s figures, rule 11) ---- */
+const HW = {
+  cloud:   {name:"datacenter GPU", bw:3300},
+  gpu:     {name:"gaming GPU",      bw:900},
+  laptop:  {name:"laptop",          bw:200},
+  phone:   {name:"phone",           bw:60},
+  browser: {name:"browser tab",     bw:60}
+};
+const bytesOf = (paramsB, bits) => paramsB*1e9*bits/8;         // bytes to read per token
+const toksec  = (paramsB, bits, bw) => bw*1e9 / bytesOf(paramsB,bits);   // memory-bound ceiling
+const GB = b => b>=1e9 ? (b/1e9).toFixed(b/1e9<10?1:0)+" GB" : (b/1e6).toFixed(0)+" MB";
+
+/* ================= INTUITION ================= */
+const INT = [
+ {p:1, bits:16, hw:"gpu", focus:"intro",
+  cap:"Here is the machine behind every model call. On the left, MEMORY, holding the weights - the model. On the right, the COMPUTE unit that does the math. Between them, one doorway: the memory bus. To produce a single token, compute needs every weight - so the whole model must pass through that doorway.",
+  ins:"A model call is a <b>forward pass</b>. To make one token, the machine reads <b>every weight</b> from memory into compute.", who:'cortex',emo:'read', rl:"All of me, through one door, for one word."},
+ {p:1, bits:16, hw:"gpu", focus:"onepass",
+  cap:"Watch one token get made: the entire pile of weights streams through the doorway to the compute unit. 2 GB of weights, read start to finish, for ONE token. Then it happens again for the next token. And again. Every token you have ever streamed was this.",
+  ins:"Per token, the machine moves the <b>whole model</b> across the bus - here, 2 GB. Bytes moved, not FLOPs, is the cost.", who:'cortex',emo:'reach', rl:"Not thinking hard - just hauling myself across, over and over."},
+ {p:1, bits:16, hw:"gpu", focus:"idle",
+  cap:"And here is the twist. Compute is FAST - it finishes the math the instant the bytes arrive, then sits idle, waiting for the doorway to deliver the next load. The bottleneck is not the thinking; it is the moving. This is called being MEMORY-BOUND, and almost all decoding is.",
+  ins:"<b>Memory-bound:</b> the compute unit is idle most of the time, starving for weights. The doorway (bandwidth), not the math, sets the pace.", good:true, who:'cortex',emo:'confused', rl:"I could think ten times faster. I'm just waiting on the delivery."},
+ {p:7, bits:16, hw:"gpu", focus:"bigger",
+  cap:"So what makes a model slow? A bigger pile. Swap the 1B model for a 7B: same doorway, seven times the weights to drag through it per token. The token rate drops in proportion. Size is not about being 'smarter to compute' - it is about being heavier to MOVE.",
+  ins:"<b>Bigger model = bigger pile = slower</b>, through the same doorway. Speed scales with bytes-per-token, not cleverness.", who:'cortex',emo:'panic', rl:"Seven times the me, same door. You feel every gigabyte."},
+ {p:7, bits:4, hw:"gpu", focus:"quant",
+  cap:"One fix is obvious once you see the doorway: make the boxes smaller. Store each weight in 4 bits instead of 16 - a quarter the bytes - and four times as many pass per second. Same model, same math, one quarter the traffic. That is quantization, and S2 is all about it.",
+  ins:"<b>Fewer bits = smaller boxes = more per second.</b> Quantization is a doorway trick, not just a disk trick (S2).", good:true, who:'bit',emo:'happy', rl:"Shrink each weight, widen the flow. Same brain, lighter to haul."},
+ {p:1, bits:4, hw:"browser", focus:"spectrum",
+  cap:"Now the whole track in one picture. The doorway comes in sizes: a datacenter GPU's is enormous; a laptop's is narrower; a phone's or a browser tab's, narrower still. A model fits and runs only where its pile clears the door fast enough. Where a model can LIVE is a bandwidth question.",
+  ins:"<b>The spectrum:</b> cloud -> laptop -> phone -> browser, each a narrower doorway. Hosting is choosing where the model fits AND flows.", who:'cortex',emo:'read', rl:"Big door, small door. Same me, very different life."},
+ {p:1, bits:4, hw:"browser", focus:"aha",
+  cap:"That is the whole problem this track solves. Hosting a model is moving its bytes fast enough - and every trick ahead is a move on this one picture: shrink the pile (quantize, S2), widen or better-use the doorway (kernels, S2), or run many tokens per trip through it (batching, S5). Three questions frame the rest: is it FAST, is it PORTABLE, does it SCALE?",
+  ins:"<b>Hosting = moving bytes fast enough. Bandwidth is the clock.</b> Read the engine (S1), then: make it fast (S2), ship it (S3), run it (S4), rack it (S5-6).", good:true, who:'cortex',emo:'happy', rl:"Not magic. Just weights, a doorway, and a stopwatch."}
+];
+
+/* ================= MECHANISM (the arithmetic) ================= */
+const MECH = [
+ {p:1, bits:16, hw:"gpu", focus:"bytes",
+  cap:"Now the clock, exactly. Bytes to read per token = parameters x bits-per-weight / 8. A 1B model at 16 bits (fp16) = 1,000,000,000 x 16 / 8 = 2 GB. That is the load, every single token.",
+  ins:"<b>bytes / token = params x bits / 8.</b> The pile's weight, computed."},
+ {p:1, bits:16, hw:"gpu", focus:"rate",
+  cap:"Speed is just the pile over the doorway: tokens/sec = bandwidth / bytes-per-token. On a 900 GB/s GPU, 900 / 2 = ~450 tokens/sec (the ceiling - real is lower). This is decode's speed limit, and it is set by memory, not FLOPs.",
+  ins:"<b>tok/s = bandwidth / bytes.</b> Widen the door OR shrink the pile - the only two ways to go faster."},
+ {p:1, bits:16, hw:"gpu", focus:"roofline",
+  cap:"Why is it memory-bound and not compute-bound? A decode step does about 2 x params FLOPs but moves about params bytes - roughly 2 FLOPs per byte. A modern GPU can do hundreds of FLOPs in the time it moves one byte. So the math finishes with the doorway barely open: compute waits. Prefill (many tokens at once) is the opposite - compute-bound - which is why the first token is the slow one (M3).",
+  ins:"<b>The roofline:</b> ~2 FLOP/byte is far below the hardware's ratio -> memory-bound. Decode waits on bytes; prefill waits on math.", good:true},
+ {p:7, bits:4, hw:"laptop", focus:"knobs",
+  cap:"Every serving trick is a term in this one equation. Shrink the pile: 7B at int4 = 3.5 GB, not 14 (S2). Use the doorway better: fused kernels move less, waste less (S2). Or amortize the trip: read the pile once, serve MANY users' tokens from it - batching (S5). Same picture, three levers.",
+  ins:"<b>Three levers on tok/s = bandwidth/bytes:</b> smaller pile (S2), better-used door (S2), many tokens per trip (S5)."},
+ {p:1, bits:4, hw:"browser", focus:"close",
+  cap:"And it decides WHERE a model runs. A 1B model at int4 is 0.5 GB; a phone or browser at ~60 GB/s serves ~120 tokens/sec - genuinely usable, no server. A frontier model's pile is hundreds of GB and only a datacenter's doorway clears it in time. Same equation, every device.",
+  ins:"The clock runs on every device. What FITS and FLOWS is bandwidth vs bytes - the frame for all of S1-S7.", good:true}
+];
+
+/* ================= p5 scene: memory | doorway | compute ================= */
+const CW=920, CVH=364;
+let CUR = {mode:'int', step:0};
+const col={blue:'#58c4dd',gold:'#ffd35c',green:'#83c167',red:'#fc6255',ink:'#e9ecf1',dim:'#98a2b0',faint:'#5b6470',line:'#2a3038',panel:'#141b22',wall:'#1c2430'};
+function cfg(){ const s = CUR.mode==='int'?INT[CUR.step]:MECH[CUR.step]; return {...s, bw:HW[s.hw].bw, hwname:HW[s.hw].name, bytes:bytesOf(s.p,s.bits), tps:toksec(s.p,s.bits,HW[s.hw].bw)}; }
+
+new p5(pp=>{
+  pp.setup=()=>{ const c=pp.createCanvas(CW,CVH); c.parent('cv'); pp.pixelDensity(Math.max(2,window.devicePixelRatio||1)); pp.textFont('ui-monospace, Menlo, monospace'); };
+  pp.draw=()=>{ pp.background(11,14,18); drawScene(pp, cfg()); };
+});
+
+function drawScene(p, c){
+  const f = c.focus;
+  // --- geometry ---
+  const memX=30, memW=250, memTop=56, memBot=248;
+  const doorX=470, doorGap=Math.max(28, Math.min(150, c.bw/26));   // door height ~ bandwidth
+  const cpuX=690, cpuW=200;
+  // door height narrower = lower bandwidth. cycle time ~ bytes / bandwidth
+  const cycleF = Math.max(26, Math.min(150, (c.bytes/1e9)/(c.bw/900)*70));
+  const phase = (p.frameCount % cycleF)/cycleF;        // 0..1 progress of reading the pile for one token
+  const computing = phase>0.9;                          // compute fires only at the very end -> idle rest
+
+  // ===== MEMORY (the pile) =====
+  const heavy = f==='bigger'||f==='onepass';
+  p.noStroke(); p.fill(col.panel); p.stroke(heavy?col.gold:col.line); p.strokeWeight(heavy?1.6:1); p.rect(memX,memTop,memW,memBot-memTop,8);
+  p.noStroke(); p.fill(col.dim); p.textSize(11); p.textAlign(p.LEFT,p.BASELINE); p.text("MEMORY", memX+10, memTop-8);
+  // the weight-boxes: rows scale with bytes (more/darker = bigger model)
+  const rows = Math.round(4 + (c.bytes/1e9)*3), rh=Math.min(15,(memBot-memTop-24)/rows);
+  const boxCol = c.bits<=4 ? p.color(88,196,221,150) : p.color(88,196,221,220);
+  for(let r=0;r<rows;r++){ const y=memTop+12+r*rh; p.fill(boxCol); p.noStroke();
+    const bw = c.bits<=4? memW-70 : memW-20;         // int4 boxes drawn narrower (smaller)
+    p.rect(memX+10,y, bw, rh-3, 2); }
+  p.fill(col.ink); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text(c.p+"B model @ "+c.bits+"-bit", memX+10, memBot+8);
+  p.fill(col.gold); p.textSize(12); p.text("= "+GB(c.bytes)+" to read / token", memX+10, memBot+26);
+
+  // ===== WALL + DOORWAY =====
+  const wallY0=memTop-4, wallY1=memBot+4, midY=(wallY0+wallY1)/2;
+  p.fill(col.wall); p.noStroke();
+  p.rect(doorX-14, wallY0, 28, (midY-doorGap/2)-wallY0);           // top wall
+  p.rect(doorX-14, midY+doorGap/2, 28, wallY1-(midY+doorGap/2));   // bottom wall
+  const doorHot = f==='spectrum'||f==='quant'||f==='rate'||f==='roofline';
+  p.fill(col.faint); p.textSize(9.5); p.textAlign(p.CENTER,p.BASELINE); p.text("doorway =", doorX, wallY0-14); p.text("the memory bus", doorX, wallY0-3);
+  p.fill(doorHot?col.gold:col.dim); p.textSize(11); p.textAlign(p.CENTER,p.TOP); p.text(c.bw+" GB/s", doorX, wallY1+8);
+
+  // ===== the belt: weights streaming memory -> doorway -> compute =====
+  const beltY=midY, x0=memX+memW, x1=cpuX;
+  p.stroke(col.line); p.strokeWeight(1); p.line(x0,beltY,x1,beltY);
+  const speed = Math.max(0.8, c.bw/300);                          // dashes move faster with more bandwidth
+  const gapc = Math.max(14, 40 - c.bw/120);
+  for(let x=x0; x<x1; x+=gapc){ const xx = x0 + ((x-x0 + p.frameCount*speed) % (x1-x0));
+    if(xx>doorX+16 || xx<doorX-16){ p.noStroke(); p.fill(boxCol); p.rect(xx-4, beltY-4, 8, 8, 1.5); } }
+
+  // ===== COMPUTE unit =====
+  p.fill(col.panel); p.stroke(computing?col.green:col.line); p.strokeWeight(computing?2.2:1.2); p.rect(cpuX, memTop, cpuW, 120, 9);
+  p.noStroke(); p.fill(computing?col.green:col.faint); p.textSize(12); p.textAlign(p.CENTER,p.CENTER);
+  p.text(computing?"COMPUTE!":"compute (idle)", cpuX+cpuW/2, memTop+44);
+  p.fill(col.dim); p.textSize(9.5); p.text("does the math the", cpuX+cpuW/2, memTop+70); p.text("instant bytes arrive", cpuX+cpuW/2, memTop+84);
+  // read-progress bar
+  p.fill('#0e141b'); p.rect(cpuX, memTop+140, cpuW, 14, 3); p.fill(col.blue); p.rect(cpuX, memTop+140, cpuW*phase, 14, 3);
+  p.fill(col.faint); p.textSize(9); p.textAlign(p.LEFT,p.TOP); p.text("weights read for this token: "+Math.round(phase*100)+"%", cpuX, memTop+158);
+
+  // emitted tokens
+  const toks = Math.floor(p.frameCount/cycleF);
+  p.fill(col.dim); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("tokens out:", cpuX, memTop+186);
+  for(let i=0;i<Math.min(8,toks%9);i++){ p.fill(col.green); p.rect(cpuX+66+i*15, memTop+184, 11, 13, 2); }
+
+  // ===== idle meter (the punchline) =====
+  if(f==='idle'||f==='roofline'){
+    const idle = Math.round((1 - 0.1)*100);   // compute busy ~last 10% of cycle
+    p.fill(col.red); p.textSize(13); p.textAlign(p.LEFT,p.TOP); p.text("compute is IDLE ~"+idle+"% of the time - waiting on the doorway", memX, 338);
+  } else {
+    // readout: the computed ceiling
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP);
+    p.text(c.hwname+"  ("+c.bw+" GB/s)   ->   ceiling ~", memX, 338);
+    p.fill(col.gold); p.text(Math.round(c.tps)+" tok/s", memX+ (c.hwname.length+16)*7.3, 338);
+    p.fill(col.faint); p.textSize(9.5); p.text("= bandwidth / bytes  (illustrative; real is lower)", 560, 340);
+  }
+}
+
+/* ================= render + wiring ================= */
+const $=id=>document.getElementById(id);
+function react(who,emo,line){ const c=$('rchr'); c.dataset.c=who; c.dataset.e=emo; $('rline').textContent=line; if(window.Cast) Cast.render(document.querySelector('.react')); }
+function render(i){ const isInt=CUR.mode==='int'; const st=(isInt?INT:MECH)[i]; CUR={mode:CUR.mode,step:i};
+  $('caption').textContent=st.cap;
+  $('insight').className='insight'+(st.good?' good':''); $('insight').innerHTML=st.ins;
+  react(st.who||'cortex', st.emo||'read', st.rl||"");
+}
+let tl=null;
+function build(mode){ CUR={mode,step:0};
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  $('modehint').textContent = mode==='int' ? 'a physical picture - watch the doorway, not the math' : 'the one equation: tok/s = bandwidth / bytes';
+  const arr = mode==='int'?INT:MECH;
+  tl=new Anim.Timeline({ length:arr.length, autoMs:4200, onStep:(i)=>render(i) });
+  Anim.scrubber($('scrub'), tl, { label:(i=>"step "+(i+1)+" / "+arr.length) });
+}
+document.querySelectorAll('.modebtn').forEach(b=> b.addEventListener('click', ()=>build(b.dataset.mode)));
+build('int');
+</script>
+</body>
+</html>
