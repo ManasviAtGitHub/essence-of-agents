@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Read the real engine</title>
+<!-- Serving S1. Verified as of 2026-07. The model is REAL: models/nanomodel, a ~1,130-weight
+     char transformer trained offline on the course corpus (loss 2.9 -> 0.03), run here live.
+     Every number on screen is computed by the forward pass on the left - measured, not simulated. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:980px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:8px 0 14px; }
+  .modes { display:flex; gap:7px; margin-bottom:14px; }
+  .modebtn { border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:999px;
+             padding:6px 14px; cursor:pointer; font:13px system-ui; }
+  .modebtn.on { border-color:var(--blue); color:var(--ink); }
+  .modehint { color:var(--faint); font:12px var(--mono); align-self:center; margin-left:6px; }
+
+  .stage { display:flex; gap:14px; align-items:stretch; }
+  .codewrap { flex:1.05; min-width:0; border:1px solid var(--line); border-radius:10px; background:#0b0e12; overflow:hidden; }
+  .codehd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.07em; color:var(--faint);
+            padding:7px 12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; }
+  .code { font:10.5px/1.55 var(--mono); padding:8px 0; overflow-x:auto; }
+  .cl { padding:0 10px; white-space:pre; color:#4b5563; transition:background .15s,color .15s; border-left:2px solid transparent; }
+  .cl.on { color:#e9ecf1; background:rgba(88,196,221,.10); border-left:2px solid var(--blue); }
+  .cl .cm { color:#5b6470; }
+  .cl.on .cm { color:#9fb4c9; }
+  .cvwrap { flex:1; min-width:0; border:1px solid var(--line); border-radius:10px; background:#0b0e12; }
+  #cv { width:100%; display:block; }
+
+  .caption { margin:14px 0 0; min-height:44px; }
+  .insight { border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:9px;
+             background:var(--panel); padding:9px 13px; margin-top:12px; font-size:14.5px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { display:flex; gap:11px; align-items:center; border:1px solid var(--line); border-radius:10px;
+           background:var(--panel); padding:8px 12px; margin-top:11px; min-height:44px; }
+  .react .chr svg { width:42px; height:42px; flex:none; }
+  .react .rl { font-size:13.5px; color:#d8dde3; }
+  #scrub { margin-top:15px; }
+  @media (max-width:820px){ .stage { flex-direction:column; } }
+</style>
+</head>
+<body>
+<h1>Read the real engine</h1>
+<div class="stamp">TRACK 5 . S1 . verified as of 2026-07 - an inference engine is a file you can read</div>
+<p class="sub">Every track so far <b>called</b> a model. Here is what it calls: a forward pass, in ~15 lines of C.
+Watch a token flow through it - and the one line that turns it from a demo into a <b>server</b>: the KV cache.
+<span style="color:var(--faint)">The model is real (a ~1,130-weight transformer, trained on "the capital of france is paris"); every number is computed live.</span></p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">the walk (read the forward pass)</button>
+  <button class="modebtn" data-mode="mech">run it (generate, with the cache)</button>
+  <span class="modehint" id="modehint"></span>
+</div>
+
+<div class="stage">
+  <div class="codewrap">
+    <div class="codehd"><span>run.c &middot; forward()</span><span id="codetag">the engine</span></div>
+    <div class="code" id="code"></div>
+  </div>
+  <div class="cvwrap"><div id="cv"></div></div>
+</div>
+
+<p class="caption" id="caption"></p>
+<div class="insight" id="insight"></div>
+<div class="react"><span class="chr" id="rchr" data-c="bit" data-e="read"></span><span class="rl" id="rline"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script src="weights.js"></script>
+<script>
+/* ================= the REAL engine (a JS port of run.c's forward pass) ================= */
+const W = window.NANO_W, CF = W.config, D = CF.d, VOCAB = CF.vocab;
+const CH = W.chars, stoi = Object.fromEntries(CH.map((c,i)=>[c,i]));
+const enc = s => [...s].map(c=>stoi[c]);
+const show = c => c==="\n" ? "\\n" : c===" " ? "_" : c;   // printable
+function lin(L, x){ const o=[]; for(let r=0;r<L.W.length;r++){ let a=L.b[r]; const wr=L.W[r]; for(let i=0;i<wr.length;i++) a+=wr[i]*x[i]; o.push(a); } return o; }
+function softmax(a){ const m=Math.max(...a); const e=a.map(x=>Math.exp(x-m)); const s=e.reduce((p,c)=>p+c,0); return e.map(x=>x/s); }
+function argmax(a){ let bi=0; for(let i=1;i<a.length;i++) if(a[i]>a[bi]) bi=i; return bi; }
+/* one forward pass at position `pos`, appending its k,v to the cache (the serving move). */
+function step(tok, pos, Kc, Vc){
+  const emb = W.tok_emb[tok].map((t,j)=> t + W.pos_emb[pos][j]);   // embed = token + position
+  const q = lin(W.attn.q, emb), k = lin(W.attn.k, emb), v = lin(W.attn.v, emb);
+  Kc.push(k); Vc.push(v);                                          // CACHE this k,v
+  const sc = 1/Math.sqrt(D);
+  const scores = Kc.map(kk => { let d=0; for(let j=0;j<D;j++) d+=q[j]*kk[j]; return d*sc; });
+  const wt = softmax(scores);
+  const blended = new Array(D).fill(0);
+  for(let s=0;s<Vc.length;s++) for(let j=0;j<D;j++) blended[j]+=wt[s]*Vc[s][j];
+  const att = lin(W.attn.proj, blended);
+  const h1 = emb.map((x,j)=> x + att[j]);                          // + attention (residual)
+  const mid = lin(W.mlp.fc, h1).map(Math.tanh);
+  const mout = lin(W.mlp.proj, mid);
+  const h2 = h1.map((x,j)=> x + mout[j]);                          // + MLP (residual)
+  const logits = lin(W.head, h2);
+  return {emb,q,k,v,scores,wt,blended,att,h1,mid,mout,h2,logits};
+}
+/* prefill a prompt, returning the filled cache + the trace of the LAST position (for the walk). */
+function prefill(promptIdx){ const Kc=[],Vc=[]; let last=null; for(let p=0;p<promptIdx.length;p++) last=step(promptIdx[p],p,Kc,Vc); return {Kc,Vc,last}; }
+
+/* ---- the source, mirroring the engine above line-for-line ---- */
+const SRC = [
+ ['float* forward(int token, int pos) {',''],
+ ['  float* h = add(tok_emb[token], pos_emb[pos]);','embed: token + position   (M1)'],
+ ['  float* q = matmul(Wq, h);','project h to a QUERY'],
+ ['  float* k = matmul(Wk, h);','... a KEY'],
+ ['  float* v = matmul(Wv, h);','... a VALUE'],
+ ['  cache_k[pos] = k;  cache_v[pos] = v;','CACHE k,v <-- serving move (M3)'],
+ ['  for (int s = 0; s <= pos; s++)','score vs every PAST key'],
+ ['    score[s] = dot(q, cache_k[s]) / sqrtf(D);','reuse cache, no recompute'],
+ ['  softmax(score, pos + 1);','-> attention weights      (M2)'],
+ ['  float* att = weighted_sum(score, cache_v);','blend the cached VALUES'],
+ ['  h = add(h, matmul(Wo, att));','+ attention   (residual add)'],
+ ['  float* mid = tanh(matmul(W1, h));','MLP: each token thinks     (M4)'],
+ ['  h = add(h, matmul(W2, mid));','+ MLP         (residual add)'],
+ ['  float* logits = matmul(Whead, h);','unembed -> a score per token (M0)'],
+ ['  return logits;','caller: softmax -> sample -> append -> repeat'],
+ ['}','']
+];
+const codeEl = document.getElementById('code');
+codeEl.innerHTML = SRC.map((l,i)=>'<div class="cl" data-i="'+i+'">'+l[0].replace(/</g,'&lt;')
+  + (l[1] ? ' <span class="cm">// '+l[1]+'</span>' : '') + '</div>').join('');
+const CLINES = [...codeEl.querySelectorAll('.cl')];
+
+/* ================= INTUITION: the walk (11 stages over one forward pass) ================= */
+const WALK_PROMPT = "the ca";                          // predict 'p' - a legible 6-token cache
+const WI = enc(WALK_PROMPT);
+const PRE = prefill(WI.slice(0,-1));                    // cache holds positions 0..4
+const POSW = WI.length-1;                               // this pass = position 5
+const TR = step(WI[POSW], POSW, PRE.Kc, PRE.Vc);        // real trace of position 5 (cache now 0..5)
+const KCW = PRE.Kc, VCW = PRE.Vc;                       // the cache after this pass (6 columns)
+const predIx = argmax(TR.logits), predCh = CH[predIx];
+
+const STAGES = [
+ {lines:[0], tag:'the engine', focus:'load',
+  cap:"This is an inference engine - the whole of it. Not a framework, not a black box: fifteen lines of C. It takes one token and its position and returns a score for every possible next token. Everything you called in tracks 1-4 was this, running.",
+  ins:"An engine turns <b>one token + its position</b> into <b>a score per vocabulary token</b>. Read it top to bottom.", who:'bit',emo:'read', rl:"Fifteen lines. I keep expecting more."},
+ {lines:[1], tag:'embed', focus:'embed',
+  cap:"First, the token becomes a vector - its learned embedding plus a position embedding (Module 1, exactly). Our '"+show(CH[WI[POSW]])+"' at position "+POSW+" becomes these "+D+" numbers, h. Real values from the trained model.",
+  ins:"<b>embed:</b> a token id + a position -> a vector h. Module 1's whole job, in one line.", who:'bit',emo:'happy', rl:"A letter becomes eight numbers. Module 1, still true."},
+ {lines:[2,3,4], tag:'q, k, v', focus:'qkv',
+  cap:"From h, three projections: a QUERY (what am I looking for?), a KEY (what do I offer?), and a VALUE (what will I hand over?). Three matmuls - the same h, three learned matrices. This is Module 2's attention, from the inside.",
+  ins:"<b>q, k, v</b> = three learned projections of the same h. Query asks; key advertises; value delivers.", who:'bit',emo:'read', rl:"One vector, three questions asked of it."},
+ {lines:[5], tag:'the KV cache', focus:'cache',
+  cap:"Here is the line that turns a demo into a SERVER. This token's k and v are STORED in the cache - and never recomputed. Every future token will reuse them as-is. Without this line, generating token 100 would redo tokens 1-99 first: O(n) work per token. With it, each token is O(1) new work.",
+  ins:"<b>The serving move (M3):</b> cache k,v once, reuse forever. This one line is the difference between O(n) and O(1) per token.", good:true, who:'bit',emo:'reach', rl:"Store it once. THAT is why serving is even possible."},
+ {lines:[6,7], tag:'score', focus:'score',
+  cap:"Now attention: the query is compared - a dot product - against every key in the cache, the current one and all "+PRE.Kc.length+" before it. High score = 'that past token is relevant to me now'. Notice: we read cache_k, we don't recompute it. That is the payoff of the line before.",
+  ins:"<b>score:</b> q dotted with every CACHED key. Relevance = alignment (Module 2), and the past keys come free from the cache.", who:'bit',emo:'read', rl:"I glance back at everyone - but I read the shelf, I don't rebuild it."},
+ {lines:[8], tag:'softmax', focus:'soft',
+  cap:"The raw scores become attention WEIGHTS - softmax makes them positive and sum to 1. Now each past token has a share of this token's attention.",
+  ins:"<b>softmax:</b> scores -> weights that sum to 1. How much each past token gets heard.", who:'bit',emo:'happy', rl:"Scores in, a tidy set of shares out."},
+ {lines:[9], tag:'blend', focus:'blend',
+  cap:"Blend the cached VALUES by those weights - a weighted average. The token that scored highest contributes most of its value. This blended vector is what attention 'read' from the past.",
+  ins:"<b>blend:</b> a weighted sum of the cached values. The message attention carries forward.", who:'bit',emo:'read', rl:"Mostly one voice, a little of the others."},
+ {lines:[10], tag:'+ attention', focus:'res1',
+  cap:"Add what attention read back onto h (a residual add - the token keeps itself AND what it learned from the past). Module 2's contribution, folded in.",
+  ins:"<b>residual:</b> h = h + attention. Keep the token, add the context.", who:'bit',emo:'happy', rl:"I'm still me, plus what I just heard."},
+ {lines:[11], tag:'MLP', focus:'mlp',
+  cap:"Then each token thinks alone: a small MLP (Module 4's feed-forward) - up to "+CF.hidden+" hidden units, a tanh, back down to "+D+". No looking around here; pure per-token computation.",
+  ins:"<b>MLP:</b> each position thinks by itself. Attention mixes; the MLP digests.", who:'bit',emo:'read', rl:"A quiet moment to process what I gathered."},
+ {lines:[12], tag:'+ MLP', focus:'res2',
+  cap:"Add the MLP's output back onto h - the second residual. h now carries the token, the context it attended to, and its private thinking. One 'layer' done (real models stack dozens; ours has one).",
+  ins:"<b>residual again:</b> h = h + MLP. That completes one transformer block.", who:'bit',emo:'happy', rl:"Everything I am, in eight numbers."},
+ {lines:[13,14], tag:'logits -> next token', focus:'logits',
+  cap:"Finally, unembed: multiply h by the output matrix to get a score (a logit) for every one of the "+VOCAB+" possible next tokens. Softmax, and the highest is '"+show(predCh)+"'. The caller samples it, appends it, and calls forward again - Module 0's loop. That is the engine.",
+  ins:"<b>logits -> sample -> append -> repeat.</b> An engine is M0's loop + M2's attention + M3's cache, in C. Now switch to <b>run it</b> and watch the cache grow for real.", good:true, who:'bit',emo:'reach', rl:"A score for every letter. It picks '"+show(predCh)+"'. It's reading its own training back to me."}
+];
+
+/* ================= MECHANISM: run it - generate with the cache ================= */
+const GEN_PROMPT = "the capital of ";
+const GI = enc(GEN_PROMPT);
+const MECH = [];   // one entry per step: {chars, kv, newk, recompute}
+(function(){
+  const Kc=[],Vc=[]; let idx=GI.slice(); let last=null;
+  for(let p=0;p<idx.length;p++) last=step(idx[p],p,Kc,Vc);          // prefill
+  MECH.push({idx:idx.slice(), kv:Kc.length, prefill:true, pred:CH[argmax(last.logits)]});
+  const CAP = 31;                                                   // stay within block_size
+  while(idx.length < CAP){
+    const t = argmax(last.logits); idx.push(t);
+    last = step(t, idx.length-1, Kc, Vc);
+    MECH.push({idx:idx.slice(), kv:Kc.length, prefill:false, pred:CH[argmax(last.logits)], added:CH[t]});
+    if(CH[t]==="\n") break;
+  }
+})();
+
+/* ================= p5 canvas ================= */
+const CW=470, CVH=440;
+let CUR = {mode:'int', step:0};
+const col = { blue:'#58c4dd', gold:'#ffd35c', green:'#83c167', red:'#fc6255', ink:'#e9ecf1', dim:'#98a2b0', faint:'#5b6470', line:'#2a3038', panel:'#141b22' };
+function cellCol(p,v){ const t=Math.tanh(v*0.9); if(t>=0) return p.color(88,196,221, 40+180*t); return p.color(224,138,74, 40+180*(-t)); }
+new p5(pp=>{
+  pp.setup=()=>{ const c=pp.createCanvas(CW,CVH); c.parent('cv'); pp.pixelDensity(Math.max(2, window.devicePixelRatio||1)); pp.textFont('ui-monospace, Menlo, monospace'); };
+  pp.draw=()=>{ pp.background(11,14,18); CUR.mode==='int' ? drawInt(pp,CUR.step) : drawMech(pp,CUR.step); };
+}, );
+
+function vecRow(p, x, y, vec, label, hi, cw){ cw=cw||30;
+  p.noStroke(); p.fill(hi?col.ink:col.dim); p.textSize(10.5); p.textAlign(p.RIGHT,p.CENTER); p.text(label, x-8, y+11);
+  for(let i=0;i<vec.length;i++){ const cx=x+i*cw;
+    p.fill(cellCol(p,vec[i])); p.stroke(hi?col.ink:col.line); p.strokeWeight(hi?1.1:0.6); p.rect(cx,y,cw-3,22,3);
+    p.noStroke(); p.fill(Math.abs(Math.tanh(vec[i]*0.9))>0.55?'#08121a':col.ink); p.textSize(8.5); p.textAlign(p.CENTER,p.CENTER);
+    p.text(vec[i].toFixed(1), cx+(cw-3)/2, y+11); }
+}
+function shelf(p, x, y, Kc, Vc, hiLast, label){    // the KV cache: a shelf of k(blue)/v(gold) columns
+  p.noStroke(); p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.BASELINE); p.text(label||"KV cache (the shelf)", x, y-6);
+  const cw=Math.min(20, (CW-x-14)/Math.max(1,Kc.length));
+  for(let s=0;s<Kc.length;s++){ const cx=x+s*cw, hi = hiLast && s===Kc.length-1;
+    // k column (top), v column (bottom)
+    for(let j=0;j<D;j++){ p.fill(cellCol(p,Kc[s][j])); p.rect(cx, y+j*4, cw-2, 3.4); }
+    for(let j=0;j<D;j++){ p.fill(cellCol(p,Vc[s][j])); p.rect(cx, y+36+j*4, cw-2, 3.4); }
+    if(hi){ p.noFill(); p.stroke(col.gold); p.strokeWeight(1.4); p.rect(cx-1, y-1, cw, 72); p.noStroke(); }
+  }
+  p.fill(col.faint); p.textSize(8); p.textAlign(p.LEFT,p.TOP); p.text("k", x-9, y); p.text("v", x-9, y+36);
+}
+function distRow(p, x, y, w, probs, chars, pickIx){
+  const bw=w/probs.length;
+  for(let i=0;i<probs.length;i++){ const h=probs[i]*70, bx=x+i*bw;
+    p.fill(i===pickIx?col.green:col.blue); p.noStroke(); p.rect(bx, y+70-h, bw-1.5, h, 1.5);
+    p.fill(i===pickIx?col.green:col.faint); p.textSize(8); p.textAlign(p.CENTER,p.TOP); p.text(show(chars[i]), bx+bw/2-0.5, y+73); }
+}
+
+function drawInt(p, s){
+  const st=STAGES[s], f=st.focus;
+  // header: the token being processed + the cache summary
+  p.noStroke(); p.textAlign(p.LEFT,p.BASELINE); p.fill(col.dim); p.textSize(11);
+  p.text('prompt "'+WALK_PROMPT.replace(/ /g,'_')+'"  ->  predict next', 16, 26);
+  // the token chip
+  p.fill(col.panel); p.stroke(col.blue); p.strokeWeight(1.2); p.rect(16, 34, 150, 26, 5); p.noStroke();
+  p.fill(col.ink); p.textSize(11.5); p.text("token '"+show(CH[WI[POSW]])+"'  pos "+POSW, 26, 51);
+
+  let y = 82;
+  const stepShow = ['embed','qkv','cache','score','soft','blend','res1','mlp','res2','logits'].indexOf(f);
+  // h vector (present from embed onward)
+  if(stepShow>=0){ vecRow(p, 70, y, f==='res1'?TR.h1:(f==='res2'||f==='logits')?TR.h2:TR.emb, "h", f==='embed'||f==='res1'||f==='res2', 32); }
+  if(f==='embed'){ p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("= tok_emb['"+show(CH[WI[POSW]])+"'] + pos_emb["+POSW+"]", 70, y+28); }
+
+  if(f==='qkv'){ vecRow(p,70,y+40,TR.q,"q",true,32); vecRow(p,70,y+70,TR.k,"k",true,32); vecRow(p,70,y+100,TR.v,"v",true,32);
+    p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("three learned projections of h", 70, y+130); }
+  if(f==='cache'){ vecRow(p,70,y+40,TR.k,"k",true,32); vecRow(p,70,y+70,TR.v,"v",true,32);
+    p.fill(col.gold); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("-> stored at cache["+POSW+"], reused forever (never recomputed)", 70, y+100); }
+
+  // the shelf (cache) - always drawn from cache stage on
+  if(['cache','score','soft','blend','res1','mlp','res2','logits'].includes(f)){
+    shelf(p, 40, 250, KCW, VCW, f==='cache'); }
+
+  if(f==='score'){ // scores over cached keys
+    p.fill(col.dim); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("score[s] = q . cache_k[s] / sqrt(D):", 16, 150);
+    const bw=(CW-40)/TR.scores.length;
+    for(let i=0;i<TR.scores.length;i++){ const v=TR.scores[i], bx=20+i*bw, h=Math.abs(v)*16;
+      p.fill(v>=0?col.blue:col.red); p.noStroke(); p.rect(bx, 200-(v>=0?h:0), bw-2, h, 1.5);
+      p.fill(col.faint); p.textSize(8.5); p.textAlign(p.CENTER,p.TOP); p.text(show(WALK_PROMPT[i]||''), bx+bw/2, 205); } }
+  if(f==='soft'){ p.fill(col.dim); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("attention weights (sum to 1):", 16, 150);
+    const bw=(CW-40)/TR.wt.length;
+    for(let i=0;i<TR.wt.length;i++){ const bx=20+i*bw, h=TR.wt[i]*90;
+      p.fill(col.green); p.noStroke(); p.rect(bx, 205-h, bw-2, h, 1.5);
+      p.fill(col.faint); p.textSize(8.5); p.textAlign(p.CENTER,p.TOP); p.text(show(WALK_PROMPT[i]||''), bx+bw/2, 208); } }
+  if(f==='blend'){ vecRow(p,70,150,TR.blended,"att",true,32);
+    p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("= weighted sum of cached values", 70, 178); }
+  if(f==='res1'){ vecRow(p,70,150,TR.att,"Wo.att",false,32); p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("h (above) = h + this", 70,178); }
+  if(f==='mlp'){ vecRow(p,52,150,TR.mid,"tanh(W1h)",true,24);
+    p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text(CF.hidden+" hidden units, then back to "+D, 52, 178); }
+  if(f==='res2'){ vecRow(p,70,150,TR.mout,"W2.mid",false,32); p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("h (above) = h + this", 70,178); }
+  if(f==='logits'){ p.fill(col.dim); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("logits -> softmax over "+VOCAB+" tokens:", 16, 150);
+    distRow(p, 20, 165, CW-40, softmax(TR.logits), CH, predIx);
+    p.fill(col.green); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("picks: '"+show(predCh)+"'", 20, 250); }
+}
+
+function drawMech(p, s){
+  const m = MECH[s];
+  // the output so far
+  p.noStroke(); p.textAlign(p.LEFT,p.TOP);
+  p.fill(col.faint); p.textSize(9.5); p.text("OUTPUT (real, generated live):", 16, 16);
+  const txt = m.idx.map(i=>CH[i]).join('');
+  p.fill(col.ink); p.textSize(13); p.textAlign(p.LEFT,p.TOP);
+  // wrap the text
+  const shown = txt.replace(/\n/g,' / ');
+  wrapText(p, shown, 16, 34, CW-32, 18);
+  const promptLen = GEN_PROMPT.length;
+
+  // the cache growing
+  p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("KV cache: "+m.kv+" tokens stored", 16, 120);
+  const cw=Math.min(13,(CW-32)/m.kv);
+  for(let i=0;i<m.kv;i++){ const cx=16+i*cw, isNew=!m.prefill&&i===m.kv-1, isPrompt=i<promptLen;
+    p.fill(isNew?col.gold:isPrompt?p.color(88,196,221,120):p.color(131,193,103,150)); p.noStroke(); p.rect(cx, 138, cw-1.5, 20, 2); }
+
+  // the serving win: work per token, cached (flat) vs recompute (linear)
+  p.fill(col.dim); p.textSize(10.5); p.textAlign(p.LEFT,p.TOP); p.text("work per new token - the whole point of the cache:", 16, 178);
+  const gx=40, gy=360, gw=CW-70, gh=150;
+  p.stroke(col.line); p.strokeWeight(1); p.line(gx,gy,gx+gw,gy); p.line(gx,gy,gx,gy-gh);
+  const N=MECH.length, maxKV=MECH[N-1].kv;
+  // recompute curve: work = pos+1 (linear)
+  p.noFill(); p.stroke(col.red); p.strokeWeight(2);
+  p.beginShape(); for(let i=0;i<=s;i++){ const x=gx+(i/(N-1))*gw, y=gy-(MECH[i].kv/maxKV)*gh; p.vertex(x,y);} p.endShape();
+  // cached curve: work = 1 (flat)
+  p.stroke(col.green); p.strokeWeight(2);
+  p.beginShape(); for(let i=0;i<=s;i++){ const x=gx+(i/(N-1))*gw, y=gy-(1/maxKV)*gh; p.vertex(x,y);} p.endShape();
+  p.noStroke(); p.fill(col.red); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("without cache: redo all "+m.kv+" (O(n))", gx+4, gy-gh-2);
+  p.fill(col.green); p.text("with cache: 1 new k,v (O(1))", gx+4, gy-14);
+  p.fill(col.faint); p.textSize(8.5); p.textAlign(p.RIGHT,p.TOP); p.text("tokens generated ->", gx+gw, gy+4);
+}
+function wrapText(p, t, x, y, w, lh){ const words=t.split(''); let line='', yy=y;
+  for(const ch of words){ if(p.textWidth(line+ch)>w){ p.text(line,x,yy); line=ch; yy+=lh; } else line+=ch; } p.text(line,x,yy); }
+
+/* ================= render + wiring ================= */
+const $=id=>document.getElementById(id);
+function react(who,emo,line){ const c=$('rchr'); c.dataset.c=who; c.dataset.e=emo; $('rline').textContent=line; if(window.Cast) Cast.render(document.querySelector('.react')); }
+function renderInt(i){ CUR={mode:'int',step:i}; const st=STAGES[i];
+  CLINES.forEach((el,k)=> el.className='cl'+(st.lines.includes(k)?' on':''));
+  $('codetag').textContent=st.tag;
+  $('caption').textContent=st.cap;
+  $('insight').className='insight'+(st.good?' good':''); $('insight').innerHTML=st.ins;
+  react(st.who,st.emo,st.rl);
+}
+function renderMech(i){ CUR={mode:'mech',step:i}; const m=MECH[i];
+  CLINES.forEach((el,k)=> el.className='cl'+([5,6,7].includes(k)?' on':''));   // spotlight the cache lines
+  $('codetag').textContent='running';
+  if(m.prefill){ $('caption').textContent='PREFILL: the prompt "'+GEN_PROMPT+'" is run through the engine once, filling the cache with '+m.kv+' tokens. From here, each new token is one forward pass that reuses the whole shelf.';
+    react('bit','reach','Cache primed with the prompt. Now I just sip.'); }
+  else { $('caption').textContent='Token '+(i)+': one forward pass, reusing all '+(m.kv-1)+' cached k,v, computes just ONE new pair and emits "'+show(m.added)+'". The red line is the work you SKIP by caching; the green line is what you actually pay.';
+    react('bit', m.idx.length>=30?'happy':'read', 'Just added "'+show(m.added)+'". One new k,v, glanced at the shelf, done.'); }
+  $('insight').className='insight good'; $('insight').innerHTML='<b>The cache is the server.</b> Generation is M0\'s loop; the KV cache makes each step O(1) instead of O(n) - the difference between a demo and something you can serve.';
+}
+
+let tl=null;
+function build(mode){
+  const isInt = mode==='int';
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  $('modehint').textContent = isInt ? 'one forward pass, line by line - every number real' : 'the same engine, generating - watch the cache grow';
+  tl = new Anim.Timeline({ length: isInt?STAGES.length:MECH.length, autoMs: isInt?3400:1500, onStep:(i)=> isInt?renderInt(i):renderMech(i) });
+  Anim.scrubber($('scrub'), tl, { label: isInt ? (i=>"step "+(i+1)+" / "+STAGES.length) : (i=> i===0?"prefill":"token "+i+" / "+(MECH.length-1)) });
+}
+document.querySelectorAll('.modebtn').forEach(b=> b.addEventListener('click', ()=> build(b.dataset.mode)));
+build('int');
+</script>
+</body>
+</html>
