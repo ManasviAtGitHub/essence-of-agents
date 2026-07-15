@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Run it in the browser</title>
+<!-- Serving S4. Verified as of 2026-07. The teaching scrubber is a deterministic sim (verifiable).
+     The "Run a real model" panel is the track's second REAL artifact (rules 13-14): it lazy-loads
+     transformers.js from a CDN on click and runs a real quantized model on WebGPU (WASM fallback),
+     downloaded ONCE and cached. This is the course's ONLY runtime network fetch, opt-in and skippable. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:980px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:8px 0 14px; }
+  .modes { display:flex; gap:7px; margin-bottom:14px; flex-wrap:wrap; }
+  .modebtn { border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:999px;
+             padding:6px 14px; cursor:pointer; font:13px system-ui; }
+  .modebtn.on { border-color:var(--blue); color:var(--ink); }
+  .modehint { color:var(--faint); font:12px var(--mono); align-self:center; margin-left:6px; }
+  .cvwrap { border:1px solid var(--line); border-radius:11px; background:#0b0e12; overflow:hidden; }
+  #cv { width:100%; display:block; }
+  .caption { margin:14px 0 0; min-height:44px; }
+  .insight { border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:9px;
+             background:var(--panel); padding:9px 13px; margin-top:12px; font-size:14.5px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { display:flex; gap:11px; align-items:center; border:1px solid var(--line); border-radius:10px;
+           background:var(--panel); padding:8px 12px; margin-top:11px; min-height:44px; }
+  .react .chr svg { width:42px; height:42px; flex:none; }
+  .react .rl { font-size:13.5px; color:#d8dde3; }
+  #scrub { margin-top:15px; }
+
+  /* the REAL run panel */
+  .realpanel { border:1px solid var(--line); border-left:3px solid var(--green); border-radius:11px;
+               background:#0b100c; padding:14px 16px; margin-top:24px; }
+  .realpanel h3 { margin:0 0 4px; font:600 15px system-ui; color:var(--ink); }
+  .realpanel .rp-sub { color:var(--dim); font-size:13px; margin:0 0 12px; }
+  .rp-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .rp-row label { font:12px var(--mono); color:var(--faint); }
+  select, .rp-run { font:13px system-ui; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:6px 10px; }
+  .rp-run { background:#12351a; border-color:var(--green); color:#cfead6; cursor:pointer; font-weight:600; }
+  .rp-run:disabled { opacity:.5; cursor:default; }
+  .rp-status { font:11.5px var(--mono); color:var(--dim); min-height:16px; margin-bottom:6px; }
+  .rp-bar { height:8px; border-radius:4px; background:#10160f; overflow:hidden; margin-bottom:10px; }
+  .rp-bar > div { height:100%; width:0%; background:var(--green); transition:width .2s; }
+  .rp-out { font:13px/1.5 var(--mono); color:#dfe6df; background:#0a0d09; border:1px solid var(--line); border-radius:8px;
+            padding:10px 12px; min-height:52px; white-space:pre-wrap; }
+  .rp-metrics { display:flex; gap:18px; margin-top:10px; font:12px var(--mono); color:var(--dim); flex-wrap:wrap; }
+  .rp-metrics b { color:var(--gold); }
+  .rp-note { font:11px var(--mono); color:var(--faint); margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>Run it in the browser</h1>
+<div class="stamp">TRACK 5 . S4 . verified as of 2026-07 - a real model, no server, no key</div>
+<p class="sub">S3 shipped one file - but you still download and run it. Can we go to ZERO install: a real model
+running in a <b>web page</b>, no server at all? Yes. WebGPU gives the browser real GPU compute, and a real
+quantized model runs client-side - private, offline after one download, keyless. Below, you can run one.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">no server at all</button>
+  <button class="modebtn" data-mode="mech">what it costs (WebGPU vs WASM)</button>
+  <span class="modehint" id="modehint"></span>
+</div>
+
+<div class="cvwrap"><div id="cv"></div></div>
+
+<p class="caption" id="caption"></p>
+<div class="insight" id="insight"></div>
+<div class="react"><span class="chr" id="rchr" data-c="cortex" data-e="read"></span><span class="rl" id="rline"></span></div>
+<div id="scrub"></div>
+
+<!-- ===================== the REAL run (rule 13/14) ===================== -->
+<div class="realpanel">
+  <h3>Run the real thing &#9654; <span style="font-weight:400;color:var(--faint);font-size:12px">- a real model, in this tab</span></h3>
+  <p class="rp-sub">This downloads a small real model once (then it is cached and offline) and runs it on your GPU via WebGPU,
+     or your CPU via WASM if there is no WebGPU. Nothing leaves your machine. This is the course's only network fetch - opt-in.</p>
+  <div class="rp-row">
+    <label>model</label>
+    <select id="rpModel">
+      <option value="onnx-community/SmolLM2-135M-Instruct">SmolLM2-135M (~90 MB - works almost anywhere)</option>
+      <option value="onnx-community/Qwen2.5-0.5B-Instruct">Qwen2.5-0.5B (~400 MB - a real chat, needs WebGPU)</option>
+    </select>
+    <button class="rp-run" id="rpRun">download &amp; run</button>
+  </div>
+  <div class="rp-status" id="rpStatus">idle - nothing downloaded. Click to fetch a model (once) and run it here.</div>
+  <div class="rp-bar"><div id="rpProg"></div></div>
+  <div class="rp-out" id="rpOut">the model's real output will appear here.</div>
+  <div class="rp-metrics">
+    <span>backend: <b id="rpBackend">-</b></span><span>model bytes: <b id="rpBytes">-</b></span>
+    <span>tok/s (measured): <b id="rpTps">-</b></span><span>tokens: <b id="rpTok">-</b></span>
+  </div>
+  <div class="rp-note" id="rpNote">Tip: WebGPU works in Chrome/Edge (and recent Safari/Firefox). No WebGPU? It falls back to WASM - slower, but it still runs.</div>
+</div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+/* ================= teaching scrubber (deterministic sim) ================= */
+const TIERS=[["135M","~90 MB","WASM or WebGPU - even phones","weak but real"],["0.5B","~400 MB","WebGPU","coherent short chat"],["1.7B","~1 GB","WebGPU + ~2 GB free","genuinely decent"]];
+const INT=[
+ {focus:"zero",
+  cap:"S1 read the engine, S2 made it fast, S3 shipped it as a file. Every step still ended in 'download something and run it'. The browser removes even that: a real model can run inside a web page, with no server and no install at all. This very course is a web page - so it can just... do it.",
+  ins:"<b>Zero install:</b> a real model runs client-side in a tab. No server, no key, no download-and-run - just open a page.", who:'cortex',emo:'read', rl:"No install, no server, no key. I just... appear in the tab."},
+ {focus:"how",
+  cap:"How it works: WebGPU gives JavaScript real access to your GPU (S2's warehouse floor, in the browser), and a library like transformers.js or WebLLM runs a real quantized model on it. The weights download ONCE, get cached in the browser, and from then on it runs offline - even on a plane.",
+  ins:"<b>WebGPU + transformers.js / WebLLM:</b> a real model on your GPU, in the tab. Download once, cached, then offline.", who:'cortex',emo:'reach', rl:"The browser reaches my GPU now. That's new, and it's a lot."},
+ {focus:"private",
+  cap:"And because the model runs on YOUR machine, the text never leaves the tab. No account, no API key, no network after the first download. It is the most private way to run a model - and the most RESTRICTED, which is exactly what makes it a great teacher: every serving cost from S0-S2 becomes something you can feel on your own hardware.",
+  ins:"<b>Private + keyless:</b> nothing leaves the tab. The tightest host, so every cost (bytes, bandwidth, S0) is visible on YOUR machine.", good:true, who:'cortex',emo:'happy', rl:"My thoughts stay in your tab. Nobody's watching."},
+ {focus:"tiers",
+  cap:"The one real cost is the download - and its size is the whole S0/S2 lesson made concrete. A 135M model is ~90 MB and runs almost anywhere (even on WASM, no GPU). A 0.5B is ~400 MB and gives a real short chat on WebGPU. A 1.7B is ~1 GB and needs a decent GPU. Bigger pile, better answers, longer download - pick your point.",
+  ins:"<b>Download size IS the lesson:</b> params x bits (S2) = MB to fetch = what fits on this device. Choose your tier.", who:'bit',emo:'read', rl:"Ninety megabytes to a gigabyte. Same trade as always: heavier is smarter."},
+ {focus:"aha",
+  cap:"So: a real language model, running in a browser tab, on your own GPU, private and offline. Scroll down and run one yourself - watch it download once, then generate, and read the real tokens/sec off your own machine. That number is S0's clock, measured. Then the capstone (S7) turns this into a full serving console.",
+  ins:"<b>Run one below.</b> A real model in your tab - the measured tok/s is S0's bandwidth clock, on your hardware.", good:true, who:'cortex',emo:'happy', rl:"Go on - press the button. I'll think right here, in your tab."}
+];
+const MECH=[
+ {focus:"gpuwasm",
+  cap:"Two backends. WebGPU runs the matmul on your GPU - S2's whole floor, in the browser - and is fast. WASM runs it on the CPU with SIMD (S2 again) and is the fallback when there is no WebGPU: same model, same answers, roughly 5-10x slower. WebGPU is solid in Chrome and Edge; Safari and Firefox are catching up; WASM always works.",
+  ins:"<b>WebGPU (GPU floor) vs WASM (CPU SIMD):</b> same model, ~5-10x speed difference. WebGPU where available, WASM everywhere.", who:'bit',emo:'read', rl:"GPU if you've got one, CPU if you don't. Either way, it runs."},
+ {focus:"wall",
+  cap:"S0's bandwidth wall, now on your desk. A bigger model or a longer conversation means more bytes per token through your device's memory - so the measured tok/s drops exactly as S0 predicted. The browser makes the clock personal: you SEE your own machine slow down as the pile or the context grows.",
+  ins:"<b>The bandwidth wall, felt:</b> bigger model / longer context -> more bytes/token -> lower tok/s, measured on YOUR hardware (S0).", good:true, who:'cortex',emo:'confused', rl:"Longer chats, slower me. I can feel S0's doorway now."},
+ {focus:"fit",
+  cap:"And memory decides what fits at all. The model plus its KV cache (S1) must fit in the browser's budget - a few gigabytes on a laptop, less on a phone. That is why the tiers matter: a 7B model simply will not load in most tabs, while a 0.5B is comfortable. Same 'fits and flows' question as S0, on the smallest host.",
+  ins:"<b>What fits:</b> model + KV cache must sit in the tab's memory budget. The tightest host - so the tier choice is real.", who:'bit',emo:'read', rl:"Small enough to fit, big enough to be worth it. The eternal squeeze."},
+ {focus:"where",
+  cap:"Where this wins: privacy (nothing leaves the device), offline (planes, clinics, no-network anywhere), zero-cost-per-call (your hardware, not a rented GPU), and no key to manage. Where it loses: one user, one device, capped by that device's memory and bandwidth. For a crowd you still need the fleet - S5 and S6. But for a person, the browser is a genuinely great host.",
+  ins:"<b>Browser wins:</b> private, offline, keyless, free-per-call - for ONE user. For many users -> the fleet (S5-S6).", who:'cortex',emo:'happy', rl:"For you alone? Unbeatable. For a thousand of you? That's the next module."}
+];
+
+/* ================= p5 teaching canvas ================= */
+const CW=920, CVH=320;
+let CUR={mode:'int',step:0};
+const col={blue:'#58c4dd',gold:'#ffd35c',green:'#83c167',red:'#fc6255',ink:'#e9ecf1',dim:'#98a2b0',faint:'#5b6470',line:'#2a3038',panel:'#141b22'};
+new p5(pp=>{
+  pp.setup=()=>{ const c=pp.createCanvas(CW,CVH); c.parent('cv'); pp.pixelDensity(Math.max(2,window.devicePixelRatio||1)); pp.textFont('ui-monospace, Menlo, monospace'); };
+  pp.draw=()=>{ pp.background(11,14,18); CUR.mode==='int'?drawInt(pp,INT[CUR.step].focus):drawMech(pp,MECH[CUR.step].focus); };
+});
+function browserWin(p,x,y,w,h,label){ p.push(); p.fill('#0e141b'); p.stroke(col.line); p.strokeWeight(1.2); p.rect(x,y,w,h,8);
+  p.fill(col.panel); p.noStroke(); p.rect(x,y,w,22,8); p.rect(x,y+14,w,8);
+  p.fill(col.red); p.circle(x+12,y+11,7); p.fill(col.gold); p.circle(x+26,y+11,7); p.fill(col.green); p.circle(x+40,y+11,7);
+  p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.CENTER); p.text(label||"a web page", x+58, y+11); p.pop(); }
+function drawInt(p,f){
+  browserWin(p,60,44,800,232,"essence-of-agents  .  a web page");
+  if(f==='zero'){ p.fill(col.dim); p.textSize(13); p.textAlign(p.CENTER,p.CENTER); p.text("no server . no install . no key", 460, 150);
+    p.fill(col.green); p.textSize(12); p.text("the model runs HERE, inside the page", 460, 178); }
+  else if(f==='how'){
+    p.fill(col.panel); p.stroke(col.blue); p.strokeWeight(1.3); p.rect(140,90,240,150,8); p.noStroke(); p.fill(col.blue); p.textSize(12); p.textAlign(p.CENTER,p.TOP); p.text("WebGPU", 260, 104); p.fill(col.dim); p.textSize(10); p.text("your GPU (S2's floor),", 260, 124); p.text("reached from JavaScript", 260, 138);
+    p.fill(col.panel); p.stroke(col.green); p.strokeWeight(1.3); p.rect(540,90,240,150,8); p.noStroke(); p.fill(col.green); p.textSize(12); p.textAlign(p.CENTER,p.TOP); p.text("real weights", 660, 104); p.fill(col.dim); p.textSize(10); p.text("downloaded ONCE,", 660, 124); p.text("cached, then offline", 660, 138);
+    p.fill(col.gold); p.textSize(11); p.textAlign(p.CENTER,p.CENTER); p.text("->", 460, 165); }
+  else if(f==='private'){ p.fill(col.green); p.textSize(13); p.textAlign(p.CENTER,p.CENTER); p.text("your text never leaves this tab", 460, 140);
+    p.fill(col.faint); p.textSize(11); p.text("no account . no API key . no network after download", 460, 170); }
+  else if(f==='tiers'){
+    p.fill(col.dim); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("pick a tier (download size = S2's bytes):", 100, 78);
+    TIERS.forEach((t,i)=>{ const y=104+i*52; p.fill(col.panel); p.stroke(col.blue); p.strokeWeight(1); p.rect(100,y,720,44,7); p.noStroke();
+      p.fill(col.gold); p.textSize(13); p.textAlign(p.LEFT,p.CENTER); p.text(t[0], 116, y+22); p.fill(col.ink); p.textSize(11.5); p.text(t[1], 176, y+22); p.fill(col.dim); p.textSize(11); p.text(t[2], 300, y+22); p.fill(col.green); p.text(t[3], 600, y+22); }); }
+  else { p.fill(col.green); p.textSize(14); p.textAlign(p.CENTER,p.CENTER); p.text("a real LLM, in your tab", 460, 130); p.fill(col.gold); p.textSize(12); p.text("v  run one below  v", 460, 162); p.fill(col.faint); p.textSize(11); p.text("the measured tok/s is S0's clock, on your machine", 460, 188); }
+}
+function drawMech(p,f){
+  if(f==='gpuwasm'){ p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("two backends, same model:", 100, 44);
+    const bars=[["WebGPU (your GPU - S2's floor)",col.green,1.0,"fast"],["WASM (CPU SIMD - S2's lanes)",col.gold,0.14,"~5-10x slower, always works"]];
+    bars.forEach((b,i)=>{ const y=90+i*80; p.fill(col.ink); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text(b[0], 100, y);
+      p.fill('#10160f'); p.noStroke(); p.rect(100,y+22,680,26,4); p.fill(b[1]); p.rect(100,y+22,680*b[2],26,4);
+      p.fill(col.faint); p.textSize(10.5); p.textAlign(p.LEFT,p.CENTER); p.text(b[3], 110+680*b[2]+8, y+35); }); }
+  else if(f==='wall'){ // tok/s vs context, a falling curve
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("measured tok/s as the model / context grows (S0's wall, felt):", 100, 44);
+    const gx=120,gy=250,gw=680,gh=170; p.stroke(col.line); p.strokeWeight(1); p.line(gx,gy,gx+gw,gy); p.line(gx,gy,gx,gy-gh);
+    p.noFill(); p.stroke(col.gold); p.strokeWeight(2.2); p.beginShape(); for(let i=0;i<=40;i++){ const x=gx+i/40*gw, v=1/(1+i*0.09), y=gy-v*gh; p.vertex(x,y);} p.endShape();
+    p.noStroke(); p.fill(col.faint); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("bigger model / longer context ->", gx+gw-180, gy+6); p.textAlign(p.RIGHT,p.CENTER); p.text("tok/s", gx-6, gy-gh+8); }
+  else if(f==='fit'){ p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("what FITS in the tab's memory budget:", 100, 50);
+    const items=[["135M + cache","fits everywhere (even phones)",col.green,0.12],["0.5B + cache","comfortable on a laptop",col.green,0.35],["1.7B + cache","needs ~2 GB free",col.gold,0.7],["7B + cache","will NOT load in most tabs",col.red,1.0]];
+    items.forEach((t,i)=>{ const y=86+i*50; p.fill(col.ink); p.textSize(11.5); p.textAlign(p.LEFT,p.TOP); p.text(t[0], 100, y);
+      p.fill('#10160f'); p.noStroke(); p.rect(260,y-2,520,20,3); p.fill(t[2]); p.rect(260,y-2,520*t[3],20,3);
+      p.fill(t[2]); p.textSize(10.5); p.textAlign(p.LEFT,p.CENTER); p.text(t[1], 264, y+8); }); }
+  else { p.fill(col.green); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("the browser wins for:", 100, 56);
+    ["privacy - nothing leaves the device","offline - planes, clinics, anywhere","no cost per call - your hardware","no key to manage"].forEach((s,i)=>{ p.fill(col.panel); p.stroke(col.green); p.strokeWeight(1); p.rect(100,84+i*46,360,34,6); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(s,114,101+i*46); });
+    p.fill(col.gold); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("it loses for:", 520, 56);
+    ["one user, one device","capped by device memory","capped by device bandwidth"].forEach((s,i)=>{ p.fill(col.panel); p.stroke(col.gold); p.strokeWeight(1); p.rect(520,84+i*46,360,34,6); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(s,534,101+i*46); });
+    p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("for a crowd -> the fleet (S5-S6).", 520, 232); }
+}
+
+/* ================= teaching wiring ================= */
+const $=id=>document.getElementById(id);
+function react(who,emo,line){ const c=$('rchr'); c.dataset.c=who; c.dataset.e=emo; $('rline').textContent=line; if(window.Cast) Cast.render(document.querySelector('.react')); }
+function render(i){ const isInt=CUR.mode==='int'; const st=(isInt?INT:MECH)[i]; CUR={mode:CUR.mode,step:i};
+  $('caption').textContent=st.cap; $('insight').className='insight'+(st.good?' good':''); $('insight').innerHTML=st.ins;
+  react(st.who||'cortex', st.emo||'read', st.rl||"");
+}
+let tl=null;
+function build(mode){ CUR={mode,step:0};
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  $('modehint').textContent = mode==='int' ? 'a real model, running in this page' : 'the same S0/S2 costs, on your own hardware';
+  const arr=mode==='int'?INT:MECH;
+  tl=new Anim.Timeline({length:arr.length, autoMs:4600, onStep:(i)=>render(i)});
+  Anim.scrubber($('scrub'), tl, {label:(i=>"step "+(i+1)+" / "+arr.length)});
+}
+document.querySelectorAll('.modebtn').forEach(b=>b.addEventListener('click', ()=>build(b.dataset.mode)));
+build('int');
+
+/* ================= the REAL run (rule 13/14): transformers.js on WebGPU, WASM fallback ================= */
+(function(){
+  const runBtn=$('rpRun'), status=$('rpStatus'), prog=$('rpProg'), out=$('rpOut');
+  const setBar=p=>{ prog.style.width=Math.round(p)+'%'; };
+  let PIPE=null, LOADED=null, backend=null;
+  async function ensure(modelId){
+    if(PIPE && LOADED===modelId) return;
+    const hasGPU = !!(navigator.gpu);
+    backend = hasGPU ? 'webgpu' : 'wasm';
+    $('rpBackend').textContent = backend + (hasGPU? '' : ' (no WebGPU -> CPU)');
+    status.textContent = 'loading transformers.js...'; setBar(2);
+    const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2');
+    T.env.allowLocalModels = false;
+    status.textContent = 'downloading '+modelId.split('/').pop()+' (first time only, then cached)...';
+    let total=0;
+    PIPE = await T.pipeline('text-generation', modelId, {
+      device: backend,
+      dtype: backend==='webgpu' ? 'q4f16' : 'q4',
+      progress_callback: (e)=>{ if(e.status==='progress' && e.total){ total=Math.max(total,e.total); setBar(10 + 80*(e.loaded/e.total)); if(e.file) status.textContent='downloading '+e.file+' - '+Math.round(e.loaded/1e6)+' / '+Math.round(e.total/1e6)+' MB'; } }
+    });
+    LOADED=modelId; if(total) $('rpBytes').textContent=(total/1e6).toFixed(0)+' MB'; setBar(96);
+  }
+  async function run(){
+    const modelId=$('rpModel').value;
+    runBtn.disabled=true; setBar(0); out.textContent=''; $('rpTps').textContent='-'; $('rpTok').textContent='-';
+    try{
+      await ensure(modelId);
+      status.textContent='generating (real forward passes on '+backend+')...'; setBar(98);
+      const messages=[{role:'user', content:'In one sentence, what is the capital of France?'}];
+      let n=0; const t0=performance.now();
+      const streamer = { put:(_)=>{}, end:()=>{} };
+      // stream tokens if TextStreamer is available; else just await the result
+      let result;
+      try{
+        const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2');
+        const ts = new T.TextStreamer(PIPE.tokenizer, { skip_prompt:true, callback_function:(txt)=>{ out.textContent+=txt; n++; } });
+        result = await PIPE(messages, { max_new_tokens:48, do_sample:false, streamer:ts });
+      }catch(_){ result = await PIPE(messages, { max_new_tokens:48, do_sample:false }); out.textContent = (result[0]?.generated_text?.at?.(-1)?.content) || JSON.stringify(result).slice(0,300); }
+      const dt=(performance.now()-t0)/1000; const toks = n || 48;
+      $('rpTps').textContent=(toks/dt).toFixed(1); $('rpTok').textContent=toks;
+      status.textContent='done - real output above, generated on '+backend+' in your browser.'; setBar(100);
+    }catch(err){
+      status.textContent='could not run: '+(err&&err.message?err.message:err)+'  (needs network for the first download; WebGPU or WASM to run)';
+      out.textContent='(The teaching above still stands - this panel is the optional real run. If you are offline or the CDN is blocked, it will not load.)';
+      setBar(0);
+    } finally { runBtn.disabled=false; }
+  }
+  runBtn.addEventListener('click', run);
+})();
+</script>
+</body>
+</html>
