@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ship it</title>
+<!-- Serving S3. Verified as of 2026-07. llamafile 0.10.0 (Mozilla): llama.cpp + Cosmopolitan Libc
+     -> one APE file that runs on Win/macOS/Linux/BSD, Metal+CUDA, and serves an Anthropic-compatible
+     API on localhost. Facts are real (labeled); the scene is a diagram, no live arithmetic here. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:980px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:8px 0 14px; }
+  .modes { display:flex; gap:7px; margin-bottom:14px; flex-wrap:wrap; }
+  .modebtn { border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:999px;
+             padding:6px 14px; cursor:pointer; font:13px system-ui; }
+  .modebtn.on { border-color:var(--blue); color:var(--ink); }
+  .modehint { color:var(--faint); font:12px var(--mono); align-self:center; margin-left:6px; }
+  .cvwrap { border:1px solid var(--line); border-radius:11px; background:#0b0e12; overflow:hidden; }
+  #cv { width:100%; display:block; }
+  .caption { margin:14px 0 0; min-height:44px; }
+  .insight { border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:9px;
+             background:var(--panel); padding:9px 13px; margin-top:12px; font-size:14.5px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { display:flex; gap:11px; align-items:center; border:1px solid var(--line); border-radius:10px;
+           background:var(--panel); padding:8px 12px; margin-top:11px; min-height:44px; }
+  .react .chr svg { width:42px; height:42px; flex:none; }
+  .react .rl { font-size:13.5px; color:#d8dde3; }
+  #scrub { margin-top:15px; }
+</style>
+</head>
+<body>
+<h1>Ship it</h1>
+<div class="stamp">TRACK 5 . S3 . verified as of 2026-07 - one file, every machine</div>
+<p class="sub">You have a fast engine (S1-S2) and a weights file. Now the least glamorous, most useful question:
+how do you SHIP it so anyone can run it - no Python, no CUDA install, no setup? The 2026 answer is startling:
+fold the whole thing into <b>one file</b> that runs on every operating system at once.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">one file, every OS</button>
+  <button class="modebtn" data-mode="mech">what's inside (and the offline agent)</button>
+  <span class="modehint" id="modehint"></span>
+</div>
+
+<div class="cvwrap"><div id="cv"></div></div>
+
+<p class="caption" id="caption"></p>
+<div class="insight" id="insight"></div>
+<div class="react"><span class="chr" id="rchr" data-c="bit" data-e="read"></span><span class="rl" id="rline"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+/* ================= INTUITION: one file, every OS ================= */
+const INT=[
+ {focus:"friction",
+  cap:"Normally, running a model is a project. You need the engine's source, a compiler or a Python stack, the right CUDA or Metal drivers, a package manager, AND the multi-gigabyte weights - each a chance to break. This friction is why most people never run a model locally at all.",
+  ins:"Shipping a model usually means shipping a whole ENVIRONMENT - runtime, drivers, deps, weights. Every piece is a place to fail.", who:'bit',emo:'confused', rl:"Install this, then that, then the driver, then... most people quit here."},
+ {focus:"fold",
+  cap:"llamafile's move (Mozilla): fold the engine and the weights into ONE file. The engine is llama.cpp - the grown-up descendant of the run.c you read in S1. The weights are a GGUF file (S2's int4). Append one to the other, and you have a single self-contained thing.",
+  ins:"<b>Fold engine + weights into one file.</b> No separate download, no unpacking - the model IS the executable.", who:'bit',emo:'reach', rl:"Engine and weights, zipped into one honest file."},
+ {focus:"ape",
+  cap:"The trick that makes it portable: Cosmopolitan Libc compiles that file into an APE - an Actually Portable Executable. The same bytes are simultaneously a valid Windows .exe, a Linux ELF, a macOS Mach-O, and a shell script. Double-click it on any of them - no install - and it runs, using the GPU (Metal/CUDA) if there is one, the CPU (S2's SIMD) if not.",
+  ins:"<b>APE (Cosmopolitan):</b> one file that IS a valid program on Windows, macOS, Linux, and BSD at once. Copy it, run it. That is the whole install.", good:true, who:'cortex',emo:'happy', rl:"One key that fits every lock. I run anywhere you drop me."},
+ {focus:"loopback",
+  cap:"Now the part that closes the whole course. llamafile serves the ANTHROPIC Messages API on localhost. So the harness you built in course 1 - Claude Code, your agent's loop - can point at this LOCAL file instead of the cloud, and run completely offline. The API your agent speaks is now answered by a model on your own disk.",
+  ins:"<b>The loop-back:</b> llamafile speaks the Anthropic API, so your Track-1 agent runs offline against a local model - a drop-in for the cloud.", good:true, who:'cortex',emo:'reach', rl:"Same loop I always ran - I just unplugged from the cloud and into a file."},
+ {focus:"aha",
+  cap:"That is shipping, solved. Hosting does not have to mean a datacenter or even an install - it can collapse to a single file you email, put on a USB stick, or run on a plane. And because it answers the same API, everything you built in tracks 1-2 works against it unchanged. Next (S4): shrink the install to ZERO - run a real model in a browser tab.",
+  ins:"<b>Hosting can be one file.</b> Portable, offline, private, API-compatible. Next: no file at all - the browser (S4).", good:true, who:'bit',emo:'happy', rl:"From 'install these ten things' to 'here's a file'. That's the win."}
+];
+
+/* ================= MECHANISM: anatomy + the local server ================= */
+const MECH=[
+ {focus:"anatomy",
+  cap:"What is actually IN the file? Three things, stacked. A polyglot header - a few clever bytes that every OS's loader reads as 'this is my kind of program'. Then the llama.cpp engine, compiled once for all platforms. Then the GGUF weights, appended on the end and read by memory-mapping (no unpack, no copy).",
+  ins:"<b>Anatomy:</b> polyglot header + the engine (llama.cpp) + the weights (GGUF, mmap'd). One blob, self-describing to every OS.", who:'bit',emo:'read', rl:"A header that lies to every loader in its own language. Beautifully sneaky."},
+ {focus:"run",
+  cap:"How it runs: the OS loads it, the engine memory-maps the weights (so a 4 GB file starts instantly - pages load on demand), detects hardware, and dispatches to a Metal or CUDA kernel if a GPU is present, or CPU SIMD if not (S2). The forward pass is the one you read in S1. Same engine, wherever it lands.",
+  ins:"<b>Run:</b> mmap the weights (instant start), detect GPU, dispatch the S2 kernel, run S1's forward pass. It adapts to the machine.", who:'bit',emo:'happy', rl:"mmap means I don't load 4 gigs - I sip them as I need them."},
+ {focus:"server",
+  cap:"Then it opens a server on localhost - say port 8080 - exposing /v1/messages, the Anthropic Messages API. Any tool written for that API talks to it with zero changes: point the base URL at localhost and your Track-2 agent, or Claude Code, is now driving a local model. No key, no network.",
+  ins:"<b>Local API server:</b> localhost/v1/messages, Anthropic-compatible. Change one base URL and every API tool runs local + offline.", good:true, who:'cortex',emo:'happy', rl:"Same requests, same responses - the address just changed to 'home'."},
+ {focus:"trade",
+  cap:"The honest trade: the file is fat (the weights live inside - gigabytes), and one binary can only be so optimized versus a hand-tuned datacenter stack. In return: zero install, works offline, fully private (nothing leaves the machine), and portable to anything. For demos, edge, privacy, and 'just run it', it is unbeatable. For serving thousands of users, you want the fleet - S5, S6.",
+  ins:"<b>Trade:</b> a fat, portable, offline, private single file - vs a tuned multi-machine fleet. Right for edge and privacy; S5-S6 is right for scale.", who:'bit',emo:'neutral', rl:"One file for a person. A fleet for a crowd. Different jobs."}
+];
+
+/* ================= p5 ================= */
+const CW=920, CVH=360;
+let CUR={mode:'int',step:0};
+const col={blue:'#58c4dd',gold:'#ffd35c',green:'#83c167',red:'#fc6255',ink:'#e9ecf1',dim:'#98a2b0',faint:'#5b6470',line:'#2a3038',panel:'#141b22',ape:'#b6a6ff'};
+new p5(pp=>{
+  pp.setup=()=>{ const c=pp.createCanvas(CW,CVH); c.parent('cv'); pp.pixelDensity(Math.max(2,window.devicePixelRatio||1)); pp.textFont('ui-monospace, Menlo, monospace'); };
+  pp.draw=()=>{ pp.background(11,14,18); CUR.mode==='int'?drawInt(pp,INT[CUR.step].focus):drawMech(pp,MECH[CUR.step].focus); };
+});
+function fileIcon(p,x,y,w,h,label,glow){ p.push();
+  if(glow){ p.noStroke(); p.fill(182,166,255,30); p.rect(x-6,y-6,w+12,h+12,10); }
+  p.fill(col.panel); p.stroke(glow?col.ape:col.line); p.strokeWeight(glow?1.8:1.2); p.rect(x,y,w,h,7);
+  p.fill(col.faint); p.noStroke(); p.rect(x+w-22,y,22,18,0); // folded corner
+  p.fill(glow?col.ape:col.dim); p.textSize(10.5); p.textAlign(p.CENTER,p.CENTER); p.text(label, x+w/2, y+h/2); p.pop();
+}
+function osTile(p,x,y,name,on){ p.push(); p.fill(on?'#0e1810':col.panel); p.stroke(on?col.green:col.line); p.strokeWeight(1.2); p.rect(x,y,120,54,7);
+  p.noStroke(); p.fill(on?col.green:col.dim); p.textSize(11.5); p.textAlign(p.CENTER,p.CENTER); p.text(name, x+60, y+22);
+  if(on){ p.fill(col.green); p.textSize(10); p.text("runs (no install)", x+60, y+40); } p.pop(); }
+function agentLoop(p,cx,cy,r,plugTo){ p.push();
+  p.noFill(); p.stroke(col.line); p.strokeWeight(1.4); p.circle(cx,cy,r*2);
+  const nodes=["think","tool","read"];
+  nodes.forEach((n,i)=>{ const a=-p.HALF_PI+i*p.TWO_PI/3, x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r;
+    p.fill(col.panel); p.stroke(col.blue); p.strokeWeight(1.3); p.circle(x,y,42); p.noStroke(); p.fill(col.ink); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text(n,x,y); });
+  const bob=(p.frameCount*1.4)%100/100; const bx=cx+Math.cos(-p.HALF_PI)*r; // token dot circling
+  const a=-p.HALF_PI+bob*p.TWO_PI; p.fill(col.gold); p.noStroke(); p.circle(cx+Math.cos(a)*r, cy+Math.sin(a)*r, 8);
+  p.fill(col.faint); p.textSize(9.5); p.textAlign(p.CENTER,p.TOP); p.text("your agent's loop (course 1)", cx, cy+r+8);
+  p.pop(); }
+
+function drawInt(p, f){
+  if(f==='friction'){
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("to run a model the usual way, you need ALL of this:", 40, 40);
+    const items=["the engine source","a C++ / Python toolchain","CUDA or Metal drivers","a package manager","matching library versions","4-14 GB of weights"];
+    items.forEach((it,i)=>{ const x=40+(i%2)*300, y=76+Math.floor(i/2)*54;
+      p.fill(col.panel); p.stroke(col.red); p.strokeWeight(1); p.rect(x,y,270,40,6); p.noStroke(); p.fill(col.ink); p.textSize(11.5); p.textAlign(p.LEFT,p.CENTER); p.text(it, x+14, y+20);
+      p.fill(col.red); p.textSize(12); p.textAlign(p.RIGHT,p.CENTER); p.text("x", x+256, y+20); });
+    p.fill(col.red); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("six ways to fail before the first token.", 40, 300);
+  } else if(f==='fold'){
+    fileIcon(p,60,140,150,70,"llama.cpp",false); p.fill(col.faint); p.textAlign(p.CENTER,p.TOP); p.textSize(9.5); p.text("the engine (S1)",135,214);
+    fileIcon(p,60,240,150,70,"model.gguf",false); p.fill(col.faint); p.text("the weights (S2 int4)",135,314);
+    p.stroke(col.dim); p.strokeWeight(1.4); p.drawingContext.setLineDash([5,4]); p.line(220,175,430,235); p.line(220,275,430,245); p.drawingContext.setLineDash([]);
+    p.fill(col.dim); p.noStroke(); p.textSize(20); p.textAlign(p.CENTER,p.CENTER); p.text("+", 320, 240);
+    fileIcon(p,450,190,190,90,"model.llamafile",true);
+    p.fill(col.ape); p.textSize(11); p.textAlign(p.CENTER,p.TOP); p.text("ONE self-contained file", 545, 286);
+  } else if(f==='ape'){
+    fileIcon(p,385,44,150,66,"model.llamafile",true);
+    p.fill(col.ape); p.textSize(10.5); p.textAlign(p.CENTER,p.TOP); p.text("Actually Portable Executable", 460, 114);
+    ["Windows .exe","macOS Mach-O","Linux ELF","phone / ARM"].forEach((n,i)=> osTile(p, 40+i*220, 210, n, true));
+    ["Windows .exe","macOS Mach-O","Linux ELF","phone / ARM"].forEach((n,i)=>{ p.stroke(col.green); p.strokeWeight(1); p.drawingContext.setLineDash([4,4]); p.line(460,112, 100+i*220, 205); p.drawingContext.setLineDash([]); });
+  } else if(f==='loopback'){
+    agentLoop(p, 210, 175, 78);
+    fileIcon(p,700,140,170,80,"model.llamafile",true); p.fill(col.ape); p.textSize(10); p.textAlign(p.CENTER,p.TOP); p.text("local Anthropic API", 785, 224);
+    // cloud, unplugged
+    p.fill(col.panel); p.stroke(col.faint); p.strokeWeight(1); p.ellipse(560,70,110,44); p.noStroke(); p.fill(col.faint); p.textSize(10.5); p.textAlign(p.CENTER,p.CENTER); p.text("cloud API", 560,70);
+    p.stroke(col.faint); p.strokeWeight(1); p.drawingContext.setLineDash([4,4]); p.line(300,140, 512, 80); p.drawingContext.setLineDash([]); p.fill(col.red); p.noStroke(); p.textSize(12); p.text("x", 405, 100);
+    p.stroke(col.green); p.strokeWeight(2); p.line(288,175, 700,180); p.noStroke(); p.fill(col.green); p.textSize(10.5); p.textAlign(p.CENTER,p.TOP); p.text("same API, now local + offline", 495, 186);
+  } else { // aha
+    fileIcon(p,385,120,150,80,"model.llamafile",true);
+    p.fill(col.ink); p.textSize(13); p.textAlign(p.CENTER,p.TOP); p.text("email it . USB it . run it on a plane", 460, 214);
+    p.fill(col.green); p.textSize(12); p.text("portable  .  offline  .  private  .  API-compatible", 460, 240);
+    p.fill(col.faint); p.textSize(11); p.text("hosting collapsed to a single file", 460, 268);
+  }
+}
+function drawMech(p, f){
+  if(f==='anatomy'){
+    const x=330,w=260, y=54;
+    const layers=[["polyglot header","valid to every OS loader",col.ape,26],["llama.cpp engine (S1)","compiled once, all platforms",col.blue,70],["GGUF weights (S2, mmap'd)","appended, read on demand",col.gold,150]];
+    let yy=y; layers.forEach(L=>{ p.fill(col.panel); p.stroke(L[2]); p.strokeWeight(1.4); p.rect(x,yy,w,L[3],5); p.noStroke(); p.fill(L[2]); p.textSize(11.5); p.textAlign(p.LEFT,p.TOP); p.text(L[0],x+12,yy+8); p.fill(col.faint); p.textSize(9.5); p.text(L[1],x+12,yy+26); yy+=L[3]+8; });
+    p.fill(col.dim); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text("one .llamafile", x+w+18, y+130);
+  } else if(f==='run'){
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("run sequence:", 40, 44);
+    const steps=["OS loads the file (polyglot header)","mmap the weights - instant start, pages on demand","detect hardware","GPU present? -> Metal / CUDA kernel   else -> CPU SIMD (S2)","run S1's forward pass -> tokens"];
+    steps.forEach((s,i)=>{ const y=80+i*44; p.fill(col.panel); p.stroke(i===3?col.gold:col.line); p.strokeWeight(1); p.rect(40,y,840,34,6); p.noStroke(); p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text((i+1)+".",54,y+17); p.fill(col.ink); p.text(s,80,y+17); });
+  } else if(f==='server'){
+    fileIcon(p,60,150,150,70,"llamafile",true); p.fill(col.green); p.textSize(9.5); p.textAlign(p.CENTER,p.TOP); p.text("localhost:8080", 135, 224);
+    p.fill(col.panel); p.stroke(col.green); p.strokeWeight(1.2); p.rect(300,150,320,70,7); p.noStroke(); p.fill(col.green); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("POST /v1/messages", 316,164); p.fill(col.faint); p.textSize(10); p.text("Anthropic Messages API (identical shape)", 316,186); p.text("no key, no network", 316,202);
+    fileIcon(p,700,150,170,70,"Claude Code / T2",false); p.fill(col.dim); p.textSize(9.5); p.textAlign(p.CENTER,p.TOP); p.text("base_url -> localhost", 785, 224);
+    p.stroke(col.green); p.strokeWeight(1.8); p.line(215,185,300,185); p.line(620,185,700,185);
+    p.fill(col.dim); p.noStroke(); p.textSize(10.5); p.textAlign(p.CENTER,p.TOP); p.text("your agent, unchanged, offline", 460, 300);
+  } else { // trade
+    p.fill(col.green); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("you gain", 90, 60);
+    ["zero install (one file)","works fully offline","private - nothing leaves the machine","portable to any OS / CPU"].forEach((s,i)=>{ p.fill(col.panel); p.stroke(col.green); p.strokeWeight(1); p.rect(90,88+i*44,340,34,6); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(s,104,105+i*44); });
+    p.fill(col.gold); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("you pay", 500, 60);
+    ["a fat file (weights inside, GBs)","one binary, not a tuned fleet","one machine, one-ish user at a time"].forEach((s,i)=>{ p.fill(col.panel); p.stroke(col.gold); p.strokeWeight(1); p.rect(500,88+i*44,340,34,6); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(s,514,105+i*44); });
+    p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("great for edge / privacy / demos. For thousands of users -> the fleet (S5-S6).", 90, 300);
+  }
+}
+
+/* ================= wiring ================= */
+const $=id=>document.getElementById(id);
+function react(who,emo,line){ const c=$('rchr'); c.dataset.c=who; c.dataset.e=emo; $('rline').textContent=line; if(window.Cast) Cast.render(document.querySelector('.react')); }
+function render(i){ const isInt=CUR.mode==='int'; const st=(isInt?INT:MECH)[i]; CUR={mode:CUR.mode,step:i};
+  $('caption').textContent=st.cap; $('insight').className='insight'+(st.good?' good':''); $('insight').innerHTML=st.ins;
+  react(st.who||'bit', st.emo||'read', st.rl||"");
+}
+let tl=null;
+function build(mode){ CUR={mode,step:0};
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  $('modehint').textContent = mode==='int' ? 'fold it into one portable file' : 'the anatomy + the offline API server';
+  const arr=mode==='int'?INT:MECH;
+  tl=new Anim.Timeline({length:arr.length, autoMs:4600, onStep:(i)=>render(i)});
+  Anim.scrubber($('scrub'), tl, {label:(i=>"step "+(i+1)+" / "+arr.length)});
+}
+document.querySelectorAll('.modebtn').forEach(b=>b.addEventListener('click', ()=>build(b.dataset.mode)));
+build('int');
+</script>
+</body>
+</html>
