@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Host it yourself</title>
+<!-- Serving S7 - the capstone. The single-instance RUN is REAL: the course's nanomodel (weights.js),
+     run live via S1's forward pass, measured on your machine (rule 13). The tier/fleet numbers are
+     illustrative projections built on that idea (rule 11), computed live: bytes = params x bits/8 (S0/S2),
+     tok/s ~ 1/bytes (S0), $/1M = price/sec / (tok/s x batch) (S6). Real single-instance -> grounded projection. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:960px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:8px 0 16px; }
+  .sec { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:14px 16px; margin-bottom:14px; }
+  .sec h3 { margin:0 0 10px; font:600 14px system-ui; color:var(--ink); }
+  .sec h3 .n { color:var(--blue); font:600 13px var(--mono); margin-right:6px; }
+  .dial { margin-bottom:11px; }
+  .dial .dl { font:11.5px var(--mono); color:var(--faint); margin-bottom:5px; }
+  .opts { display:flex; gap:6px; flex-wrap:wrap; }
+  .opt { border:1px solid var(--line); background:#0e141b; color:var(--dim); border-radius:8px; padding:6px 12px; cursor:pointer; font:12.5px system-ui; }
+  .opt.on { border-color:var(--blue); color:var(--ink); background:#0e1a22; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:720px){ .grid2 { grid-template-columns:1fr; } }
+  .readout { display:flex; justify-content:space-between; font:12px var(--mono); padding:4px 0; border-bottom:1px dashed #1c242e; }
+  .readout .rk { color:var(--dim); } .readout .rv { color:var(--ink); } .readout .rv.gold { color:var(--gold); } .readout .rv.green { color:var(--green); }
+  .runbtn { background:#12351a; border:1px solid var(--green); color:#cfead6; border-radius:9px; padding:8px 14px; cursor:pointer; font:600 13px system-ui; }
+  .runbtn:disabled { opacity:.5; }
+  .out { font:12.5px/1.5 var(--mono); color:#dfe6df; background:#0a0d09; border:1px solid var(--line); border-radius:8px; padding:9px 11px; min-height:40px; white-space:pre-wrap; margin-top:9px; }
+  .fleetbar { height:26px; border-radius:6px; background:#0e141b; overflow:hidden; margin:6px 0; position:relative; }
+  .fleetbar > div { height:100%; background:var(--gold); }
+  .verdict { border:1px solid var(--line); border-left:3px solid var(--green); border-radius:10px; background:#0b100c; padding:12px 15px; margin-top:6px; }
+  .verdict .big { font:600 17px var(--serif); color:var(--ink); }
+  .note { font:10.5px var(--mono); color:var(--faint); margin-top:8px; }
+</style>
+</head>
+<body>
+<h1>Host it yourself</h1>
+<div class="stamp">TRACK 5 . S7 . CAPSTONE . verified as of 2026-07 - read it, make it fast, ship it, run it, rack it</div>
+<p class="sub">The whole track, in your hands. <b>Design</b> a serving setup with the dials, <b>run</b> a real model
+right here (measured on your machine), and <b>scale</b> it to a fleet - the cost projected from real numbers.
+Your design settles beside a real 2026 stack.</p>
+
+<div class="grid2">
+  <!-- LEFT: design -->
+  <div class="sec">
+    <h3><span class="n">1</span> Design your setup</h3>
+    <div class="dial"><div class="dl">MODEL (S2: params x bits = the pile)</div><div class="opts" id="dModel"></div></div>
+    <div class="dial"><div class="dl">QUANTIZE (S2: bits per weight)</div><div class="opts" id="dQuant"></div></div>
+    <div class="dial"><div class="dl">BACKEND (S2/S4: where the matmul runs)</div><div class="opts" id="dBackend"></div></div>
+    <div class="dial"><div class="dl">DEPLOYMENT (S5: one stream, or a batched fleet)</div><div class="opts" id="dDeploy"></div></div>
+  </div>
+  <!-- RIGHT: the numbers -->
+  <div class="sec">
+    <h3><span class="n">3</span> The numbers (computed live)</h3>
+    <div class="readout"><span class="rk">pile per token (S0/S2)</span><span class="rv gold" id="oBytes">-</span></div>
+    <div class="readout"><span class="rk">single-stream tok/s (S0, projected)</span><span class="rv" id="oTps">-</span></div>
+    <div class="readout"><span class="rk">served tok/s (S5 batch x)</span><span class="rv green" id="oServed">-</span></div>
+    <div class="readout"><span class="rk">$ / 1M tokens (S6)</span><span class="rv gold" id="oPrice">-</span></div>
+    <div class="readout"><span class="rk">fits in a browser tab?</span><span class="rv" id="oFits">-</span></div>
+  </div>
+</div>
+
+<!-- RUN (real) -->
+<div class="sec">
+  <h3><span class="n">2</span> Run a real model (measured on your machine)</h3>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="runbtn" id="runNano">run the real engine &#9654;</button>
+    <span style="font:11.5px var(--mono);color:var(--faint)">the course's nanomodel (S1) - a real transformer, run live and timed. Always works, offline.</span>
+  </div>
+  <div class="out" id="nanoOut">press run - it generates real tokens and reports the tokens/sec YOUR machine did.</div>
+  <div class="readout" style="margin-top:8px"><span class="rk">measured on your machine</span><span class="rv green" id="oMeasured">- tok/s (real)</span></div>
+  <div class="note">This is the honest single-instance truth (rule 13). For a bigger real model in your browser, see S4's WebGPU panel; the projection below uses the same idea, scaled to your chosen tier.</div>
+</div>
+
+<!-- SCALE -->
+<div class="sec">
+  <h3><span class="n">4</span> Scale to a fleet</h3>
+  <div class="dial"><div class="dl">USERS (each ~50k tokens/day)</div><div class="opts" id="dUsers"></div></div>
+  <div class="readout"><span class="rk">tokens / day</span><span class="rv" id="fTokens">-</span></div>
+  <div class="readout"><span class="rk">GPUs needed (rough)</span><span class="rv" id="fGpus">-</span></div>
+  <div class="fleetbar"><div id="fBar"></div></div>
+  <div class="readout"><span class="rk">cost / day (S6, illustrative)</span><span class="rv gold" id="fCost">-</span></div>
+</div>
+
+<!-- SETTLE -->
+<div class="sec" style="border:none;background:none;padding:0">
+  <div class="verdict">
+    <div style="font:11px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.05em">you built a serving stack like</div>
+    <div class="big" id="vName">-</div>
+    <div style="font-size:13px;color:var(--dim);margin-top:4px" id="vWhy">-</div>
+    <div class="note" id="vTrack"></div>
+  </div>
+</div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="weights.js"></script>
+<script>
+/* ---- the real engine (S1's forward pass over the nanomodel) ---- */
+const W=window.NANO_W, CFG=W.config, D=CFG.d, CH=W.chars, stoi=Object.fromEntries(CH.map((c,i)=>[c,i]));
+function lin(L,x){const o=[];for(let r=0;r<L.W.length;r++){let a=L.b[r];const wr=L.W[r];for(let i=0;i<wr.length;i++)a+=wr[i]*x[i];o.push(a);}return o;}
+function smax(a){const m=Math.max(...a);const e=a.map(x=>Math.exp(x-m));const s=e.reduce((p,c)=>p+c,0);return e.map(x=>x/s);}
+function amax(a){let b=0;for(let i=1;i<a.length;i++)if(a[i]>a[b])b=i;return b;}
+function fwd(tok,pos,Kc,Vc){const e=W.tok_emb[tok].map((t,j)=>t+W.pos_emb[pos][j]);const q=lin(W.attn.q,e),k=lin(W.attn.k,e),v=lin(W.attn.v,e);Kc.push(k);Vc.push(v);
+  const sc=1/Math.sqrt(D);const scr=Kc.map(kk=>{let d=0;for(let j=0;j<D;j++)d+=q[j]*kk[j];return d*sc;});const w=smax(scr);const bl=new Array(D).fill(0);
+  for(let s=0;s<Vc.length;s++)for(let j=0;j<D;j++)bl[j]+=w[s]*Vc[s][j];const at=lin(W.attn.proj,bl);const h1=e.map((x,j)=>x+at[j]);
+  const mid=lin(W.mlp.fc,h1).map(Math.tanh);const mo=lin(W.mlp.proj,mid);const h2=h1.map((x,j)=>x+mo[j]);return lin(W.head,h2);}
+
+/* ---- design state ---- */
+const MODELS={"135M":0.135,"0.5B":0.5,"1.7B":1.7,"7B":7};
+const QUANT={"int4":4,"int8":8,"fp16":16};
+const BACKEND={"WebGPU":1.0,"WASM":0.15};
+const DEPLOY={"single tab":1,"batched fleet":24};
+const USERS={"1":1,"100":100,"10k":10000};
+const sel={model:"0.5B",quant:"int4",backend:"WebGPU",deploy:"batched fleet",users:"100"};
+let measured=null;
+
+const $=id=>document.getElementById(id);
+function opts(id,obj,key){ $(id).innerHTML=Object.keys(obj).map(k=>'<button class="opt'+(sel[key]===k?' on':'')+'" data-k="'+k+'">'+k+'</button>').join('');
+  $(id).querySelectorAll('.opt').forEach(b=>b.addEventListener('click',()=>{ sel[key]=b.dataset.k; update(); })); }
+function fmtB(b){ return b>=1e9?(b/1e9).toFixed(2)+" GB":(b/1e6).toFixed(0)+" MB"; }
+function update(){
+  ['dModel','dQuant','dBackend','dDeploy','dUsers'].forEach((id,i)=>opts(id,[MODELS,QUANT,BACKEND,DEPLOY,USERS][i],['model','quant','backend','deploy','users'][i]));
+  const p=MODELS[sel.model], bits=QUANT[sel.quant], bytes=p*1e9*bits/8;
+  const tps = 80/(p*bits) * BACKEND[sel.backend];             // S0: tok/s ~ 1/(params x bits), backend factor
+  const served = tps * DEPLOY[sel.deploy];                    // S5: batching multiplies served throughput
+  const pricePerSec = 3/3600;                                 // $3/GPU-hour
+  const per1M = 1e6 * pricePerSec / served;                   // S6
+  $("oBytes").textContent=fmtB(bytes);
+  $("oTps").textContent=tps.toFixed(tps<10?1:0)+" tok/s"+(measured?"  (you measured "+measured+" on the nano)":"");
+  $("oServed").textContent=served.toFixed(0)+" tok/s"+(sel.deploy==="batched fleet"?"  (batched)":"");
+  $("oPrice").textContent="$"+per1M.toFixed(2)+" / 1M";
+  const fits = bytes < 1.2e9 && sel.backend!=="WASM" || bytes<0.35e9;
+  $("oFits").textContent = bytes<0.12e9?"yes, anywhere (even WASM)":bytes<1.2e9?"yes, with WebGPU":"no - too big for a tab";
+  $("oFits").className="rv "+(bytes<1.2e9?"green":"");
+  // fleet
+  const U=USERS[sel.users], tokDay=U*50000;
+  const gpus=Math.max(1, Math.ceil(tokDay/(served*86400)));
+  const costDay = tokDay/1e6 * per1M;
+  $("fTokens").textContent=tokDay.toLocaleString()+" tokens";
+  $("fGpus").textContent=gpus+" GPU"+(gpus>1?"s":"");
+  $("fBar").style.width=Math.min(100, gpus/50*100)+"%";
+  $("fCost").textContent="$"+(costDay<1?costDay.toFixed(2):costDay.toLocaleString(undefined,{maximumFractionDigits:0}))+" / day";
+  settle();
+}
+function settle(){
+  let name, why;
+  if(sel.deploy==="single tab" && sel.backend==="WebGPU" && MODELS[sel.model]<=0.5){ name="WebLLM / transformers.js"; why="a small model on WebGPU, one user, no server - exactly S4. Private and offline."; }
+  else if(sel.deploy==="single tab" && MODELS[sel.model]<=7){ name="llamafile"; why="one machine, one file, any OS - S3. Great for edge, privacy, and demos."; }
+  else if(sel.deploy==="batched fleet" && MODELS[sel.model]>=1.7){ name="vLLM / TensorRT-LLM"; why="continuous batching + paged attention on a GPU fleet - S5/S6. How frontier models are served at scale."; }
+  else { name="vLLM (small-model fleet)"; why="a batched fleet of a small, quantized model - cheap tokens at scale (S2/S5)."; }
+  $("vName").textContent="~ "+name; $("vWhy").textContent=why;
+  $("vTrack").textContent="read it (S1) . made it fast (S2) . shipped it (S3) . ran it (S4) . racked it (S5-S6) - and now priced it.";
+}
+
+/* ---- run the real nanomodel, measured ---- */
+$("runNano").addEventListener("click", ()=>{
+  const btn=$("runNano"); btn.disabled=true; const out=$("nanoOut"); out.textContent="";
+  const prompt="the capital of "; let idx=[...prompt].map(c=>stoi[c]); const Kc=[],Vc=[]; let last=null;
+  for(let pos=0;pos<idx.length;pos++) last=fwd(idx[pos],pos,Kc,Vc);
+  out.textContent=prompt;
+  const t0=performance.now(); let n=0; const CAP=31;
+  function stepGen(){
+    if(idx.length>=CAP || CH[idx[idx.length-1]]==="\n"){ const dt=(performance.now()-t0)/1000; measured=(n/dt).toFixed(0);
+      $("oMeasured").textContent=measured+" tok/s (real, this machine)"; btn.disabled=false; update(); return; }
+    const t=amax(last); idx.push(t); out.textContent+=CH[t]; n++;
+    last=fwd(t, idx.length-1, Kc, Vc);
+    setTimeout(stepGen, 55);   // slow enough to watch
+  }
+  stepGen();
+});
+
+/* ---- init ---- */
+update();
+</script>
+</body>
+</html>
