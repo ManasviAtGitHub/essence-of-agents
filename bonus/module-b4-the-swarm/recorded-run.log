@@ -1,0 +1,25 @@
+TARGET under review:
+  def take(items, n):
+      # return the first n items, cheapest first
+      items = sorted(items, key=lambda x: x["price"])
+      out = []
+      for i in range(n + 1):        # <-- off-by-one: yields n+1 items
+          out.append(items[i])      # <-- IndexError when n >= len(items)
+      return out
+
+FAN-OUT over 3 lenses...
+  5 candidate findings (union, deduped)
+
+ADVERSARIAL VERIFY (each faces 3 skeptics)...
+  [correctness] off-by-one: range(n+1) yields n+1 items        0/3 refute -> SURVIVES
+  [correctness] IndexError when n >= len(items)                0/3 refute -> SURVIVES
+  [security   ] no input validation on items (unvalidated dict 3/3 refute -> killed
+  [performance] sorts the whole list to take n (O(m log m), co 0/3 refute -> SURVIVES
+  [performance] recomputes price on every compare (imagined -  3/3 refute -> killed
+
+CONFIRMED findings (3, ranked by severity):
+  - [high] (correctness) off-by-one: range(n+1) yields n+1 items
+  - [high] (correctness) IndexError when n >= len(items)
+  - [med ] (performance) sorts the whole list to take n (O(m log m), could be O(m))
+
+Fan-out found everything; the skeptics threw out what wasn't real - recall then precision.

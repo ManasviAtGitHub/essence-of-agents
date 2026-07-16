@@ -1,0 +1,22 @@
+[sandbox] scratch git repo at <scratch-repo> (a knob K, metric peaks at a value the loop must find)
+
+[seed] K=0.0  metric=-49.0000
+[step 1] K=4.0     metric=-9.0000  KEEP  (was -49.0000)
+[step 2] K=8.0     metric=-1.0000  KEEP  (was -9.0000)
+[step 3] K=12.0    metric=-25.0000  rollback (best stays -1.0000)
+[step 4] K=6.0     metric=-1.0000  rollback (best stays -1.0000)
+[step 5] K=9.0     metric=-4.0000  rollback (best stays -1.0000)
+[step 6] K=7.5     metric=-0.2500  KEEP  (was -1.0000)
+[step 7] K=7.0     metric=-0.0000  KEEP  (was -0.2500)
+[step 8] K=6.5     metric=-0.2500  rollback (best stays -0.0000)
+[step 9] K=7.25    metric=-0.0625  rollback (best stays -0.0000)
+  (converged)
+
+BEST: K=7.0  metric=-0.0000   (git log below is the audit trail)
+cb159f7 step 7: K=7.0 metric=-0.0000 (kept)
+5ef74fc step 6: K=7.5 metric=-0.2500 (kept)
+4fa6299 step 2: K=8.0 metric=-1.0000 (kept)
+d81c475 step 1: K=4.0 metric=-9.0000 (kept)
+8868073 seed metric=-49.0000
+
+The model only proposed; the metric kept score and git kept the history - that is the loop.
