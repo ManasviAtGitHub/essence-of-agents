@@ -102,7 +102,7 @@ const MECH=[
   ins:"<b>Fused kernels (flash-attention):</b> compute a tile, never store the whole matrix - less doorway traffic, full floor. Where the speed is.", good:true},
  {focus:"close", mode:'gpu', who:'bit',emo:'happy', rl:"Lighter pile, fuller floor. That's a fast instance.",
   cap:"Two levers, one goal: quantization shrinks the pile the doorway must carry; the kernel works the compute floor. Together they turn 'a model that runs' into 'a model that runs fast' - one instance, as quick as the hardware allows. Now: ship that instance anywhere (S3), and run it with no install at all (S4).",
-  ins:"<b>Fast = smaller pile (quantize) + fuller floor (kernel).</b> One instance optimized. Next: ship it (S3), run it in a tab (S4).", good:true}
+  ins:"<b>Fast = a smaller pile (quantize lowers the bandwidth wall) + a fuller floor (the kernel makes sure you reach it).</b> One instance optimized. Next: ship it (S3), run it in a tab (S4).", good:true}
 ];
 
 /* ================= p5 ================= */
@@ -132,7 +132,7 @@ function drawQuant(p, s){
   roLabel("tok/s ceiling (bandwidth / bytes)", tps(bits)+" tok/s", col.green, ry+56);
   // speedup vs fp16
   p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("vs fp16:", rx, ry+112);
-  p.fill(col.blue); p.textSize(15); p.text((tps(bits)/tps(16)).toFixed(bits>=16?0:1)+"x faster", rx+62, ry+109);
+  p.fill(col.blue); p.textSize(15); p.text(bits>=16?"baseline":(tps(bits)/tps(16)).toFixed(1)+"x faster", rx+62, ry+109);
   // quality meter
   const q = bits>=8?1 : bits>=4?0.95 : bits>=3?0.7 : bits>=2?0.35 : 0.1;
   p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("answer quality", rx, ry+150);
@@ -162,7 +162,8 @@ function drawKernel(p, s){
   const spd={scalar:"1x",simd:"~8x",gpu:"~1000x"};
   p.fill(col.dim); p.textSize(11); p.text("relative throughput on this matmul:", gx, yb+30);
   p.fill(col.blue); p.textSize(13); p.text(spd[mode], gx+248, yb+28);
-  if(f==='flash'){ p.fill(col.gold); p.textSize(11.5); p.text("flash-attention: compute each tile, never store the whole matrix -> less doorway traffic (S0).", gx, yb+50); }
+  p.fill(col.faint); p.textSize(9); p.text("illustrative of GPU parallelism (width), not a measured figure", gx, yb+46);
+  if(f==='flash'){ p.fill(col.gold); p.textSize(11); p.text("flash-attention: compute each tile, never store the whole matrix -> less doorway traffic (S0).", gx, yb+62); }
 }
 
 /* ================= wiring ================= */

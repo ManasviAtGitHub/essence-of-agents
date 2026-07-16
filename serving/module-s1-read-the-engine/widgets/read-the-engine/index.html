@@ -24,7 +24,7 @@
   .codewrap { flex:1.05; min-width:0; border:1px solid var(--line); border-radius:10px; background:#0b0e12; overflow:hidden; }
   .codehd { font:10px var(--mono); text-transform:uppercase; letter-spacing:.07em; color:var(--faint);
             padding:7px 12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; }
-  .code { font:10.5px/1.55 var(--mono); padding:8px 0; overflow-x:auto; }
+  .code { font:10px/1.55 var(--mono); padding:8px 0; overflow-x:auto; }
   .cl { padding:0 10px; white-space:pre; color:#4b5563; transition:background .15s,color .15s; border-left:2px solid transparent; }
   .cl.on { color:#e9ecf1; background:rgba(88,196,221,.10); border-left:2px solid var(--blue); }
   .cl .cm { color:#5b6470; }
@@ -148,10 +148,10 @@ const STAGES = [
   cap:"From h, three projections: a QUERY (what am I looking for?), a KEY (what do I offer?), and a VALUE (what will I hand over?). Three matmuls - the same h, three learned matrices. This is Module 2's attention, from the inside.",
   ins:"<b>q, k, v</b> = three learned projections of the same h. Query asks; key advertises; value delivers.", who:'bit',emo:'read', rl:"One vector, three questions asked of it."},
  {lines:[5], tag:'the KV cache', focus:'cache',
-  cap:"Here is the line that turns a demo into a SERVER. This token's k and v are STORED in the cache - and never recomputed. Every future token will reuse them as-is. Without this line, generating token 100 would redo tokens 1-99 first: O(n) work per token. With it, each token is O(1) new work.",
-  ins:"<b>The serving move (M3):</b> cache k,v once, reuse forever. This one line is the difference between O(n) and O(1) per token.", good:true, who:'bit',emo:'reach', rl:"Store it once. THAT is why serving is even possible."},
+  cap:"Here is the line that turns a demo into a SERVER. This token's k and v are STORED in the cache - and never recomputed. Every future token reuses them as-is. Without this line, generating token 100 would redo tokens 1-99 first: O(n) recompute per token. With it, each token computes just ONE new k,v. (Attention still READS the whole cache each step - that read is O(n) - but a read is cheap; recomputing every key and value is what the cache kills.)",
+  ins:"<b>The serving move (M3):</b> cache k,v once, reuse forever - so each token computes ONE new k,v instead of recomputing all n. The read stays O(n); the expensive recompute becomes O(1).", good:true, who:'bit',emo:'reach', rl:"Store it once. THAT is why serving is even possible."},
  {lines:[6,7], tag:'score', focus:'score',
-  cap:"Now attention: the query is compared - a dot product - against every key in the cache, the current one and all "+PRE.Kc.length+" before it. High score = 'that past token is relevant to me now'. Notice: we read cache_k, we don't recompute it. That is the payoff of the line before.",
+  cap:"Now attention: the query is compared - a dot product - against every key in the cache: all "+PRE.Kc.length+" of them (this token, plus the ones before). High score = 'that past token is relevant to me now'. Notice: we read cache_k, we don't recompute it. That is the payoff of the line before.",
   ins:"<b>score:</b> q dotted with every CACHED key. Relevance = alignment (Module 2), and the past keys come free from the cache.", who:'bit',emo:'read', rl:"I glance back at everyone - but I read the shelf, I don't rebuild it."},
  {lines:[8], tag:'softmax', focus:'soft',
   cap:"The raw scores become attention WEIGHTS - softmax makes them positive and sum to 1. Now each past token has a share of this token's attention.",
@@ -237,7 +237,7 @@ function drawInt(p, s){
   let y = 82;
   const stepShow = ['embed','qkv','cache','score','soft','blend','res1','mlp','res2','logits'].indexOf(f);
   // h vector (present from embed onward)
-  if(stepShow>=0){ vecRow(p, 70, y, f==='res1'?TR.h1:(f==='res2'||f==='logits')?TR.h2:TR.emb, "h", f==='embed'||f==='res1'||f==='res2', 32); }
+  if(stepShow>=0){ vecRow(p, 70, y, (f==='res1'||f==='mlp')?TR.h1:(f==='res2'||f==='logits')?TR.h2:TR.emb, "h", f==='embed'||f==='res1'||f==='res2', 32); }
   if(f==='embed'){ p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("= tok_emb['"+show(CH[WI[POSW]])+"'] + pos_emb["+POSW+"]", 70, y+28); }
 
   if(f==='qkv'){ vecRow(p,70,y+40,TR.q,"q",true,32); vecRow(p,70,y+70,TR.k,"k",true,32); vecRow(p,70,y+100,TR.v,"v",true,32);
@@ -246,15 +246,15 @@ function drawInt(p, s){
     p.fill(col.gold); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("-> stored at cache["+POSW+"], reused forever (never recomputed)", 70, y+100); }
 
   // the shelf (cache) - always drawn from cache stage on
-  if(['cache','score','soft','blend','res1','mlp','res2','logits'].includes(f)){
+  if(['cache','score','soft','blend','res1','mlp','res2'].includes(f)){   // NOT logits - the distribution owns the lower area there
     shelf(p, 40, 250, KCW, VCW, f==='cache'); }
 
   if(f==='score'){ // scores over cached keys
     p.fill(col.dim); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("score[s] = q . cache_k[s] / sqrt(D):", 16, 150);
     const bw=(CW-40)/TR.scores.length;
-    for(let i=0;i<TR.scores.length;i++){ const v=TR.scores[i], bx=20+i*bw, h=Math.abs(v)*16;
-      p.fill(v>=0?col.blue:col.red); p.noStroke(); p.rect(bx, 200-(v>=0?h:0), bw-2, h, 1.5);
-      p.fill(col.faint); p.textSize(8.5); p.textAlign(p.CENTER,p.TOP); p.text(show(WALK_PROMPT[i]||''), bx+bw/2, 205); } }
+    for(let i=0;i<TR.scores.length;i++){ const v=TR.scores[i], bx=20+i*bw, h=Math.min(24,Math.abs(v)*12);
+      p.fill(v>=0?col.blue:col.red); p.noStroke(); p.rect(bx, 190-(v>=0?h:0), bw-2, h, 1.5);
+      p.fill(col.faint); p.textSize(8.5); p.textAlign(p.CENTER,p.TOP); p.text(show(WALK_PROMPT[i]||''), bx+bw/2, 220); } }
   if(f==='soft'){ p.fill(col.dim); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("attention weights (sum to 1):", 16, 150);
     const bw=(CW-40)/TR.wt.length;
     for(let i=0;i<TR.wt.length;i++){ const bx=20+i*bw, h=TR.wt[i]*90;
@@ -263,8 +263,8 @@ function drawInt(p, s){
   if(f==='blend'){ vecRow(p,70,150,TR.blended,"att",true,32);
     p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("= weighted sum of cached values", 70, 178); }
   if(f==='res1'){ vecRow(p,70,150,TR.att,"Wo.att",false,32); p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("h (above) = h + this", 70,178); }
-  if(f==='mlp'){ vecRow(p,52,150,TR.mid,"tanh(W1h)",true,24);
-    p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text(CF.hidden+" hidden units, then back to "+D, 52, 178); }
+  if(f==='mlp'){ vecRow(p,96,150,TR.mid,"tanh(W1h)",true,22);
+    p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text(CF.hidden+" hidden units, then back to "+D, 96, 178); }
   if(f==='res2'){ vecRow(p,70,150,TR.mout,"W2.mid",false,32); p.fill(col.faint); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("h (above) = h + this", 70,178); }
   if(f==='logits'){ p.fill(col.dim); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("logits -> softmax over "+VOCAB+" tokens:", 16, 150);
     distRow(p, 20, 165, CW-40, softmax(TR.logits), CH, predIx);
@@ -324,7 +324,7 @@ function renderMech(i){ CUR={mode:'mech',step:i}; const m=MECH[i];
     react('bit','reach','Cache primed with the prompt. Now I just sip.'); }
   else { $('caption').textContent='Token '+(i)+': one forward pass, reusing all '+(m.kv-1)+' cached k,v, computes just ONE new pair and emits "'+show(m.added)+'". The red line is the work you SKIP by caching; the green line is what you actually pay.';
     react('bit', m.idx.length>=30?'happy':'read', 'Just added "'+show(m.added)+'". One new k,v, glanced at the shelf, done.'); }
-  $('insight').className='insight good'; $('insight').innerHTML='<b>The cache is the server.</b> Generation is M0\'s loop; the KV cache makes each step O(1) instead of O(n) - the difference between a demo and something you can serve.';
+  $('insight').className='insight good'; $('insight').innerHTML='<b>The cache is the server.</b> Generation is M0\'s loop; the KV cache makes each step compute ONE new k,v instead of recomputing all n - the difference between a demo and something you can serve.';
 }
 
 let tl=null;

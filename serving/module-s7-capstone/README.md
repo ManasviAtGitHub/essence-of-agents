@@ -5,7 +5,8 @@
 The whole track, in one console. You designed nothing until now - you watched.
 Here you make the choices: pick a model, a quantization, a backend, a
 deployment; run a real model on your own machine; and scale your design to a
-fleet, with the cost projected from real numbers. Your setup settles beside a
+fleet whose cost is projected from the track's formulas (the single-instance run
+itself is really measured). Your setup settles beside a
 real 2026 serving stack.
 
 ## Question

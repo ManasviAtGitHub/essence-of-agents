@@ -87,7 +87,7 @@ const INT = [
   ins:"<b>Fewer bits = smaller boxes = more per second.</b> Quantization is a doorway trick, not just a disk trick (S2).", good:true, who:'bit',emo:'happy', rl:"Shrink each weight, widen the flow. Same brain, lighter to haul."},
  {p:1, bits:4, hw:"browser", focus:"spectrum",
   cap:"Now the whole track in one picture. The doorway comes in sizes: a datacenter GPU's is enormous; a laptop's is narrower; a phone's or a browser tab's, narrower still. A model fits and runs only where its pile clears the door fast enough. Where a model can LIVE is a bandwidth question.",
-  ins:"<b>The spectrum:</b> cloud -> laptop -> phone -> browser, each a narrower doorway. Hosting is choosing where the model fits AND flows.", who:'cortex',emo:'read', rl:"Big door, small door. Same me, very different life."},
+  ins:"<b>The spectrum:</b> cloud -> laptop -> phone, each a narrower doorway; a browser tab runs on your device but through a narrower software path (WebGPU/WASM). Hosting is choosing where the model fits AND flows.", who:'cortex',emo:'read', rl:"Big door, small door. Same me, very different life."},
  {p:1, bits:4, hw:"browser", focus:"aha",
   cap:"That is the whole problem this track solves. Hosting a model is moving its bytes fast enough - and every trick ahead is a move on this one picture: shrink the pile (quantize, S2), widen or better-use the doorway (kernels, S2), or run many tokens per trip through it (batching, S5). Three questions frame the rest: is it FAST, is it PORTABLE, does it SCALE?",
   ins:"<b>Hosting = moving bytes fast enough. Bandwidth is the clock.</b> Read the engine (S1), then: make it fast (S2), ship it (S3), run it (S4), rack it (S5-6).", good:true, who:'cortex',emo:'happy', rl:"Not magic. Just weights, a doorway, and a stopwatch."}
@@ -95,20 +95,20 @@ const INT = [
 
 /* ================= MECHANISM (the arithmetic) ================= */
 const MECH = [
- {p:1, bits:16, hw:"gpu", focus:"bytes",
+ {p:1, bits:16, hw:"gpu", focus:"bytes", who:'cortex',emo:'read', rl:"Two gigabytes to say one word. Let me count it exactly.",
   cap:"Now the clock, exactly. Bytes to read per token = parameters x bits-per-weight / 8. A 1B model at 16 bits (fp16) = 1,000,000,000 x 16 / 8 = 2 GB. That is the load, every single token.",
   ins:"<b>bytes / token = params x bits / 8.</b> The pile's weight, computed."},
- {p:1, bits:16, hw:"gpu", focus:"rate",
-  cap:"Speed is just the pile over the doorway: tokens/sec = bandwidth / bytes-per-token. On a 900 GB/s GPU, 900 / 2 = ~450 tokens/sec (the ceiling - real is lower). This is decode's speed limit, and it is set by memory, not FLOPs.",
+ {p:1, bits:16, hw:"gpu", focus:"rate", who:'cortex',emo:'reach', rl:"Bandwidth over bytes. That fraction IS my speed limit.",
+  cap:"Speed is just the pile over the doorway: tokens/sec = bandwidth / bytes-per-token. On a 900 GB/s GPU, 900 / 2 = ~450 tokens/sec (the ceiling - real is lower). This is DECODE's speed limit (decode = generating tokens one at a time), and it is set by memory, not FLOPs.",
   ins:"<b>tok/s = bandwidth / bytes.</b> Widen the door OR shrink the pile - the only two ways to go faster."},
- {p:1, bits:16, hw:"gpu", focus:"roofline",
-  cap:"Why is it memory-bound and not compute-bound? A decode step does about 2 x params FLOPs but moves about params bytes - roughly 2 FLOPs per byte. A modern GPU can do hundreds of FLOPs in the time it moves one byte. So the math finishes with the doorway barely open: compute waits. Prefill (many tokens at once) is the opposite - compute-bound - which is why the first token is the slow one (M3).",
-  ins:"<b>The roofline:</b> ~2 FLOP/byte is far below the hardware's ratio -> memory-bound. Decode waits on bytes; prefill waits on math.", good:true},
- {p:7, bits:4, hw:"laptop", focus:"knobs",
+ {p:1, bits:16, hw:"gpu", focus:"roofline", who:'cortex',emo:'confused', rl:"My math finishes in a blink - then I just wait for the truck.",
+  cap:"Why is it memory-bound and not compute-bound? A decode step does about 2 x params FLOPs but moves about params bytes - roughly 2 FLOPs per byte. A modern GPU can do hundreds of FLOPs in the time it moves one byte, so the math finishes with the doorway barely open: compute sits idle. Prefill (many tokens at once) is the opposite - compute-bound - which is why the first token is the slow one (M3).",
+  ins:"<b>The roofline:</b> ~2 FLOP/byte sits far left, deep in the memory-bound region -> compute waits. Decode waits on bytes; prefill (high intensity) waits on math.", good:true},
+ {p:7, bits:4, hw:"laptop", focus:"knobs", who:'bit',emo:'happy', rl:"Three dials, one equation. Everything ahead turns one of them.",
   cap:"Every serving trick is a term in this one equation. Shrink the pile: 7B at int4 = 3.5 GB, not 14 (S2). Use the doorway better: fused kernels move less, waste less (S2). Or amortize the trip: read the pile once, serve MANY users' tokens from it - batching (S5). Same picture, three levers.",
   ins:"<b>Three levers on tok/s = bandwidth/bytes:</b> smaller pile (S2), better-used door (S2), many tokens per trip (S5)."},
- {p:1, bits:4, hw:"browser", focus:"close",
-  cap:"And it decides WHERE a model runs. A 1B model at int4 is 0.5 GB; a phone or browser at ~60 GB/s serves ~120 tokens/sec - genuinely usable, no server. A frontier model's pile is hundreds of GB and only a datacenter's doorway clears it in time. Same equation, every device.",
+ {p:1, bits:4, hw:"browser", focus:"close", who:'cortex',emo:'happy', rl:"Same stopwatch on a datacenter or a phone - just different doors.",
+  cap:"And it decides WHERE a model runs. A 1B model at int4 is 0.5 GB; a phone or browser at ~60 GB/s serves ~120 tokens/sec - genuinely usable, no server. A frontier model's pile is hundreds of GB and only a datacenter's doorway clears it in time. (Mixture-of-experts models read only their active experts per token - a different way to shrink the pile, same equation.)",
   ins:"The clock runs on every device. What FITS and FLOWS is bandwidth vs bytes - the frame for all of S1-S7.", good:true}
 ];
 
@@ -123,11 +123,29 @@ new p5(pp=>{
   pp.draw=()=>{ pp.background(11,14,18); drawScene(pp, cfg()); };
 });
 
+function drawRoofline(p, c){
+  p.noStroke(); p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("the roofline: what actually caps performance", 40, 24);
+  const x=130, y=64, w=660, h=200, kneeX=x+w*0.60, roofY=y+h*0.22;
+  p.stroke(col.line); p.strokeWeight(1); p.line(x,y,x,y+h); p.line(x,y+h,x+w,y+h);   // axes
+  p.noStroke(); p.fill(col.faint); p.textSize(10); p.textAlign(p.LEFT,p.BOTTOM); p.text("achievable throughput", x+4, y+13);
+  p.textAlign(p.RIGHT,p.TOP); p.text("arithmetic intensity (FLOPs per byte moved) ->", x+w, y+h+7);
+  p.stroke(col.gold); p.strokeWeight(2.4); p.line(x, y+h, kneeX, roofY); p.line(kneeX, roofY, x+w, roofY);   // memory-bound slope -> compute roof
+  p.noStroke(); p.fill(col.gold); p.textSize(9.5); p.textAlign(p.LEFT,p.BOTTOM); p.text("compute roof (peak FLOP/s)", kneeX+8, roofY-3);
+  p.push(); p.translate(x+38, y+h-40); p.rotate(-0.62); p.fill(col.faint); p.textAlign(p.LEFT,p.BOTTOM); p.text("slope = bandwidth", 0, 0); p.pop();
+  // decode: low intensity, far left, ON the diagonal -> memory-bound
+  const dx=x+w*0.06, dy=(y+h)+(roofY-(y+h))*(0.06/0.60);
+  p.fill(col.red); p.circle(dx,dy,9); p.textSize(10.5); p.textAlign(p.LEFT,p.CENTER); p.text("  DECODE ~2 FLOP/byte", dx, dy);
+  p.fill(col.red); p.textSize(9.5); p.textAlign(p.LEFT,p.TOP); p.text("  (deep in the memory-bound region - waits on the doorway)", dx, dy+9);
+  // prefill: high intensity, on the roof -> compute-bound
+  const px=x+w*0.82; p.fill(col.blue); p.circle(px,roofY,9); p.textSize(10.5); p.textAlign(p.RIGHT,p.CENTER); p.text("PREFILL  ", px, roofY);
+  p.textSize(9.5); p.textAlign(p.RIGHT,p.TOP); p.text("(on the roof - waits on the math)  ", px, roofY+10);
+}
 function drawScene(p, c){
   const f = c.focus;
+  if(f==='roofline'){ drawRoofline(p, c); return; }
   // --- geometry ---
   const memX=30, memW=250, memTop=56, memBot=248;
-  const doorX=470, doorGap=Math.max(28, Math.min(150, c.bw/26));   // door height ~ bandwidth
+  const doorX=470, doorGap=Math.max(24, Math.min(140, 24+Math.log2(c.bw/50)*16));   // door height ~ bandwidth (log map so laptop/phone/cloud differ visibly)
   const cpuX=690, cpuW=200;
   // door height narrower = lower bandwidth. cycle time ~ bytes / bandwidth
   const cycleF = Math.max(26, Math.min(150, (c.bytes/1e9)/(c.bw/900)*70));
@@ -179,8 +197,8 @@ function drawScene(p, c){
   for(let i=0;i<Math.min(8,toks%9);i++){ p.fill(col.green); p.rect(cpuX+66+i*15, memTop+184, 11, 13, 2); }
 
   // ===== idle meter (the punchline) =====
-  if(f==='idle'||f==='roofline'){
-    const idle = Math.round((1 - 0.1)*100);   // compute busy ~last 10% of cycle
+  if(f==='idle'){
+    const idle = Math.round((1 - 0.1)*100);   // matches the animation: the worker lights ~last 10% of each cycle
     p.fill(col.red); p.textSize(13); p.textAlign(p.LEFT,p.TOP); p.text("compute is IDLE ~"+idle+"% of the time - waiting on the doorway", memX, 338);
   } else {
     // readout: the computed ceiling

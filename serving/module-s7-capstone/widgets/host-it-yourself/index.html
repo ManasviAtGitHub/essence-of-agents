@@ -41,7 +41,7 @@
 <h1>Host it yourself</h1>
 <div class="stamp">TRACK 5 . S7 . CAPSTONE . verified as of 2026-07 - read it, make it fast, ship it, run it, rack it</div>
 <p class="sub">The whole track, in your hands. <b>Design</b> a serving setup with the dials, <b>run</b> a real model
-right here (measured on your machine), and <b>scale</b> it to a fleet - the cost projected from real numbers.
+right here (measured on your machine), and <b>scale</b> it to a fleet - one instance really run, the fleet projected from the track's formulas.
 Your design settles beside a real 2026 stack.</p>
 
 <div class="grid2">
@@ -55,11 +55,11 @@ Your design settles beside a real 2026 stack.</p>
   </div>
   <!-- RIGHT: the numbers -->
   <div class="sec">
-    <h3><span class="n">3</span> The numbers (computed live)</h3>
+    <h3>The numbers (computed live)</h3>
     <div class="readout"><span class="rk">pile per token (S0/S2)</span><span class="rv gold" id="oBytes">-</span></div>
     <div class="readout"><span class="rk">single-stream tok/s (S0, projected)</span><span class="rv" id="oTps">-</span></div>
     <div class="readout"><span class="rk">served tok/s (S5 batch x)</span><span class="rv green" id="oServed">-</span></div>
-    <div class="readout"><span class="rk">$ / 1M tokens (S6)</span><span class="rv gold" id="oPrice">-</span></div>
+    <div class="readout"><span class="rk">$ / 1M tokens (S6, full util)</span><span class="rv gold" id="oPrice">-</span></div>
     <div class="readout"><span class="rk">fits in a browser tab?</span><span class="rv" id="oFits">-</span></div>
   </div>
 </div>
@@ -78,7 +78,7 @@ Your design settles beside a real 2026 stack.</p>
 
 <!-- SCALE -->
 <div class="sec">
-  <h3><span class="n">4</span> Scale to a fleet</h3>
+  <h3><span class="n">3</span> Scale to a fleet</h3>
   <div class="dial"><div class="dl">USERS (each ~50k tokens/day)</div><div class="opts" id="dUsers"></div></div>
   <div class="readout"><span class="rk">tokens / day</span><span class="rv" id="fTokens">-</span></div>
   <div class="readout"><span class="rk">GPUs needed (rough)</span><span class="rv" id="fGpus">-</span></div>
@@ -113,7 +113,7 @@ function fwd(tok,pos,Kc,Vc){const e=W.tok_emb[tok].map((t,j)=>t+W.pos_emb[pos][j
 const MODELS={"135M":0.135,"0.5B":0.5,"1.7B":1.7,"7B":7};
 const QUANT={"int4":4,"int8":8,"fp16":16};
 const BACKEND={"WebGPU":1.0,"WASM":0.15};
-const DEPLOY={"single tab":1,"batched fleet":24};
+const DEPLOY={"single instance":1,"batched fleet":24};
 const USERS={"1":1,"100":100,"10k":10000};
 const sel={model:"0.5B",quant:"int4",backend:"WebGPU",deploy:"batched fleet",users:"100"};
 let measured=null;
@@ -125,32 +125,34 @@ function fmtB(b){ return b>=1e9?(b/1e9).toFixed(2)+" GB":(b/1e6).toFixed(0)+" MB
 function update(){
   ['dModel','dQuant','dBackend','dDeploy','dUsers'].forEach((id,i)=>opts(id,[MODELS,QUANT,BACKEND,DEPLOY,USERS][i],['model','quant','backend','deploy','users'][i]));
   const p=MODELS[sel.model], bits=QUANT[sel.quant], bytes=p*1e9*bits/8;
-  const tps = 80/(p*bits) * BACKEND[sel.backend];             // S0: tok/s ~ 1/(params x bits), backend factor
+  const tps = 80/(p*bits) * BACKEND[sel.backend];             // S0: tok/s ~ 1/(params x bits), backend factor (illustrative, conservative)
   const served = tps * DEPLOY[sel.deploy];                    // S5: batching multiplies served throughput
-  const pricePerSec = 3/3600;                                 // $3/GPU-hour
-  const per1M = 1e6 * pricePerSec / served;                   // S6
+  const per1M = 1e6 * (3/3600) / served;                      // S6: marginal $/1M, at full utilization
   $("oBytes").textContent=fmtB(bytes);
-  $("oTps").textContent=tps.toFixed(tps<10?1:0)+" tok/s"+(measured?"  (you measured "+measured+" on the nano)":"");
+  $("oTps").textContent=tps.toFixed(tps<10?1:0)+" tok/s";
   $("oServed").textContent=served.toFixed(0)+" tok/s"+(sel.deploy==="batched fleet"?"  (batched)":"");
   $("oPrice").textContent="$"+per1M.toFixed(2)+" / 1M";
-  const fits = bytes < 1.2e9 && sel.backend!=="WASM" || bytes<0.35e9;
-  $("oFits").textContent = bytes<0.12e9?"yes, anywhere (even WASM)":bytes<1.2e9?"yes, with WebGPU":"no - too big for a tab";
-  $("oFits").className="rv "+(bytes<1.2e9?"green":"");
-  // fleet
+  // fits: backend-aware (WASM ~0.35 GB ceiling; WebGPU ~1.2 GB tab budget)
+  const cap = sel.backend==="WASM" ? 0.35e9 : 1.2e9, okFit = bytes < cap;
+  $("oFits").textContent = okFit ? (bytes<0.12e9?"yes, anywhere (even WASM)":"yes, on "+sel.backend) : "no - too big for "+sel.backend;
+  $("oFits").className="rv "+(okFit?"green":"");
+  // fleet - you pay for PROVISIONED whole GPUs (busy or idle), so cost = gpus x $3/hr x 24 (S6)
   const U=USERS[sel.users], tokDay=U*50000;
   const gpus=Math.max(1, Math.ceil(tokDay/(served*86400)));
-  const costDay = tokDay/1e6 * per1M;
+  const costDay = gpus*24*3;
+  const util = Math.min(100, (tokDay/served)/(gpus*86400)*100);   // consumed vs provisioned
   $("fTokens").textContent=tokDay.toLocaleString()+" tokens";
-  $("fGpus").textContent=gpus+" GPU"+(gpus>1?"s":"");
+  $("fGpus").textContent=gpus+" GPU"+(gpus>1?"s":"")+"  ("+util.toFixed(0)+"% utilized)";
   $("fBar").style.width=Math.min(100, gpus/50*100)+"%";
-  $("fCost").textContent="$"+(costDay<1?costDay.toFixed(2):costDay.toLocaleString(undefined,{maximumFractionDigits:0}))+" / day";
+  $("fCost").textContent="$"+costDay.toLocaleString(undefined,{maximumFractionDigits:0})+" / day";
   settle();
 }
 function settle(){
-  let name, why;
-  if(sel.deploy==="single tab" && sel.backend==="WebGPU" && MODELS[sel.model]<=0.5){ name="WebLLM / transformers.js"; why="a small model on WebGPU, one user, no server - exactly S4. Private and offline."; }
-  else if(sel.deploy==="single tab" && MODELS[sel.model]<=7){ name="llamafile"; why="one machine, one file, any OS - S3. Great for edge, privacy, and demos."; }
-  else if(sel.deploy==="batched fleet" && MODELS[sel.model]>=1.7){ name="vLLM / TensorRT-LLM"; why="continuous batching + paged attention on a GPU fleet - S5/S6. How frontier models are served at scale."; }
+  let name, why; const big=MODELS[sel.model], single=sel.deploy==="single instance";
+  if(single && sel.backend==="WASM"){ name="transformers.js (WASM)"; why="a small model on the CPU in a tab, no GPU, no server - S4's universal fallback."; }
+  else if(single && sel.backend==="WebGPU" && big<=0.5){ name="WebLLM / transformers.js"; why="a small model on WebGPU, one user, no server - exactly S4. Private and offline."; }
+  else if(single){ name="llamafile"; why="one machine, one portable file, any OS - S3. Great for edge, privacy, and demos."; }
+  else if(big>=1.7){ name="vLLM / TensorRT-LLM"; why="continuous batching + paged attention on a GPU fleet - S5/S6. How frontier models are served at scale."; }
   else { name="vLLM (small-model fleet)"; why="a batched fleet of a small, quantized model - cheap tokens at scale (S2/S5)."; }
   $("vName").textContent="~ "+name; $("vWhy").textContent=why;
   $("vTrack").textContent="read it (S1) . made it fast (S2) . shipped it (S3) . ran it (S4) . racked it (S5-S6) - and now priced it.";

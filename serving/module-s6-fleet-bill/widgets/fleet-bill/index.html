@@ -64,7 +64,7 @@ const INT=[
   cap:"Watch the demand curve. While it stays under the fleet's capacity, requests flow and latency is low. When it spikes ABOVE capacity, the queue backs up - users wait, latency climbs, some give up. Under-provision and you drop users; over-provision and you pay for idle GPUs. The whole game is matching the fleet to the curve.",
   ins:"<b>Demand vs capacity:</b> over the line, the queue backs up and users wait; under it, you pay for idle. Match the fleet to the curve.", who:'cortex',emo:'confused', rl:"Rush hour and the line's out the door. 3am and my stove sits cold."},
  {focus:"autoscale",
-  cap:"So fleets AUTOSCALE: add replicas when the curve rises, drop them when it falls. But scaling is not instant - a cold GPU takes time to load the weights (S0's pile, again) before it can serve, so you scale ahead of demand and eat some idle. The meter never fully stops; the art is keeping it as low as the SLA allows.",
+  cap:"So fleets AUTOSCALE: add replicas when the curve rises, drop them when it falls. But scaling is not instant - a cold GPU takes time to load the weights (S0's pile, again) before it can serve, so you scale ahead of demand and eat some idle. The meter never fully stops; the art is keeping it as low as your latency target (the SLA - service-level agreement) allows.",
   ins:"<b>Autoscale:</b> replicas track demand, but cold starts lag (load the pile first). You always carry some idle - the cost of being ready.", who:'bit',emo:'reach', rl:"Spin up before the rush, spin down after. Never quite empty, never quite enough."},
  {focus:"cost",
   cap:"And the meter has dials. RESERVED GPUs are pricey but yours; SPOT GPUs are cheap but can be reclaimed mid-request - a cost/reliability trade. Every powered GPU-hour, times the price, divided by the tokens it produced, is the number that matters: dollars per million tokens. That is the unit price of intelligence, and it is what F8's capstone was pointing at.",
@@ -112,12 +112,17 @@ function drawFleet(p, f){
   // capacity line
   const capY=gy-(capacity/MAXG)*gh; p.stroke(col.gold); p.strokeWeight(1.4); p.drawingContext.setLineDash([5,4]); p.line(gx,capY,gx+gw,capY); p.drawingContext.setLineDash([]);
   p.noStroke(); p.fill(col.gold); p.textSize(9.5); p.textAlign(p.LEFT,p.BOTTOM); p.text("capacity ("+replicas+" GPUs)", gx+gw-120, capY-2);
-  // demand history
+  // backlog shading: red wherever the demand curve rises ABOVE the capacity line (persistent, across the whole history)
+  p.noStroke();
+  for(let i=0;i<gw;i+=6){ const d=demandAt(t-(gw-i)*1.2); if(d>capacity){ const yTop=gy-(d/MAXG)*gh; p.fill(252,98,85,60); p.rect(gx+i, yTop, 6, capY-yTop); } }
+  // demand history line
   p.noFill(); p.stroke(col.blue); p.strokeWeight(2); p.beginShape();
   for(let i=0;i<=gw;i+=6){ const d=demandAt(t-(gw-i)*1.2); p.vertex(gx+i, gy-(d/MAXG)*gh); } p.endShape();
-  // backlog shading where demand>capacity
-  if(queue>0.1){ p.fill(col.red); p.noStroke(); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("QUEUE BACKING UP - users waiting", gx, gy+8); }
-  else { p.fill(col.green); p.noStroke(); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("flowing - low latency", gx, gy+8); }
+  // the "now" dot at the right edge - the status text maps to THIS point
+  const dNow=demandAt(t), yNow=gy-(dNow/MAXG)*gh, over=dNow>capacity;
+  p.noStroke(); p.fill(over?col.red:col.green); p.circle(gx+gw, yNow, 9);
+  p.fill(over?col.red:col.green); p.textSize(11); p.textAlign(p.LEFT,p.TOP);
+  p.text(over?"NOW: demand OVER capacity -> queue backing up, users wait":"NOW: demand under capacity -> flowing, low latency", gx, gy+8);
   // --- the GPU rack (right) ---
   const rx=640, ry=48, cols=3, cw=80, ch=34, gap=8;
   p.fill(col.faint); p.textSize(10.5); p.textAlign(p.LEFT,p.BOTTOM); p.text("the fleet (GPU rack)", rx, ry-6);
@@ -142,11 +147,11 @@ function drawBill(p, f){
     for(let i=0;i<22;i++){ p.fill(col.green); p.rect(bx+160+i*30, by, 22, 40, 3); }
     p.fill(col.blue); p.textSize(10.5); p.textAlign(p.LEFT,p.TOP); p.text("prefill: whole prompt at once (compute-bound, M3/S0) - the WAIT", bx, by+52);
     p.fill(col.green); p.text("decode: one token at a time (memory-bound) - the PACE (each tick = a token)", bx, by+72);
-    p.fill(col.faint); p.textSize(11); p.text("time ->", bx+bw-60, by+6);
+    p.fill(col.faint); p.textSize(11); p.textAlign(p.RIGHT,p.TOP); p.text("time ->", bx+bw, by-16);
   } else if(f==='disagg'){
     p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("prefill and decode stress opposite hardware -> split them into two pools:", 40, 40);
-    p.fill('#101a22'); p.stroke(col.blue); p.strokeWeight(1.4); p.rect(80,90,340,150,8); p.noStroke(); p.fill(col.blue); p.textSize(13); p.textAlign(p.CENTER,p.TOP); p.text("PREFILL pool", 250, 104); p.fill(col.dim); p.textSize(11); p.text("compute-heavy machines", 250, 128); p.text("first token, fast", 250, 148);
-    p.fill('#111a12'); p.stroke(col.green); p.strokeWeight(1.4); p.rect(500,90,340,150,8); p.noStroke(); p.fill(col.green); p.textSize(13); p.textAlign(p.CENTER,p.TOP); p.text("DECODE pool", 670, 104); p.fill(col.dim); p.textSize(11); p.text("memory-bandwidth machines", 670, 128); p.text("stream the rest", 670, 148);
+    p.fill('#101a22'); p.stroke(col.blue); p.strokeWeight(1.4); p.rect(80,90,340,150,8); p.noStroke(); p.fill(col.blue); p.textSize(13); p.textAlign(p.CENTER,p.TOP); p.text("PREFILL pool", 250, 104); p.fill(col.dim); p.textSize(11); p.text("GPUs configured for prefill (compute)", 250, 128); p.text("first token, fast", 250, 148);
+    p.fill('#111a12'); p.stroke(col.green); p.strokeWeight(1.4); p.rect(500,90,340,150,8); p.noStroke(); p.fill(col.green); p.textSize(13); p.textAlign(p.CENTER,p.TOP); p.text("DECODE pool", 670, 104); p.fill(col.dim); p.textSize(11); p.text("GPUs configured for decode (bandwidth)", 670, 128); p.text("stream the rest", 670, 148);
     p.fill(col.gold); p.textSize(11); p.textAlign(p.CENTER,p.TOP); p.text("-> hand off ->", 460, 158);
     p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("each pool runs near its own limit -> more tokens per dollar (2025-26).", 80, 260);
   } else if(f==='bill'){

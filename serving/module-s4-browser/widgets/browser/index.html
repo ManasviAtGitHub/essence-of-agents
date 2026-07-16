@@ -172,11 +172,15 @@ function drawMech(p,f){
     const gx=120,gy=250,gw=680,gh=170; p.stroke(col.line); p.strokeWeight(1); p.line(gx,gy,gx+gw,gy); p.line(gx,gy,gx,gy-gh);
     p.noFill(); p.stroke(col.gold); p.strokeWeight(2.2); p.beginShape(); for(let i=0;i<=40;i++){ const x=gx+i/40*gw, v=1/(1+i*0.09), y=gy-v*gh; p.vertex(x,y);} p.endShape();
     p.noStroke(); p.fill(col.faint); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("bigger model / longer context ->", gx+gw-180, gy+6); p.textAlign(p.RIGHT,p.CENTER); p.text("tok/s", gx-6, gy-gh+8); }
-  else if(f==='fit'){ p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("what FITS in the tab's memory budget:", 100, 50);
-    const items=[["135M + cache","fits everywhere (even phones)",col.green,0.12],["0.5B + cache","comfortable on a laptop",col.green,0.35],["1.7B + cache","needs ~2 GB free",col.gold,0.7],["7B + cache","will NOT load in most tabs",col.red,1.0]];
-    items.forEach((t,i)=>{ const y=86+i*50; p.fill(col.ink); p.textSize(11.5); p.textAlign(p.LEFT,p.TOP); p.text(t[0], 100, y);
-      p.fill('#10160f'); p.noStroke(); p.rect(260,y-2,520,20,3); p.fill(t[2]); p.rect(260,y-2,520*t[3],20,3);
-      p.fill(t[2]); p.textSize(10.5); p.textAlign(p.LEFT,p.CENTER); p.text(t[1], 264, y+8); }); }
+  else if(f==='fit'){ p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("what FITS in the tab's memory budget (model + KV cache):", 100, 46);
+    const items=[["135M","~90 MB",col.green,0.10],["0.5B","~400 MB",col.green,0.34],["1.7B","~1 GB",col.gold,0.68],["7B","~5 GB",col.red,1.0]];
+    const bx=175, bw=430, thr=0.72;
+    p.stroke(col.red); p.strokeWeight(1.2); p.drawingContext.setLineDash([4,3]); p.line(bx+bw*thr, 74, bx+bw*thr, 74+items.length*46); p.drawingContext.setLineDash([]);
+    p.noStroke(); p.fill(col.red); p.textSize(9.5); p.textAlign(p.CENTER,p.BOTTOM); p.text("tab limit (~1.5 GB)", bx+bw*thr, 72);
+    items.forEach((t,i)=>{ const y=86+i*46;
+      p.fill(col.ink); p.textSize(12); p.textAlign(p.LEFT,p.CENTER); p.text(t[0], 108, y+9);
+      p.fill('#10160f'); p.noStroke(); p.rect(bx,y,bw,20,3); p.fill(t[2]); p.rect(bx,y,Math.min(bw,bw*t[3]),20,3);
+      p.fill(t[2]); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(t[1]+(t[3]>thr?"  - won't load":""), bx+bw+12, y+9); }); }
   else { p.fill(col.green); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("the browser wins for:", 100, 56);
     ["privacy - nothing leaves the device","offline - planes, clinics, anywhere","no cost per call - your hardware","no key to manage"].forEach((s,i)=>{ p.fill(col.panel); p.stroke(col.green); p.strokeWeight(1); p.rect(100,84+i*46,360,34,6); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(s,114,101+i*46); });
     p.fill(col.gold); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("it loses for:", 520, 56);
@@ -207,22 +211,24 @@ build('int');
   const runBtn=$('rpRun'), status=$('rpStatus'), prog=$('rpProg'), out=$('rpOut');
   const setBar=p=>{ prog.style.width=Math.round(p)+'%'; };
   let PIPE=null, LOADED=null, backend=null;
+  async function pickBackend(){   // WebGPU only if an adapter actually exists (navigator.gpu can be present but return no adapter)
+    try { if(navigator.gpu){ const ad=await navigator.gpu.requestAdapter().catch(()=>null); if(ad) return 'webgpu'; } } catch(_){}
+    return 'wasm';
+  }
   async function ensure(modelId){
     if(PIPE && LOADED===modelId) return;
-    const hasGPU = !!(navigator.gpu);
-    backend = hasGPU ? 'webgpu' : 'wasm';
-    $('rpBackend').textContent = backend + (hasGPU? '' : ' (no WebGPU -> CPU)');
+    backend = await pickBackend();
+    $('rpBackend').textContent = backend==='webgpu' ? 'webgpu' : 'wasm (no WebGPU -> CPU)';
     status.textContent = 'loading transformers.js...'; setBar(2);
     const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2');
     T.env.allowLocalModels = false;
     status.textContent = 'downloading '+modelId.split('/').pop()+' (first time only, then cached)...';
-    let total=0;
-    PIPE = await T.pipeline('text-generation', modelId, {
-      device: backend,
-      dtype: backend==='webgpu' ? 'q4f16' : 'q4',
-      progress_callback: (e)=>{ if(e.status==='progress' && e.total){ total=Math.max(total,e.total); setBar(10 + 80*(e.loaded/e.total)); if(e.file) status.textContent='downloading '+e.file+' - '+Math.round(e.loaded/1e6)+' / '+Math.round(e.total/1e6)+' MB'; } }
-    });
-    LOADED=modelId; if(total) $('rpBytes').textContent=(total/1e6).toFixed(0)+' MB'; setBar(96);
+    const files={};
+    const pcb=(e)=>{ if(e.status==='progress' && e.file && e.total){ files[e.file]=e.total; setBar(10 + 80*(e.loaded/e.total)); status.textContent='downloading '+e.file+' - '+Math.round(e.loaded/1e6)+' / '+Math.round(e.total/1e6)+' MB'; } };
+    const load = (device)=> T.pipeline('text-generation', modelId, { device, dtype:'q4', progress_callback:pcb });   // q4 (not q4f16 - f16 needs a GPU feature many lack)
+    try { PIPE = await load(backend); }
+    catch(err){ if(backend==='webgpu'){ backend='wasm'; $('rpBackend').textContent='wasm (WebGPU load failed)'; status.textContent='WebGPU unavailable, falling back to WASM (slower)...'; PIPE = await load('wasm'); } else throw err; }
+    LOADED=modelId; const total=Object.values(files).reduce((a,b)=>a+b,0); if(total) $('rpBytes').textContent=(total/1e6).toFixed(0)+' MB'; setBar(96);
   }
   async function run(){
     const modelId=$('rpModel').value;

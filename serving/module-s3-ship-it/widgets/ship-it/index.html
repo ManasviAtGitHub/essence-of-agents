@@ -62,7 +62,7 @@ const INT=[
   cap:"Normally, running a model is a project. You need the engine's source, a compiler or a Python stack, the right CUDA or Metal drivers, a package manager, AND the multi-gigabyte weights - each a chance to break. This friction is why most people never run a model locally at all.",
   ins:"Shipping a model usually means shipping a whole ENVIRONMENT - runtime, drivers, deps, weights. Every piece is a place to fail.", who:'bit',emo:'confused', rl:"Install this, then that, then the driver, then... most people quit here."},
  {focus:"fold",
-  cap:"llamafile's move (Mozilla): fold the engine and the weights into ONE file. The engine is llama.cpp - the grown-up descendant of the run.c you read in S1. The weights are a GGUF file (S2's int4). Append one to the other, and you have a single self-contained thing.",
+  cap:"llamafile's move (Mozilla): fold the engine and the weights into ONE file. The engine is llama.cpp - the industrial-strength cousin of the run.c you read in S1. The weights are a GGUF file (llama.cpp's weight format, S2's int4). Append one to the other, and you have a single self-contained thing.",
   ins:"<b>Fold engine + weights into one file.</b> No separate download, no unpacking - the model IS the executable.", who:'bit',emo:'reach', rl:"Engine and weights, zipped into one honest file."},
  {focus:"ape",
   cap:"The trick that makes it portable: Cosmopolitan Libc compiles that file into an APE - an Actually Portable Executable. The same bytes are simultaneously a valid Windows .exe, a Linux ELF, a macOS Mach-O, and a shell script. Double-click it on any of them - no install - and it runs, using the GPU (Metal/CUDA) if there is one, the CPU (S2's SIMD) if not.",
@@ -136,8 +136,8 @@ function drawInt(p, f){
   } else if(f==='ape'){
     fileIcon(p,385,44,150,66,"model.llamafile",true);
     p.fill(col.ape); p.textSize(10.5); p.textAlign(p.CENTER,p.TOP); p.text("Actually Portable Executable", 460, 114);
-    ["Windows .exe","macOS Mach-O","Linux ELF","phone / ARM"].forEach((n,i)=> osTile(p, 40+i*220, 210, n, true));
-    ["Windows .exe","macOS Mach-O","Linux ELF","phone / ARM"].forEach((n,i)=>{ p.stroke(col.green); p.strokeWeight(1); p.drawingContext.setLineDash([4,4]); p.line(460,112, 100+i*220, 205); p.drawingContext.setLineDash([]); });
+    ["Windows .exe","macOS Mach-O","Linux ELF","shell script"].forEach((n,i)=> osTile(p, 40+i*220, 210, n, true));
+    ["Windows .exe","macOS Mach-O","Linux ELF","shell script"].forEach((n,i)=>{ p.stroke(col.green); p.strokeWeight(1); p.drawingContext.setLineDash([4,4]); p.line(460,112, 100+i*220, 205); p.drawingContext.setLineDash([]); });
   } else if(f==='loopback'){
     agentLoop(p, 210, 175, 78);
     fileIcon(p,700,140,170,80,"model.llamafile",true); p.fill(col.ape); p.textSize(10); p.textAlign(p.CENTER,p.TOP); p.text("local Anthropic API", 785, 224);
@@ -155,7 +155,7 @@ function drawInt(p, f){
 function drawMech(p, f){
   if(f==='anatomy'){
     const x=330,w=260, y=54;
-    const layers=[["polyglot header","valid to every OS loader",col.ape,26],["llama.cpp engine (S1)","compiled once, all platforms",col.blue,70],["GGUF weights (S2, mmap'd)","appended, read on demand",col.gold,150]];
+    const layers=[["polyglot header","valid to every OS loader",col.ape,42],["llama.cpp engine (S1)","compiled once, all platforms",col.blue,68],["GGUF weights (S2, mmap'd)","appended, read on demand",col.gold,140]];
     let yy=y; layers.forEach(L=>{ p.fill(col.panel); p.stroke(L[2]); p.strokeWeight(1.4); p.rect(x,yy,w,L[3],5); p.noStroke(); p.fill(L[2]); p.textSize(11.5); p.textAlign(p.LEFT,p.TOP); p.text(L[0],x+12,yy+8); p.fill(col.faint); p.textSize(9.5); p.text(L[1],x+12,yy+26); yy+=L[3]+8; });
     p.fill(col.dim); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text("one .llamafile", x+w+18, y+130);
   } else if(f==='run'){
@@ -172,7 +172,7 @@ function drawMech(p, f){
     p.fill(col.green); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("you gain", 90, 60);
     ["zero install (one file)","works fully offline","private - nothing leaves the machine","portable to any OS / CPU"].forEach((s,i)=>{ p.fill(col.panel); p.stroke(col.green); p.strokeWeight(1); p.rect(90,88+i*44,340,34,6); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(s,104,105+i*44); });
     p.fill(col.gold); p.textSize(12.5); p.textAlign(p.LEFT,p.TOP); p.text("you pay", 500, 60);
-    ["a fat file (weights inside, GBs)","one binary, not a tuned fleet","one machine, one-ish user at a time"].forEach((s,i)=>{ p.fill(col.panel); p.stroke(col.gold); p.strokeWeight(1); p.rect(500,88+i*44,340,34,6); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(s,514,105+i*44); });
+    ["a fat file (weights inside, GBs)","one binary, not a tuned fleet","one machine, one-ish user at a time","a small local model - weaker than cloud Claude"].forEach((s,i)=>{ p.fill(col.panel); p.stroke(col.gold); p.strokeWeight(1); p.rect(500,88+i*44,340,34,6); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(s,514,105+i*44); });
     p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("great for edge / privacy / demos. For thousands of users -> the fleet (S5-S6).", 90, 300);
   }
 }

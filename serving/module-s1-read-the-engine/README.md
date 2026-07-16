@@ -23,8 +23,11 @@ and calls again - M0's loop.
 The one line is the **KV cache**: `cache_k[pos] = k; cache_v[pos] = v;`. Keys
 and values depend only on a token and its position, so they never change - store
 them once and every future token reuses them as-is. Without it, generating token
-n redoes tokens 1..n-1 first: O(n) work per token, quadratic over a sequence.
-With it, each token is O(1) new work. That line is the difference between a demo
+n recomputes tokens 1..n-1's keys and values first: O(n) recompute per token,
+quadratic over a sequence. With it, each token computes just ONE new k,v. (The
+attention read still scans the whole cache - that read is O(n) - but a read is
+cheap; recomputing every key and value is the cost the cache removes.) That line
+is the difference between a demo
 and something you can serve - which is why this whole track exists.
 
 ## Dated exhibits (rule 10)
@@ -55,7 +58,8 @@ that lets you reuse the past.
 ## Done when
 The learner can name what `forward()` does in one pass, point to where the KV
 cache is written and where it is read, and explain why that one line changes
-per-token cost from O(n) to O(1).
+per-token RECOMPUTE from O(n) to O(1) (the cache read stays O(n), but reading is
+cheap - recomputing every key and value is not).
 
 ## Honest notes
 - Our engine is the nanomodel's exact math: one head, one block, a learned
