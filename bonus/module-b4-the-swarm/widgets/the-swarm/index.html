@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The swarm: fan-out, then adversarial verify</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:760px; margin:30px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+  .stage { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:14px 16px; }
+  canvas { width:100%; height:auto; display:block; }
+  .caption { font-size:15px; margin:12px 2px; min-height:44px; }
+  .caption b { color:var(--ink); }
+</style>
+</head>
+<body>
+<h1>The swarm &mdash; recall, then precision</h1>
+<p class="sub">Fan out over diverse lenses to find everything; make each finding survive a squad of skeptics to keep only what's real. (This is <code>orchestrate.py</code>, drawn.)</p>
+
+<div class="stage">
+  <canvas id="cv" width="680" height="356"></canvas>
+</div>
+<div class="caption" id="caption"></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+// The orchestrate.py --dry-run: 3 lenses fan out 5 candidate findings; 3 skeptics
+// per finding then kill the 2 that aren't actually in the code.
+const LENS = { correctness:"--blue", security:"--gold", performance:"--bright" };
+const F = [
+  { lens:"correctness", claim:"off-by-one: range(n+1) yields n+1", sev:"high", refute:0 },
+  { lens:"correctness", claim:"IndexError when n >= len(items)",    sev:"high", refute:0 },
+  { lens:"security",    claim:"no input validation on items",      sev:"low",  refute:3 },
+  { lens:"performance", claim:"sorts whole list (O(m log m))", sev:"med", refute:0 },
+  { lens:"performance", claim:"recomputes price each compare",     sev:"med",  refute:3 },
+];
+const survives = f => f.refute < 2;   // majority of 3 must fail to refute
+const STEPS = [
+  { show:false, text:"<b>The target:</b> a small function with a real off-by-one bug. One reviewer is a coin-flip on catching it - and worse, on inventing bugs that aren't there." },
+  { show:true, phase:"fanout", text:"<b>Fan-out.</b> Three lenses review in parallel, each blind to the others. Union + dedup &rarr; <b>5 candidate findings</b>. High recall - but two of these aren't actually in the code." },
+  { show:true, phase:"verify", text:"<b>Adversarial verify.</b> Each finding faces 3 skeptics whose job is to <i>refute it against the code</i>. The two imagined ones get 3/3 refutes and die; the real ones survive." },
+  { show:true, phase:"confirm", text:"<b>Confirmed, ranked by severity.</b> Fan-out found everything; the skeptics threw out what wasn't real. Recall then precision - the same pass that reviewed this course." },
+];
+
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const W = 680, H = 356, dpr = Math.max(2, window.devicePixelRatio || 1);
+cv.width = W * dpr; cv.height = H * dpr; ctx.scale(dpr, dpr);
+const css = getComputedStyle(document.documentElement), C = n => css.getPropertyValue(n).trim();
+
+function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+const CARDX = 300, CARDW = 366, CARDH = 44, GAP = 10, TOP = 40;
+function drawFrame(iStep) {
+  const s = STEPS[iStep];
+  ctx.clearRect(0, 0, W, H);
+  // TARGET box (left)
+  ctx.fillStyle = C("--panel2"); rrect(18, 130, 200, 96, 8); ctx.fill();
+  ctx.strokeStyle = C("--line"); ctx.stroke();
+  ctx.fillStyle = C("--dim"); ctx.font = "10.5px " + C("--mono");
+  ["def take(items, n):", "  items=sorted(...)", "  for i in range(n+1):", "    out.append(items[i])", "  return out"].forEach((l, k) =>
+    ctx.fillText(l, 28, 150 + k * 15));
+  ctx.fillStyle = C("--faint"); ctx.font = "11px " + C("--mono"); ctx.fillText("target under review", 18, 122);
+
+  if (!s.show) { document.getElementById("caption").innerHTML = s.text; return; }
+
+  // decide which findings to show + their visual state
+  const rows = (s.phase === "confirm" ? F.filter(survives) : F);
+  rows.sort((a, x) => s.phase === "confirm" ? ({high:3,med:2,low:1}[x.sev] - {high:3,med:2,low:1}[a.sev]) : 0);
+  const n = rows.length, blockH = n * (CARDH + GAP) - GAP, y0 = (H - blockH) / 2;
+
+  rows.forEach((f, k) => {
+    const y = y0 + k * (CARDH + GAP), lc = C(LENS[f.lens]);
+    const killed = s.phase !== "fanout" && !survives(f);
+    const confd = s.phase !== "fanout" && survives(f);
+    // connector from target to card, colored by lens
+    ctx.strokeStyle = lc; ctx.globalAlpha = killed ? .2 : .5; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(218, 178); ctx.lineTo(CARDX, y + CARDH / 2); ctx.stroke(); ctx.globalAlpha = 1;
+    // card
+    ctx.globalAlpha = killed ? .4 : 1;
+    ctx.fillStyle = C("--panel2"); rrect(CARDX, y, CARDW, CARDH, 7); ctx.fill();
+    ctx.strokeStyle = confd ? C("--green") : killed ? C("--red") : C("--line"); ctx.lineWidth = confd || killed ? 1.6 : 1; ctx.stroke();
+    // lens tag
+    ctx.fillStyle = lc; ctx.font = "9.5px " + C("--mono"); ctx.fillText(f.lens.toUpperCase(), CARDX + 12, y + 15);
+    ctx.fillStyle = C("--faint"); ctx.fillText("[" + f.sev + "]", CARDX + 12 + ctx.measureText(f.lens.toUpperCase()).width + 8, y + 15);
+    // claim
+    ctx.fillStyle = C("--ink"); ctx.font = "12px " + C("--mono");
+    ctx.fillText(f.claim, CARDX + 12, y + 32);
+    if (killed) { const w = ctx.measureText(f.claim).width; ctx.strokeStyle = C("--red"); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(CARDX + 12, y + 28); ctx.lineTo(CARDX + 12 + w, y + 28); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    // verdict badge (verify + confirm phases)
+    if (s.phase !== "fanout") {
+      const bx = CARDX + CARDW - 96, txt = killed ? f.refute + "/3 refute" : "0/3 - keep";
+      ctx.fillStyle = killed ? C("--red") : C("--green"); ctx.font = "600 11px " + C("--mono");
+      ctx.textAlign = "right"; ctx.fillText(killed ? "KILLED" : "SURVIVES", CARDX + CARDW - 12, y + 16);
+      ctx.fillStyle = C("--faint"); ctx.font = "10px " + C("--mono"); ctx.fillText(txt, CARDX + CARDW - 12, y + 32);
+      ctx.textAlign = "left";
+    }
+  });
+  // phase label
+  ctx.fillStyle = C("--faint"); ctx.font = "11px " + C("--mono");
+  ctx.fillText({ fanout:"3 lenses -> 5 candidates (recall)", verify:"3 skeptics each try to refute (precision)", confirm:"confirmed findings, ranked" }[s.phase], CARDX, 24);
+
+  document.getElementById("caption").innerHTML = s.text;
+}
+
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: drawFrame, autoMs: 2000 });
+Anim.scrubber(document.getElementById("scrub"), tl, { label: i => ["target", "fan-out", "verify", "confirmed"][i] });
+tl.render(0);
+</script>
+</body>
+</html>

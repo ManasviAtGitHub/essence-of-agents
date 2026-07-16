@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The whole machine: agent x verifier x loop</title>
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:760px; margin:30px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+  .stage { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:14px 16px; }
+  canvas { width:100%; height:auto; display:block; }
+  .eq { text-align:center; font:600 17px var(--mono); color:var(--ink); margin:10px 0 2px; }
+  .eq .dim { color:var(--faint); font-weight:400; }
+  .caption { font-size:15px; margin:12px 2px; min-height:44px; }
+  .caption b { color:var(--ink); }
+</style>
+</head>
+<body>
+<h1>The whole machine</h1>
+<p class="sub">The four moves aren't separate tricks - they compose into one thing. This is what a real agentic project actually is.</p>
+
+<div class="stage">
+  <canvas id="cv" width="680" height="300"></canvas>
+  <div class="eq" id="eq"></div>
+</div>
+<div class="caption" id="caption"></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script>
+const N = {
+  human:  { x:340, y:30,  w:220, h:46, t:"HUMAN", s:"sets direction + what 'better' means" },
+  agent:  { x:70,  y:120, w:170, h:66, t:"AGENT  (B1)", s:"context manager:\nproposes a change" },
+  verif:  { x:360, y:120, w:170, h:66, t:"VERIFIER  (B2)", s:"scores it; the gate.\nun-gameable check + judge" },
+  loop:   { x:360, y:214, w:170, h:60, t:"LOOP  (B3)", s:"keep if better,\nelse roll back - repeat" },
+  swarm:  { x:70,  y:214, w:170, h:60, t:"SWARM  (B4)", s:"hard calls: fan-out\n+ adversarial verify" },
+};
+const STEPS = [
+  { lit:[], eq:['productivity = ', ''], text:"Four moves, one machine. Watch them wire together - and notice it's a <i>multiplication</i>: a zero anywhere zeroes the whole thing." },
+  { lit:["agent"], eq:['productivity = ', 'agent'], text:"<b>The agent (B1)</b> is the context manager - it curates what the model sees and proposes a change. On its own, it's a confident guess." },
+  { lit:["agent","verif"], edges:[["agent","verif"]], dot:["agent","verif"], eq:['productivity = ', 'agent x verifier'], text:"<b>The verifier (B2)</b> scores every proposal against a cheap, un-gameable check. This is the term most people skip - and it's why their agents drift. Build it first." },
+  { lit:["agent","verif","loop"], edges:[["agent","verif"],["verif","loop"],["loop","agent"]], dot:["loop","agent"], eq:['productivity = ', 'agent x verifier x loop'], text:"<b>The loop (B3)</b> closes it: keep the proposal if the verifier says better, else roll back - then go again. Now it improves unattended. This is autoresearch's shape." },
+  { lit:["agent","verif","loop","swarm"], edges:[["agent","verif"],["verif","loop"],["loop","agent"],["swarm","verif"]], eq:['productivity = ', 'agent x verifier x loop'], text:"<b>The swarm (B4)</b> doesn't add a term - it <i>sharpens the verifier</i> on judgment calls a single check can't make: fan-out for recall, adversarial verify for precision." },
+  { lit:["human","agent","verif","loop","swarm"], edges:[["agent","verif"],["verif","loop"],["loop","agent"],["swarm","verif"],["human","verif"]], dot:["loop","agent"], eq:['productivity = ', 'agent x verifier x loop'], text:"<b>And a human</b> sets the direction and defines 'better'. The models do the typing; the leverage is the harness. That's the whole gift - now go lift the four files." },
+];
+
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const W = 680, H = 300, dpr = Math.max(2, window.devicePixelRatio || 1);
+cv.width = W * dpr; cv.height = H * dpr; ctx.scale(dpr, dpr);
+const css = getComputedStyle(document.documentElement), C = n => css.getPropertyValue(n).trim();
+
+function rrect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+const cx = n => N[n].x + N[n].w / 2, cy = n => N[n].y + N[n].h / 2;
+
+function arrow(a, b, lit) {
+  const x1 = cx(a), y1 = cy(a), x2 = cx(b), y2 = cy(b);
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  // trim to box edges (approx: pull in by ~95px along x, handled by shortening)
+  const sx = x1 + Math.cos(ang) * 92, sy = y1 + Math.sin(ang) * 40;
+  const ex = x2 - Math.cos(ang) * 92, ey = y2 - Math.sin(ang) * 40;
+  ctx.strokeStyle = lit ? C("--green") : C("--line"); ctx.lineWidth = lit ? 2 : 1; ctx.globalAlpha = lit ? 1 : .5;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+  const a2 = Math.atan2(ey - sy, ex - sx);
+  ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - 8 * Math.cos(a2 - .4), ey - 8 * Math.sin(a2 - .4));
+  ctx.lineTo(ex - 8 * Math.cos(a2 + .4), ey - 8 * Math.sin(a2 + .4)); ctx.closePath(); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+  ctx.globalAlpha = 1;
+  return { sx, sy, ex, ey };
+}
+
+function drawFrame(i) {
+  const s = STEPS[i];
+  ctx.clearRect(0, 0, W, H);
+  // edges first
+  let dotPos = null;
+  (s.edges || []).forEach(([a, b]) => {
+    const seg = arrow(a, b, true);
+    if (s.dot && s.dot[0] === a && s.dot[1] === b) dotPos = { x:(seg.sx + seg.ex) / 2, y:(seg.sy + seg.ey) / 2 };
+  });
+  // faint non-lit skeleton edges for orientation (agent-verif-loop triangle)
+  [["agent","verif"],["verif","loop"],["loop","agent"]].forEach(([a, b]) => {
+    if (!(s.edges || []).some(e => e[0] === a && e[1] === b)) arrow(a, b, false);
+  });
+  // nodes
+  for (const k in N) {
+    const n = N[k], lit = (s.lit || []).includes(k);
+    ctx.fillStyle = lit ? C("--panel2") : C("--panel"); rrect(n.x, n.y, n.w, n.h, 8); ctx.fill();
+    ctx.strokeStyle = lit ? C("--green") : C("--line"); ctx.lineWidth = lit ? 1.8 : 1; ctx.stroke();
+    ctx.globalAlpha = lit ? 1 : .55;
+    ctx.fillStyle = lit ? C("--ink") : C("--dim"); ctx.font = "600 12px " + C("--mono");
+    ctx.textAlign = "center"; ctx.fillText(n.t, n.x + n.w / 2, n.y + (n.s.includes("\n") ? 20 : 22));
+    ctx.fillStyle = C("--faint"); ctx.font = "10.5px " + C("--mono");
+    n.s.split("\n").forEach((l, j) => ctx.fillText(l, n.x + n.w / 2, n.y + 36 + j * 13));
+    ctx.textAlign = "left"; ctx.globalAlpha = 1;
+  }
+  // the work-item dot on the active edge
+  if (dotPos) { ctx.fillStyle = C("--gold"); ctx.beginPath(); ctx.arc(dotPos.x, dotPos.y, 5, 0, 7); ctx.fill();
+    ctx.strokeStyle = C("--bg"); ctx.lineWidth = 1.5; ctx.stroke(); }
+
+  // equation
+  document.getElementById("eq").innerHTML = '<span class="dim">' + s.eq[0] + '</span>' + (s.eq[1] || '<span class="dim">?</span>');
+  document.getElementById("caption").innerHTML = s.text;
+}
+
+const tl = new Anim.Timeline({ length: STEPS.length, onStep: drawFrame, autoMs: 2000 });
+Anim.scrubber(document.getElementById("scrub"), tl, { label: i => ["intro","agent","+ verifier","+ loop","+ swarm","+ human"][i] });
+tl.render(0);
+</script>
+</body>
+</html>

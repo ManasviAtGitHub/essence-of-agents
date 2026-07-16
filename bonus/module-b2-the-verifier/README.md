@@ -14,7 +14,7 @@ worth your best effort, not an afterthought. B1's loop *stops* on it; B3's loop
    fuzzy quality a test can't capture (tone, completeness). Gameable - keep it a
    minority of the score.
 3. **Self-consistency** - sample the system N times, take the majority. Reliability
-   for ~free; the cost is N× calls.
+   for ~free; the cost is Nx calls.
 4. **Gate** - block a change if its score dropped vs a saved **baseline**. This is
    the one you wire into CI. A regression fails the build, like any other test.
 

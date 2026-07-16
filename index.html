@@ -36,6 +36,10 @@
   .door.frontier .go { color:var(--green); }
   .door.serving { border-left:3px solid var(--gold); }
   .door.serving .go { color:var(--gold); }
+  .door.bonus { border-left:3px solid var(--bright); background:linear-gradient(180deg,#191d24,var(--panel)); }
+  .door.bonus:hover { border-color:var(--bright); }
+  .door.bonus .go { color:var(--bright); }
+  .door.bonus .step { color:var(--bright); }
   .door ul { margin:8px 0 0; padding-left:18px; color:var(--dim); font-size:13px; }
   .door ul li { margin:3px 0; }
 
@@ -121,6 +125,19 @@
         <li>Batching, paged attention - a capstone you run</li>
       </ul>
       <span class="go">Serve it -&gt;</span>
+    </a>
+
+    <a class="door bonus" href="bonus/index.html">
+      <span class="step">&#9733; Bonus &middot; The Workshop</span>
+      <h2>The Workshop</h2>
+      <p>The real machinery behind productive agents &mdash; small enough to steal. A coding harness, a
+      verifier, an autoresearch loop, a review swarm. Each one runs keyless, or BYO-key for real.</p>
+      <ul>
+        <li>A coding agent is a context manager</li>
+        <li>Verifier-gated, autoresearch loops</li>
+        <li>Review swarms - and how THIS course was built</li>
+      </ul>
+      <span class="go">Open the workshop -&gt;</span>
     </a>
   </div>
 
