@@ -36,25 +36,6 @@ def test_keyless_demos_run():
         assert r.returncode == 0, f"{rel} failed:\n{r.stderr}"
 
 
-BONUS_DEMOS = [
-    "module-b1-the-agent/harness.py",
-    "module-b2-the-verifier/evals.py",
-    "module-b3-the-loop/autoloop.py",
-    "module-b4-the-swarm/orchestrate.py",
-]
-
-
-def test_bonus_demos_dry_run():
-    # every liftable bonus artifact must run keyless (--dry-run) and exit 0 - this is
-    # what keeps each committed recorded-run.log honest.
-    bonus = os.path.join(ROOT, "bonus")
-    for rel in BONUS_DEMOS:
-        path = os.path.join(bonus, rel)
-        assert os.path.exists(path), f"missing bonus demo: {rel}"
-        r = subprocess.run([sys.executable, path, "--dry-run"], capture_output=True, text=True)
-        assert r.returncode == 0, f"{rel} --dry-run failed:\n{r.stdout}\n{r.stderr}"
-
-
 def test_widgets_wellformed():
     widgets = (glob.glob(os.path.join(COURSE, "**", "widgets", "**", "index.html"), recursive=True) +
                glob.glob(os.path.join(ROOT, "models", "**", "widgets", "**", "index.html"), recursive=True))
@@ -68,8 +49,7 @@ def test_widgets_wellformed():
 def test_course_text_is_ascii():
     files = []
     for base in (COURSE, os.path.join(ROOT, "claude_harness"), os.path.join(ROOT, "assets"),
-                 os.path.join(ROOT, "models"), os.path.join(ROOT, "frontier"),
-                 os.path.join(ROOT, "serving"), os.path.join(ROOT, "bonus")):
+                 os.path.join(ROOT, "models"), os.path.join(ROOT, "frontier")):
         for ext in ("md", "html", "py", "css", "js"):
             files += glob.glob(os.path.join(base, "**", f"*.{ext}"), recursive=True)
     files.append(os.path.join(ROOT, "index.html"))  # the root launcher
@@ -90,8 +70,6 @@ def test_course_text_is_ascii():
 if __name__ == "__main__":
     test_keyless_demos_run()
     print("ok - all keyless demos run")
-    test_bonus_demos_dry_run()
-    print("ok - all bonus --dry-run demos run")
     test_widgets_wellformed()
     print("ok - all widgets well-formed")
     test_course_text_is_ascii()

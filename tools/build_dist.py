@@ -40,9 +40,6 @@ copy_tree(os.path.join(ROOT, "models"), os.path.join(DIST, "models"), skip_ext=(
 copy_tree(os.path.join(ROOT, "frontier"), os.path.join(DIST, "frontier"), skip_ext=(".py", ".json"))
 # 3d. the serving track (Track 5, same rules; keeps weights.js, drops .py/.json)
 copy_tree(os.path.join(ROOT, "serving"), os.path.join(DIST, "serving"), skip_ext=(".py", ".json"))
-# 3e. the bonus track (The Workshop): hub + widgets + pattern-card .md only. The
-# real agent code (.py) stays in the repo and is linked to GitHub, never shipped.
-copy_tree(os.path.join(ROOT, "bonus"), os.path.join(DIST, "bonus"), skip_ext=(".py", ".json", ".log"))
 # 4. production SITE only: hub + scenes + the stage; NO .py source, providers, or tests
 pdst = os.path.join(DIST, "production")
 os.makedirs(pdst, exist_ok=True)

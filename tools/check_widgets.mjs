@@ -27,7 +27,6 @@ const targets = [
   ...walk(resolve("models")),
   ...walk(resolve("frontier")),
   ...walk(resolve("serving")),
-  ...walk(resolve("bonus")),
 ].filter(p => (seen.has(p) ? false : seen.add(p)));
 
 // Safe in-widget controls to click (never navigation links).
