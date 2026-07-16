@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Serve many</title>
+<!-- Serving S5. Verified as of 2026-07. The griddle (continuous batching) and the locker wall
+     (paged attention) are metaphors for real vLLM/SGLang mechanisms; utilization/throughput are
+     illustrative (rule 11). Extends M3 (the KV cache) to fleet scale. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:980px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:8px 0 14px; }
+  .modes { display:flex; gap:7px; margin-bottom:14px; flex-wrap:wrap; }
+  .modebtn { border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:999px;
+             padding:6px 14px; cursor:pointer; font:13px system-ui; }
+  .modebtn.on { border-color:var(--blue); color:var(--ink); }
+  .modehint { color:var(--faint); font:12px var(--mono); align-self:center; margin-left:6px; }
+  .cvwrap { border:1px solid var(--line); border-radius:11px; background:#0b0e12; overflow:hidden; }
+  #cv { width:100%; display:block; }
+  .caption { margin:14px 0 0; min-height:44px; }
+  .insight { border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:9px;
+             background:var(--panel); padding:9px 13px; margin-top:12px; font-size:14.5px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { display:flex; gap:11px; align-items:center; border:1px solid var(--line); border-radius:10px;
+           background:var(--panel); padding:8px 12px; margin-top:11px; min-height:44px; }
+  .react .chr svg { width:42px; height:42px; flex:none; }
+  .react .rl { font-size:13.5px; color:#d8dde3; }
+  #scrub { margin-top:15px; }
+</style>
+</head>
+<body>
+<h1>Serve many</h1>
+<div class="stamp">TRACK 5 . S5 . verified as of 2026-07 - keep the GPU full, pack the cache</div>
+<p class="sub">S4 served one user in one tab. A datacenter serves thousands - on the SAME expensive GPU. The trick
+is packing: read the weights once and serve a whole BATCH of users per step, and never let the GPU idle.
+Two mechanisms do it - <b>continuous batching</b> (keep the griddle full) and <b>paged attention</b>
+(pack the KV cache like lockers).</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">keep the griddle full (batching)</button>
+  <button class="modebtn" data-mode="mech">pack the cache (paged attention)</button>
+  <span class="modehint" id="modehint"></span>
+</div>
+
+<div class="cvwrap"><div id="cv"></div></div>
+
+<p class="caption" id="caption"></p>
+<div class="insight" id="insight"></div>
+<div class="react"><span class="chr" id="rchr" data-c="bit" data-e="read"></span><span class="rl" id="rline"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+const INT=[
+ {focus:"amortize",
+  cap:"Start from S0's doorway. Reading the weights across the bus is the expensive part - and it costs the same whether you serve one user or eight. So a datacenter runs a BATCH: one trip through the doorway per step, and every request in the batch gets its next token from it. The doorway cost is split across all of them. That is why serving is cheaper per user at scale.",
+  ins:"<b>Batch = amortize the doorway (S0).</b> Read the weights ONCE per step, serve every request in the batch from that one trip.", who:'bit',emo:'reach', rl:"One trip through the door, eight mouths fed. That's the whole economy of scale."},
+ {focus:"static",
+  cap:"But the naive way wastes it. STATIC batching forms a batch, runs it to completion, then starts the next. The catch: requests finish at different lengths - a short reply is done while a long one keeps going - and the finished slots sit IDLE, reserved but doing nothing, until the whole batch clears. Watch the griddle: empty spots you are still paying for.",
+  ins:"<b>Static batching wastes:</b> finished requests leave IDLE slots until the whole batch clears. The GPU is half-empty, fully paid-for.", who:'cortex',emo:'confused', rl:"Half my griddle sits cold, waiting for the slowpoke to finish. Money burning."},
+ {focus:"continuous",
+  cap:"CONTINUOUS (in-flight) batching fixes it: every single step, retire the requests that finished and admit waiting ones from the queue - so the batch is ALWAYS full. No slot ever idles. This one change - the default in vLLM and SGLang - is the single biggest throughput win in serving. The griddle stays packed.",
+  ins:"<b>Continuous batching:</b> refill freed slots every step - the GPU never idles. The biggest single serving win (vLLM/SGLang default).", good:true, who:'cortex',emo:'happy', rl:"New order drops the instant a slot frees. The griddle never cools."},
+ {focus:"flip",
+  cap:"With the griddle full, throughput multiplies - you serve many times more users on the same GPU. But the bottleneck moves. Now the limit is MEMORY: every request in the batch needs its own KV cache (S1, M3), all in the GPU at once. How many you can batch is set by how many caches fit - so packing that memory is the next fight.",
+  ins:"<b>The bottleneck flips to memory.</b> Batch size is capped by how many KV caches fit in the GPU - so pack them. Switch modes.", who:'bit',emo:'read', rl:"Griddle's full - now I'm out of shelf space, not stove space."}
+];
+const MECH=[
+ {focus:"frag",
+  cap:"Each request's KV cache (M3) grows token by token, and you do not know how long it will get. The naive fix: reserve one big contiguous block per request, sized for the maximum. But most replies are short - so most of each block sits empty, RESERVED and wasted. With a batch of many, this fragmentation can waste most of the memory.",
+  ins:"<b>Fragmentation:</b> reserving a max-size contiguous cache per request wastes memory - short replies leave big empty blocks.", who:'bit',emo:'confused', rl:"I booked a whole shelf for a two-line answer. Ninety percent empty."},
+ {focus:"pages",
+  cap:"PagedAttention (vLLM) borrows the operating system's oldest trick: virtual memory. Break the KV cache into small fixed-size PAGES and hand them out on demand - a request takes another page only when it fills the last one. No reservation, no gaps, almost no waste. Suddenly you fit far more requests in the same memory.",
+  ins:"<b>Paged attention:</b> fixed-size KV pages, handed out on demand (like OS virtual memory). No fragmentation - pack many more requests.", good:true, who:'bit',emo:'reach', rl:"Lockers, not shelves. Take one when you fill the last. Nothing wasted."},
+ {focus:"shared",
+  cap:"And pages can be SHARED. Many requests begin with the same system prompt or few-shot examples - identical opening tokens, so identical keys and values. Store that prefix's pages ONCE and let every request point at them (this is Module 3's prompt-caching, now across the whole fleet). One copy, many readers - a huge saving on common prefixes.",
+  ins:"<b>Shared prefixes:</b> one copy of a common opening's pages, pointed to by many requests (M3's prompt cache, at fleet scale).", good:true, who:'cortex',emo:'happy', rl:"We all start with the same instructions - so we all read the same locker."},
+ {focus:"payoff",
+  cap:"Together: continuous batching keeps the GPU full, and paged + shared KV lets far more requests fit at once - so one GPU serves many times the users. (One more lever, from M5: speculative decoding drafts several tokens and verifies them in one batched step - more tokens per trip.) Throughput is the product you are selling. What it all COSTS - and where the fleet's money goes - is S6.",
+  ins:"<b>Full griddle + packed lockers (+ M5 spec-decode) = many users per GPU.</b> Throughput is the product. Next: the fleet's bill (S6).", good:true, who:'bit',emo:'happy', rl:"Full stove, packed shelves. Now I can feed a crowd from one kitchen."}
+];
+
+/* ================= p5 ================= */
+const CW=920, CVH=340;
+let CUR={mode:'int',step:0};
+const col={blue:'#58c4dd',gold:'#ffd35c',green:'#83c167',red:'#fc6255',ink:'#e9ecf1',dim:'#98a2b0',faint:'#5b6470',line:'#2a3038',panel:'#141b22',idle:'#3a2323'};
+/* ---- the griddle sim ---- */
+let G=null;
+function newReq(seed){ return {total:4+((seed*37+13)%10), done:0, hue:(seed*47)%360}; }
+function griddleInit(mode){ G={mode, slots:Array.from({length:8},(_,i)=>newReq(i)), qn:8, util:1, last:0, served:0}; }
+function griddleStep(){
+  G.slots.forEach(s=>{ if(s) s.done++; });
+  if(G.mode==='static'){
+    const allDone=G.slots.every(s=>!s || s.done>=s.total);
+    if(allDone){ G.slots=G.slots.map((_,i)=>newReq(G.qn+i)); G.qn+=8; G.served+=8; }
+    else G.slots=G.slots.map(s=> (s&&s.done>=s.total)?null:s);
+  } else {
+    G.slots=G.slots.map(s=>{ if(!s||s.done>=s.total){ if(s)G.served++; return newReq(G.qn++); } return s; });
+  }
+  const active=G.slots.filter(s=>s).length; G.util=0.88*G.util+0.12*(active/8);
+}
+function hueCol(p,h,a){ p.colorMode(p.HSB,360,100,100,1); const c=p.color(h,55,80,a||1); p.colorMode(p.RGB,255); return c; }
+function drawGriddle(p, focus){
+  const mode = focus==='static'?'static':'continuous';
+  if(!G||G.mode!==mode) griddleInit(mode);
+  if(p.frameCount-G.last>=16){ griddleStep(); G.last=p.frameCount; }
+  // title
+  p.noStroke(); p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP);
+  p.text("the GPU, one step at a time - "+(mode==='static'?"STATIC batching":"CONTINUOUS batching")+"  (8 slots)", 40, 26);
+  // slots
+  const sx=40, sy=64, sw=200, sh=44, gapx=16, gapy=16, cols=4;
+  for(let i=0;i<8;i++){ const x=sx+(i%cols)*(sw+gapx), y=sy+Math.floor(i/cols)*(sh+gapy), s=G.slots[i];
+    if(!s){ p.fill(col.idle); p.stroke('#5a3a3a'); p.strokeWeight(1); p.rect(x,y,sw,sh,6); p.noStroke(); p.fill(col.red); p.textSize(10); p.textAlign(p.CENTER,p.CENTER); p.text("idle (paid, empty)", x+sw/2, y+sh/2); }
+    else { p.fill(col.panel); p.stroke(col.line); p.strokeWeight(1); p.rect(x,y,sw,sh,6);
+      p.fill(hueCol(p,s.hue,0.85)); p.noStroke(); p.rect(x,y,sw*(s.done/s.total),sh,6);
+      p.fill('#08121a'); p.textSize(10); p.textAlign(p.LEFT,p.CENTER); p.text("req . "+s.done+"/"+s.total+" tok", x+8, y+sh/2); }
+  }
+  // utilization meter
+  const uy=sy+2*(sh+gapy)+8;
+  p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("GPU utilization (average):", 40, uy);
+  p.fill('#10160f'); p.rect(230,uy-2,300,16,3); p.fill(G.util>0.7?col.green:col.red); p.rect(230,uy-2,300*G.util,16,3);
+  p.fill(G.util>0.7?col.green:col.red); p.textSize(12); p.textAlign(p.LEFT,p.CENTER); p.text(Math.round(G.util*100)+"%", 540, uy+6);
+  // queue + overlays
+  p.fill(col.dim); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("waiting queue: many users", 40, uy+28);
+  if(focus==='amortize'){ p.fill(col.gold); p.textSize(11.5); p.text("one trip through S0's doorway -> a token for ALL 8 at once", 40, uy+50); }
+  if(focus==='continuous'){ p.fill(col.green); p.textSize(11.5); p.text("a freed slot is refilled the SAME step -> the GPU never idles", 40, uy+50); }
+  if(focus==='flip'){ p.fill(col.gold); p.textSize(11.5); p.text("full griddle -> throughput multiplies. But each slot needs its own KV cache -> memory is the new limit.", 40, uy+50); }
+}
+/* ---- the locker wall (paged attention) ---- */
+function drawLockers(p, focus){
+  p.noStroke();
+  if(focus==='frag'){
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("naive KV cache: one big RESERVED block per request (sized for the max)", 40, 30);
+    const reqs=[["req A (short)",3],["req B (short)",2],["req C (medium)",6],["req D (short)",3]];
+    reqs.forEach((r,i)=>{ const y=70+i*58, maxN=16, bw=44;
+      p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text(r[0], 40, y-2);
+      for(let k=0;k<maxN;k++){ const x=180+k*bw*0; const cx=180+k*44; p.fill(k<r[1]?col.blue:'#241a1a'); p.stroke(k<r[1]?col.line:'#3a2323'); p.strokeWeight(1); p.rect(180+k*45, y+12, 40, 26, 3); }
+    });
+    p.fill(col.red); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("dark = reserved but EMPTY. With a big batch, most of the memory is wasted.", 40, 306);
+  } else if(focus==='pages'){
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("paged: fixed-size PAGES handed out on demand - a request takes one only when it fills the last", 40, 30);
+    const reqs=[["req A",3],["req B",2],["req C",6],["req D",3]];
+    reqs.forEach((r,i)=>{ const y=70+i*58, pages=Math.ceil(r[1]/2);
+      p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text(r[0], 40, y-2);
+      for(let k=0;k<pages;k++){ p.fill(col.green); p.stroke(col.line); p.strokeWeight(1); p.rect(120+k*94, y+12, 86, 26, 4); p.noStroke(); p.fill('#08120a'); p.textSize(9.5); p.textAlign(p.CENTER,p.CENTER); p.text("page", 120+k*94+43, y+25); p.fill(col.ink); }
+    });
+    p.fill(col.green); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("no gaps: every page is used. Far more requests fit in the same memory.", 40, 306);
+  } else if(focus==='shared'){
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("shared prefix: everyone starts with the same system prompt -> one copy of its pages", 40, 30);
+    // the shared prefix block
+    p.fill('#1a1630'); p.stroke(col.ape||'#b6a6ff'); p.strokeWeight(1.6); p.rect(360,70,200,54,6); p.noStroke(); p.fill('#b6a6ff'); p.textSize(11.5); p.textAlign(p.CENTER,p.CENTER); p.text("shared prefix pages", 460, 90); p.fill(col.faint); p.textSize(9.5); p.text("(system prompt - stored once)", 460, 108);
+    const reqs=["req A","req B","req C"];
+    reqs.forEach((r,i)=>{ const y=170+i*44; p.fill(col.panel); p.stroke(col.green); p.strokeWeight(1); p.rect(120,y,160,32,5); p.noStroke(); p.fill(col.ink); p.textSize(11); p.textAlign(p.LEFT,p.CENTER); p.text(r+"'s own pages", 132, y+16);
+      p.stroke('#b6a6ff'); p.strokeWeight(1.2); p.drawingContext.setLineDash([4,4]); p.line(282,y+16,358,100); p.drawingContext.setLineDash([]); });
+    p.fill('#b6a6ff'); p.noStroke(); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("Module 3's prompt caching, at fleet scale - one copy, many readers.", 40, 300);
+  } else {
+    p.fill(col.green); p.textSize(13); p.textAlign(p.LEFT,p.TOP); p.text("the payoff: one GPU, many users", 60, 44);
+    const rows=[["continuous batching","the griddle stays full - GPU never idles",col.green],["paged attention","no fragmentation - pack many more caches",col.green],["shared prefixes","common openings stored once (M3)",col.green],["+ speculative decode (M5)","draft several tokens, verify in one batched step",col.gold]];
+    rows.forEach((r,i)=>{ const y=84+i*48; p.fill(col.panel); p.stroke(r[2]); p.strokeWeight(1); p.rect(60,y,800,38,6); p.noStroke(); p.fill(r[2]); p.textSize(12.5); p.textAlign(p.LEFT,p.CENTER); p.text(r[0], 74, y+19); p.fill(col.dim); p.textSize(11); p.text(r[1], 320, y+19); });
+    p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("throughput is the product you sell. What it costs -> the fleet (S6).", 60, 292);
+  }
+}
+
+/* ================= wiring ================= */
+const $=id=>document.getElementById(id);
+function react(who,emo,line){ const c=$('rchr'); c.dataset.c=who; c.dataset.e=emo; $('rline').textContent=line; if(window.Cast) Cast.render(document.querySelector('.react')); }
+new p5(pp=>{
+  pp.setup=()=>{ const c=pp.createCanvas(CW,CVH); c.parent('cv'); pp.pixelDensity(Math.max(2,window.devicePixelRatio||1)); pp.textFont('ui-monospace, Menlo, monospace'); };
+  pp.draw=()=>{ pp.background(11,14,18); CUR.mode==='int'?drawGriddle(pp,INT[CUR.step].focus):drawLockers(pp,MECH[CUR.step].focus); };
+});
+function render(i){ const isInt=CUR.mode==='int'; const st=(isInt?INT:MECH)[i]; CUR={mode:CUR.mode,step:i};
+  $('caption').textContent=st.cap; $('insight').className='insight'+(st.good?' good':''); $('insight').innerHTML=st.ins;
+  react(st.who||'bit', st.emo||'read', st.rl||"");
+}
+let tl=null;
+function build(mode){ CUR={mode,step:0}; G=null;
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  $('modehint').textContent = mode==='int' ? 'never let the GPU idle' : 'pack the KV cache like lockers';
+  const arr=mode==='int'?INT:MECH;
+  tl=new Anim.Timeline({length:arr.length, autoMs:5000, onStep:(i)=>render(i)});
+  Anim.scrubber($('scrub'), tl, {label:(i=>"step "+(i+1)+" / "+arr.length)});
+}
+document.querySelectorAll('.modebtn').forEach(b=>b.addEventListener('click', ()=>build(b.dataset.mode)));
+build('int');
+</script>
+</body>
+</html>
