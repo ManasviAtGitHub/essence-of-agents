@@ -26,6 +26,7 @@ const targets = [
   ...walk(resolve("production")),
   ...walk(resolve("models")),
   ...walk(resolve("frontier")),
+  ...walk(resolve("serving")),
 ].filter(p => (seen.has(p) ? false : seen.add(p)));
 
 // Safe in-widget controls to click (never navigation links).
