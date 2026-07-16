@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The fleet & the bill</title>
+<!-- Serving S6. Verified as of 2026-07. Prices, tok/s, and GPU-hour costs are ILLUSTRATIVE round
+     figures (rule 11). The $/1M-token arithmetic is computed live from those inputs. Pays F8's
+     serving bill and closes the agent-cost hook opened in S0. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:980px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:8px 0 14px; }
+  .modes { display:flex; gap:7px; margin-bottom:14px; flex-wrap:wrap; }
+  .modebtn { border:1px solid var(--line); background:var(--panel); color:var(--dim); border-radius:999px;
+             padding:6px 14px; cursor:pointer; font:13px system-ui; }
+  .modebtn.on { border-color:var(--blue); color:var(--ink); }
+  .modehint { color:var(--faint); font:12px var(--mono); align-self:center; margin-left:6px; }
+  .cvwrap { border:1px solid var(--line); border-radius:11px; background:#0b0e12; overflow:hidden; }
+  #cv { width:100%; display:block; }
+  .caption { margin:14px 0 0; min-height:44px; }
+  .insight { border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:9px;
+             background:var(--panel); padding:9px 13px; margin-top:12px; font-size:14.5px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { display:flex; gap:11px; align-items:center; border:1px solid var(--line); border-radius:10px;
+           background:var(--panel); padding:8px 12px; margin-top:11px; min-height:44px; }
+  .react .chr svg { width:42px; height:42px; flex:none; }
+  .react .rl { font-size:13.5px; color:#d8dde3; }
+  #scrub { margin-top:15px; }
+</style>
+</head>
+<body>
+<h1>The fleet &amp; the bill</h1>
+<div class="stamp">TRACK 5 . S6 . verified as of 2026-07 - throughput vs latency vs cost</div>
+<p class="sub">S5 packed one GPU. But demand spikes and lulls, and a fleet of GPUs runs a meter the whole time.
+This module is the money: what it actually COSTS to serve your agent to a crowd, the two kinds of latency
+users feel, and the one number - <b>$ per million tokens</b> - that F8's capstone pointed at.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="int">the fleet (the meter is always running)</button>
+  <button class="modebtn" data-mode="mech">the bill (compute $/1M tokens)</button>
+  <span class="modehint" id="modehint"></span>
+</div>
+
+<div class="cvwrap"><div id="cv"></div></div>
+
+<p class="caption" id="caption"></p>
+<div class="insight" id="insight"></div>
+<div class="react"><span class="chr" id="rchr" data-c="bit" data-e="read"></span><span class="rl" id="rline"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+const INT=[
+ {focus:"fleet",
+  cap:"S5 got one GPU serving many users. But real demand is not steady - it spikes at 9am, lulls at 3am. So a service is a FLEET: many GPUs (replicas) behind a queue, and a meter that runs every second each one is powered on, busy or not. Serving is renting silicon by the hour and hoping you rented the right amount.",
+  ins:"<b>A fleet = replicas behind a queue + a meter that never stops.</b> You pay for GPUs by the hour, whether they are busy or idle.", who:'bit',emo:'read', rl:"Every GPU is a taxi with the meter running. Busy or parked, it costs."},
+ {focus:"load",
+  cap:"Watch the demand curve. While it stays under the fleet's capacity, requests flow and latency is low. When it spikes ABOVE capacity, the queue backs up - users wait, latency climbs, some give up. Under-provision and you drop users; over-provision and you pay for idle GPUs. The whole game is matching the fleet to the curve.",
+  ins:"<b>Demand vs capacity:</b> over the line, the queue backs up and users wait; under it, you pay for idle. Match the fleet to the curve.", who:'cortex',emo:'confused', rl:"Rush hour and the line's out the door. 3am and my stove sits cold."},
+ {focus:"autoscale",
+  cap:"So fleets AUTOSCALE: add replicas when the curve rises, drop them when it falls. But scaling is not instant - a cold GPU takes time to load the weights (S0's pile, again) before it can serve, so you scale ahead of demand and eat some idle. The meter never fully stops; the art is keeping it as low as the SLA allows.",
+  ins:"<b>Autoscale:</b> replicas track demand, but cold starts lag (load the pile first). You always carry some idle - the cost of being ready.", who:'bit',emo:'reach', rl:"Spin up before the rush, spin down after. Never quite empty, never quite enough."},
+ {focus:"cost",
+  cap:"And the meter has dials. RESERVED GPUs are pricey but yours; SPOT GPUs are cheap but can be reclaimed mid-request - a cost/reliability trade. Every powered GPU-hour, times the price, divided by the tokens it produced, is the number that matters: dollars per million tokens. That is the unit price of intelligence, and it is what F8's capstone was pointing at.",
+  ins:"<b>$/1M tokens = (GPU-hours x price) / tokens served.</b> Reserved vs spot trades price for reliability. This is the unit price.", good:true, who:'bit',emo:'read', rl:"Cheap-and-risky or dear-and-safe. Either way it lands on dollars-per-million."},
+ {focus:"aha",
+  cap:"And here is where the whole track lands: that bill is YOUR AGENT'S bill. Every model call your Track-1 loop makes, every token your Track-2 service streams, is priced by this fleet. So every trick you learned - quantize (S2), batch and page (S5), the right hardware (S0) - is a lever that pushes $/1M tokens down. Serving is not a footnote to agents; it is what they cost.",
+  ins:"<b>This is your agent's bill (S0's hook, closed).</b> Quantize, batch, page, right-size - every S-module is a lever on $/1M tokens.", good:true, who:'cortex',emo:'happy', rl:"So THAT'S what I cost to run. Now every trick in this track is money in my pocket."}
+];
+const MECH=[
+ {focus:"latency",
+  cap:"Latency, precisely - users feel two numbers. TTFT (time to first token) is the prefill: the whole prompt processed at once, compute-bound (M3, S0) - the pause before anything appears. TPOT (time per output token) is decode: one token at a time, memory-bound - the pace the answer streams at. A snappy service needs low TTFT; a fast reader needs low TPOT.",
+  ins:"<b>TTFT (prefill, compute-bound) + TPOT (decode, memory-bound).</b> The wait for the first word, then the pace of the rest (M3's two phases).", who:'bit',emo:'read', rl:"First-bite wait, then chewing pace. Two clocks, and you feel both."},
+ {focus:"disagg",
+  cap:"Because prefill and decode stress opposite hardware, 2025-26 fleets DISAGGREGATE them: a pool of machines tuned for prefill (compute) and a separate pool for decode (memory bandwidth). Each pool runs near its own limit instead of one machine being half-wrong for both. More tokens per dollar, for the same silicon.",
+  ins:"<b>Disaggregation:</b> separate prefill (compute) and decode (memory) pools, each tuned to its bottleneck - better utilization than one mixed machine.", good:true, who:'bit',emo:'happy', rl:"Stop making one stove do the searing AND the simmering. Two stations."},
+ {focus:"bill",
+  cap:"Now the bill itself, computed. Say 1,000 users, 500 tokens each = 500,000 tokens. One GPU at ~2,500 tok/s (batched, quantized - S2/S5) clears that in ~200 seconds. At a rented ~$3/GPU-hour, that is ~$0.17 - about $0.33 per MILLION tokens. Change any input - a bigger model (fewer tok/s), a cheaper GPU, more batching - and the number moves. This is the arithmetic under every price you have ever paid an API.",
+  ins:"<b>$/1M tokens = GPU-hours x price / tokens.</b> Every serving trick (S2/S5) raises tok/s, which lowers this. Computed live.", who:'cortex',emo:'reach', rl:"Fractions of a cent per thousand words. At a billion words, it's a real bill."},
+ {focus:"triangle",
+  cap:"It all reduces to one triangle: THROUGHPUT (tokens/sec - raised by S2's quantize/kernel and S5's batch/page), LATENCY (TTFT/TPOT - set by hardware and disaggregation), and COST ($/1M tokens - set by the first two plus how well you match the fleet to demand). You cannot max all three; serving is choosing where to sit. The capstone (S7) lets you sit down and run it.",
+  ins:"<b>Throughput vs latency vs cost - pick your point.</b> Every module in this track is a lever on the triangle. Next: run it yourself (S7).", good:true, who:'bit',emo:'happy', rl:"Fast, cheap, snappy - pick two, and know which. That's the whole job."}
+];
+
+/* ================= p5 ================= */
+const CW=920, CVH=344;
+let CUR={mode:'int',step:0};
+const col={blue:'#58c4dd',gold:'#ffd35c',green:'#83c167',red:'#fc6255',ink:'#e9ecf1',dim:'#98a2b0',faint:'#5b6470',line:'#2a3038',panel:'#141b22'};
+let BILL=0;   // accumulating meter
+function demandAt(t){ return 5.5 + 4*Math.sin(t*0.03) + 1.5*Math.sin(t*0.11); }   // 0..~11 units
+new p5(pp=>{
+  pp.setup=()=>{ const c=pp.createCanvas(CW,CVH); c.parent('cv'); pp.pixelDensity(Math.max(2,window.devicePixelRatio||1)); pp.textFont('ui-monospace, Menlo, monospace'); };
+  pp.draw=()=>{ pp.background(11,14,18); CUR.mode==='int'?drawFleet(pp,INT[CUR.step].focus):drawBill(pp,MECH[CUR.step].focus); };
+});
+function drawFleet(p, f){
+  const t=p.frameCount, demand=demandAt(t);
+  const CAP_PER=1, MAXG=12;
+  // autoscale: replicas track demand (with a floor); 'load' step freezes capacity low to show backlog
+  let replicas = f==='load' ? 6 : Math.min(MAXG, Math.ceil(demand)+1);
+  const capacity=replicas*CAP_PER, queue=Math.max(0, demand-capacity);
+  BILL += replicas*0.0009;   // meter ticks with powered GPUs
+  // --- demand curve (top) ---
+  const gx=40, gy=120, gw=560, gh=90;
+  p.noStroke(); p.fill(col.dim); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("demand vs fleet capacity", gx, gy-gh-14);
+  p.stroke(col.line); p.strokeWeight(1); p.line(gx,gy,gx+gw,gy);
+  // capacity line
+  const capY=gy-(capacity/MAXG)*gh; p.stroke(col.gold); p.strokeWeight(1.4); p.drawingContext.setLineDash([5,4]); p.line(gx,capY,gx+gw,capY); p.drawingContext.setLineDash([]);
+  p.noStroke(); p.fill(col.gold); p.textSize(9.5); p.textAlign(p.LEFT,p.BOTTOM); p.text("capacity ("+replicas+" GPUs)", gx+gw-120, capY-2);
+  // demand history
+  p.noFill(); p.stroke(col.blue); p.strokeWeight(2); p.beginShape();
+  for(let i=0;i<=gw;i+=6){ const d=demandAt(t-(gw-i)*1.2); p.vertex(gx+i, gy-(d/MAXG)*gh); } p.endShape();
+  // backlog shading where demand>capacity
+  if(queue>0.1){ p.fill(col.red); p.noStroke(); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("QUEUE BACKING UP - users waiting", gx, gy+8); }
+  else { p.fill(col.green); p.noStroke(); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("flowing - low latency", gx, gy+8); }
+  // --- the GPU rack (right) ---
+  const rx=640, ry=48, cols=3, cw=80, ch=34, gap=8;
+  p.fill(col.faint); p.textSize(10.5); p.textAlign(p.LEFT,p.BOTTOM); p.text("the fleet (GPU rack)", rx, ry-6);
+  for(let i=0;i<MAXG;i++){ const x=rx+(i%cols)*(cw+gap), y=ry+Math.floor(i/cols)*(ch+gap), on=i<replicas, busy=i<Math.min(replicas,Math.ceil(demand));
+    p.fill(busy?'#12351a':on?'#1a1e12':col.panel); p.stroke(busy?col.green:on?col.gold:col.line); p.strokeWeight(1.1); p.rect(x,y,cw,ch,4);
+    p.noStroke(); p.fill(busy?col.green:on?col.gold:col.faint); p.textSize(8.5); p.textAlign(p.CENTER,p.CENTER); p.text(busy?"busy":on?"idle":"off", x+cw/2, y+ch/2); }
+  // --- the meter ---
+  p.fill(col.gold); p.textSize(13); p.textAlign(p.LEFT,p.TOP); p.text("meter: $"+BILL.toFixed(2)+" and counting", gx, 250);
+  p.fill(col.faint); p.textSize(10); p.text(replicas+" GPUs powered x $3/hr - running whether busy or idle", gx, 272);
+  // overlays
+  if(f==='autoscale'){ p.fill(col.gold); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("replicas track the curve; cold GPUs load the pile (S0) before serving -> scale AHEAD, carry some idle.", gx, 296); }
+  if(f==='cost'){ p.fill(col.green); p.textSize(11.5); p.textAlign(p.LEFT,p.TOP); p.text("reserved = pricey + yours . spot = cheap + reclaimable . both -> $/1M tokens", gx, 296); }
+  if(f==='aha'){ p.fill(col.green); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("this meter is your agent's bill - every S-module pushes it down.", gx, 296); }
+}
+function drawBill(p, f){
+  if(f==='latency'){
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("what a user feels, one request:", 40, 40);
+    const bx=40, by=110, bw=840;
+    // TTFT block
+    p.fill(col.blue); p.noStroke(); p.rect(bx,by,150,40,4); p.fill('#08121a'); p.textSize(11); p.textAlign(p.CENTER,p.CENTER); p.text("TTFT", bx+75, by+20);
+    // TPOT ticks
+    for(let i=0;i<22;i++){ p.fill(col.green); p.rect(bx+160+i*30, by, 22, 40, 3); }
+    p.fill(col.blue); p.textSize(10.5); p.textAlign(p.LEFT,p.TOP); p.text("prefill: whole prompt at once (compute-bound, M3/S0) - the WAIT", bx, by+52);
+    p.fill(col.green); p.text("decode: one token at a time (memory-bound) - the PACE (each tick = a token)", bx, by+72);
+    p.fill(col.faint); p.textSize(11); p.text("time ->", bx+bw-60, by+6);
+  } else if(f==='disagg'){
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("prefill and decode stress opposite hardware -> split them into two pools:", 40, 40);
+    p.fill('#101a22'); p.stroke(col.blue); p.strokeWeight(1.4); p.rect(80,90,340,150,8); p.noStroke(); p.fill(col.blue); p.textSize(13); p.textAlign(p.CENTER,p.TOP); p.text("PREFILL pool", 250, 104); p.fill(col.dim); p.textSize(11); p.text("compute-heavy machines", 250, 128); p.text("first token, fast", 250, 148);
+    p.fill('#111a12'); p.stroke(col.green); p.strokeWeight(1.4); p.rect(500,90,340,150,8); p.noStroke(); p.fill(col.green); p.textSize(13); p.textAlign(p.CENTER,p.TOP); p.text("DECODE pool", 670, 104); p.fill(col.dim); p.textSize(11); p.text("memory-bandwidth machines", 670, 128); p.text("stream the rest", 670, 148);
+    p.fill(col.gold); p.textSize(11); p.textAlign(p.CENTER,p.TOP); p.text("-> hand off ->", 460, 158);
+    p.fill(col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("each pool runs near its own limit -> more tokens per dollar (2025-26).", 80, 260);
+  } else if(f==='bill'){
+    const lines=[["1,000 users x 500 tokens","= 500,000 tokens"],["1 GPU at ~2,500 tok/s (S2+S5)","clears it in ~200 s"],["~200 s at ~$3 / GPU-hour","= ~$0.17"],["per MILLION tokens","~ $0.33 / 1M tokens"]];
+    p.fill(col.dim); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("the bill, computed (illustrative):", 60, 44);
+    lines.forEach((L,i)=>{ const y=84+i*52, hero=i===3; p.fill(col.panel); p.stroke(hero?col.gold:col.line); p.strokeWeight(hero?1.6:1); p.rect(60,y,800,42,6); p.noStroke();
+      p.fill(col.ink); p.textSize(12.5); p.textAlign(p.LEFT,p.CENTER); p.text(L[0], 76, y+21); p.fill(hero?col.gold:col.green); p.textSize(13); p.textAlign(p.RIGHT,p.CENTER); p.text(L[1], 844, y+21); });
+  } else {
+    // the triangle
+    const cx=CW/2, top=70, h=210, half=200;
+    p.stroke(col.line); p.strokeWeight(1.4); p.noFill(); p.triangle(cx,top, cx-half,top+h, cx+half,top+h);
+    p.noStroke(); p.fill(col.blue); p.textSize(13); p.textAlign(p.CENTER,p.BOTTOM); p.text("THROUGHPUT", cx, top-6); p.fill(col.faint); p.textSize(10); p.textAlign(p.CENTER,p.TOP); p.text("tok/s - S2 quantize/kernel, S5 batch/page", cx, top+2);
+    p.fill(col.green); p.textSize(13); p.textAlign(p.RIGHT,p.TOP); p.text("LATENCY", cx-half+70, top+h+6); p.fill(col.faint); p.textSize(10); p.text("TTFT/TPOT, disaggregation", cx-half+150, top+h+22);
+    p.fill(col.gold); p.textSize(13); p.textAlign(p.LEFT,p.TOP); p.text("COST", cx+half-70, top+h+6); p.fill(col.faint); p.textSize(10); p.textAlign(p.RIGHT,p.TOP); p.text("$/1M tokens, fleet match", cx+half-4, top+h+22);
+    p.fill(col.ink); p.textSize(12); p.textAlign(p.CENTER,p.CENTER); p.text("pick your point", cx, top+h-52);
+  }
+}
+
+/* ================= wiring ================= */
+const $=id=>document.getElementById(id);
+function react(who,emo,line){ const c=$('rchr'); c.dataset.c=who; c.dataset.e=emo; $('rline').textContent=line; if(window.Cast) Cast.render(document.querySelector('.react')); }
+function render(i){ const isInt=CUR.mode==='int'; const st=(isInt?INT:MECH)[i]; CUR={mode:CUR.mode,step:i};
+  $('caption').textContent=st.cap; $('insight').className='insight'+(st.good?' good':''); $('insight').innerHTML=st.ins;
+  react(st.who||'bit', st.emo||'read', st.rl||"");
+}
+let tl=null;
+function build(mode){ CUR={mode,step:0};
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('on', b.dataset.mode===mode));
+  $('modehint').textContent = mode==='int' ? 'match the fleet to the demand curve' : 'the two latencies and the dollar arithmetic';
+  const arr=mode==='int'?INT:MECH;
+  tl=new Anim.Timeline({length:arr.length, autoMs:5200, onStep:(i)=>render(i)});
+  Anim.scrubber($('scrub'), tl, {label:(i=>"step "+(i+1)+" / "+arr.length)});
+}
+document.querySelectorAll('.modebtn').forEach(b=>b.addEventListener('click', ()=>build(b.dataset.mode)));
+build('int');
+</script>
+</body>
+</html>
