@@ -1,4 +1,4 @@
-# Essence of Serving - pedagogy
+# Serving - pedagogy
 
 Track 5. Read this doc before building any module. Factual basis: the 2026
 local-inference + in-browser landscape (llama2.c, llama.cpp/GGUF, llamafile,
