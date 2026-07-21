@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The front door</title>
+<!-- Bonus B1, one widget, two modes:
+     WATCH - the two ways a harness comes to exist (walk into a system / start one), animated.
+     READ  - snip's REAL harness files, annotated, so you see what's actually inside.
+     snip + its bug are a worked example; the run is a labeled sim; the files are verbatim. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:1000px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  .modes { display:flex; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+  .modebtn { font:inherit; font-size:13.5px; border:1px solid var(--line); background:var(--panel);
+             color:var(--dim); border-radius:999px; padding:5px 14px; cursor:pointer; }
+  .modebtn.on { color:var(--ink); border-color:var(--gold); background:#14140c; }
+  .modehint { color:var(--faint); font-size:12.5px; }
+  /* WATCH */
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto !important; display:block; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:52px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { margin-top:10px; }
+  /* READ */
+  .ebar { display:flex; align-items:center; gap:10px; margin:0 0 8px; flex-wrap:wrap; }
+  .toggle { font:inherit; font-size:12.5px; border:1px solid var(--line); background:var(--panel);
+            color:var(--dim); border-radius:999px; padding:4px 12px; cursor:pointer; }
+  .toggle.on { color:#14110a; background:var(--gold); border-color:var(--gold); }
+  .hint { color:var(--faint); font-size:12px; }
+  .explorer { display:flex; border:1px solid var(--line); border-radius:12px; overflow:hidden; min-height:500px; }
+  .tree { width:242px; min-width:242px; background:#0d1014; border-right:1px solid var(--line); padding:12px 0; overflow-y:auto; }
+  .grp { font:10px var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--faint); padding:10px 16px 4px; }
+  .file { display:block; width:100%; text-align:left; font:inherit; border:0; background:none; cursor:pointer;
+          border-left:2px solid transparent; padding:7px 16px; color:var(--dim); }
+  .file:hover { background:#12161c; color:var(--ink); }
+  .file.active { color:var(--ink); border-left-color:var(--gold); background:#12171e; }
+  .file .fn { font:13px var(--mono); } .file .fs { display:block; font-size:11px; color:var(--faint); margin-top:1px; }
+  .viewer { flex:1; background:#0b0e12; overflow:auto; max-height:600px; }
+  .fhead { position:sticky; top:0; background:#0d1014; border-bottom:1px solid var(--line); padding:9px 16px; font:12px var(--mono); color:var(--dim); z-index:2; }
+  .fhead b { color:var(--gold); }
+  .codeview { padding:10px 0 24px; font:12.5px/1.62 var(--mono); }
+  .row { display:flex; padding:0 16px; } .row.ann { background:#12140c; }
+  .ln { width:30px; min-width:30px; text-align:right; color:#3a4048; user-select:none; padding-right:12px; }
+  .src { white-space:pre-wrap; word-break:break-word; color:#c3c9d2; flex:1; }
+  .h { color:var(--gold); font-weight:600; } .q { color:var(--faint); font-style:italic; }
+  .c { color:var(--blue); } .b { color:var(--ink); font-weight:600; }
+  .lk { color:var(--blue); text-decoration:underline; text-decoration-color:#2a4a55; }
+  .cm { color:#5b7052; } .str { color:var(--gold); }
+  .note { margin:5px 16px 9px 42px; border-left:2px solid var(--blue); background:#0e1620; padding:7px 12px;
+          border-radius:0 6px 6px 0; font:13px/1.5 system-ui,sans-serif; color:#cdd6e0; }
+  .note b { color:var(--blue); } .note.hide { display:none; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<h1>The front door</h1>
+<div class="stamp">BONUS . B1 . verified as of 2026-07 - a harness is your system, written down for your agent</div>
+<p class="sub">A harness is <b>your system's memory, outside the model</b>. First see the two ways it comes to exist - then read its real files.</p>
+
+<div class="modes">
+  <button class="modebtn on" data-mode="watch">watch - the two ways</button>
+  <button class="modebtn" data-mode="read">read - what's inside</button>
+  <span class="modehint" id="modehint">how a harness is born: walk into a system, or start one</span>
+</div>
+
+<!-- ================= WATCH ================= -->
+<div id="watch">
+  <div id="canvas" aria-label="A repo, a CLAUDE.md front door, a shelf of deep-dive docs, and the context meter"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+  <div class="insight" id="insight"></div>
+  <div class="react" id="react"><span class="chr" id="chrR" data-c="bit" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+  <div id="scrub"></div>
+</div>
+
+<!-- ================= READ ================= -->
+<div id="read" hidden>
+  <div class="ebar">
+    <button class="toggle on" id="annBtn">annotations: on</button>
+    <span class="hint">start at CLAUDE.md (the front door), then follow a pointer into a deep-dive</span>
+  </div>
+  <div class="explorer">
+    <nav class="tree" id="tree" aria-label="harness files"></nav>
+    <div class="viewer"><div class="fhead" id="fhead"></div><div class="codeview" id="codeview"></div></div>
+  </div>
+</div>
+
+<!-- ============ the REAL files, verbatim (raw text; no escaping) ============ -->
+<script type="text/plain" id="src-claude"># snip -- Agent Harness (the front door)
+
+> Read this FIRST in every session. Deep-dive docs are linked below -- open one only
+> when you're working that subsystem.
+>
+> Design philosophy: walking skeleton -- the smallest thing that resolves a link,
+> hardened one subsystem at a time behind its interface.
+>
+> Before editing this file or docs/harness/: read `maintenance_policy.md`. ~140-line cap on this file.
+
+## Run it
+
+    python -m snip create https://example.com/some/long/path   # -> prints a short code
+    python -m snip resolve q7Kp2mx                              # -> the original URL
+    python -m snip stats   q7Kp2mx                              # -> hit count
+    pytest -q                                                   # ~2s, whole suite
+
+Data lives in `runtime/snip.json` (gitignored). Delete it to reset.
+
+## Map
+
+create -> `codec.make_code()` -> `store.put(code, url)`  |  resolve -> `store.get(code)`  |  stats -> `store.hits(code)`
+
+Modules (`snip/`): `codec.py` (short-code generation), `store.py` (JSON persistence, the code->url source of truth), `api.py` (CLI + optional FastAPI).
+
+## Non-negotiables (the golden rules)
+
+1. Codes must NEVER be guessable. Random + collision-checked -- never sequential, never derived from the row id / timestamp / URL. This is the whole security model. (Why: `lessons.md` #1.)
+2. Codes are permanent. Once issued, a code always maps to the same URL. Never reassign or recycle a code.
+3. The store is the source of truth for `code -> url`. Never reconstruct a code from a URL by any path but the store.
+4. Resolve stays cheap and read-mostly. It may bump a hit counter; it must not block on that write.
+
+## Do / Don't
+
+Do: validate a code with `is_valid_code()` before touching the store; use the base57 alphabet in `codec.ALPHABET` (base62 minus look-alikes 0 O 1 l I -- why: `decisions.md`); keep `runtime/` out of git.
+
+Don't: use sequential / timestamp / id-derived codes (breaks rule #1 -- see `lessons.md`); log full URLs at INFO (PII); widen the alphabet to include look-alikes; block `resolve` on the hit-counter write.
+
+## Current baseline
+
+See `baseline.md` for code length, alphabet size, collision rate, test count. Update it there after a material change; no commentary in this file.
+
+## Deep-dives (read on demand)
+
+    codec.md      short-code generation: alphabet, length math, collision handling
+    store.md      persistence format, atomic writes, the put/get/hits interface
+    decisions.md  why random codes, why base57, why a JSON file, why 7 chars
+    lessons.md    bugs we already paid for -- read before touching codec or store
+    maintenance_policy.md   how to keep this file + docs/harness/ lean
+    log/          the dated journal: what was decided, when, and why
+</script>
+
+<script type="text/plain" id="src-lessons"># Lessons (bugs we already paid for)
+
+> Read this before touching the area a lesson names. It's how the harness stops the
+> agent (or a new dev) from re-buying a bug the team already paid for.
+>
+> Format for every entry: Symptom -> Root cause -> Fix -> Rule.
+
+## 1. Enumerable short-codes (2026-07-05)
+
+- Symptom: a user found they could walk `/-/b`, `/-/c`, `/-/d` and land on *other people's* links.
+- Root cause: `make_code(row_id)` returned `base62(row_id)` -- so the code *was* the auto-increment id. Codes came out b, c, d, ...: sequential, and trivially enumerable.
+- Fix: `codec.make_code()` now takes no id. It draws a random 7-char code and asks the store whether it exists, retrying on the rare collision. Existing codes were left as-is (rule #2: codes are permanent); only new ones are random.
+- Rule: codes must NEVER be guessable. Never derive a code from the id, a timestamp, or the URL. If you ever see `make_code(` take an argument again, that's the regression.
+
+## 2. Lost writes under two creates (2026-07-09)
+
+- Symptom: two creates fired close together; one of the two new links was missing from `runtime/snip.json` afterward.
+- Root cause: `store.put` did read-modify-write on the whole JSON file with no atomicity -- the second reader loaded the file before the first had written, then overwrote it.
+- Fix: `put` now writes to a temp file and `os.replace`s it (atomic on POSIX + Windows), under a per-process lock.
+- Rule: any whole-file JSON store mutates via write-temp-then-replace, never in place.
+
+## 3. resolve slowed down by the hit counter (2026-07-11)
+
+- Symptom: redirects got noticeably slower under load; p95 latency tracked the disk, not the lookup.
+- Root cause: `resolve` did a synchronous `store.put` to increment `hits` before returning the URL -- a disk write on the hot read path.
+- Fix: the URL is returned immediately; the hit increment is queued and flushed in the background. A dropped increment is acceptable; a slow redirect is not.
+- Rule: resolve must not block on the hit-counter write.
+</script>
+
+<script type="text/plain" id="src-decisions"># Design Decisions (snip)
+
+> Read when weighing a design change, so you don't undo a choice that was made for a
+> reason you can't see from the code alone.
+
+## Why random codes, not sequential
+
+Sequential codes (the row id in base62: 1->b, 2->c) make every link enumerable -- scrape
+one, walk the alphabet, get them all. We generate a random code and check the store for a
+collision. Cost: one extra store read per create; cheap, and the retry loop almost never
+fires. The incident that forced this is `lessons.md` #1; the rule is non-negotiable #1.
+
+## Why 7 characters
+
+With a 57-char alphabet, `57^7 ~ 1.9e12`. At a million live links the birthday-collision
+probability per create is ~`1e-6`, so the retry loop is effectively never hit. 6 chars
+(`57^6 ~ 3.4e10`) collides often enough to matter at scale; 8 is longer for no benefit.
+If live-link count approaches 1e9, revisit -- bump to 8, don't shrink the alphabet.
+
+## Why base57 (base62 minus look-alikes)
+
+We dropped 0 O 1 l I from the alphabet so a code is unambiguous read aloud, copied off a
+printed page, or dictated over the phone. 62 -> 57 characters; length stays 7. The
+alphabet lives in one place, `codec.ALPHABET` -- never inline a different one.
+
+## Why a single JSON file store (for now)
+
+Walking-skeleton: one file is enough to prove create/resolve/stats end to end. The
+interface -- `store.put/get/hits` -- is the contract; the backend is not. Swap in SQLite
+behind that interface the day write volume needs it, without touching codec or api. Don't
+add a database before the file store actually hurts.
+
+## Why hits are eventually-consistent
+
+`stats` is a soft number -- fine for it to lag or drop the occasional increment. That's the
+price of keeping resolve off the disk-write path (non-negotiable #4). If you need exact hit
+accounting, that's a real feature with its own storage, not a tweak to resolve.
+</script>
+
+<script type="text/plain" id="src-policy"># Harness Maintenance Policy (snip)
+
+> How to keep CLAUDE.md lean and docs/harness/ usable. The harness is only worth reading
+> if it stays small and true -- these rules are what keep it that way.
+
+## CLAUDE.md (~140-line cap)
+
+Only content needed regardless of which subsystem you're in: Run it, Map, Non-negotiables +
+Do/Don't (short rules, no explanations), Baseline (a pointer), the Deep-dive index.
+
+The cap is the point: it forces you to push detail down into a deep-dive instead of letting
+the front door rot into a dump.
+
+## docs/harness/*.md
+
+Subsystem detail only useful when actively working that area: how it works internally, the
+design rationale (the why), the bugs and lessons, debug/regression workflows.
+
+## When you add something
+
+1. "Does every session need this?" Yes -> a short line in CLAUDE.md. No -> a deep-dive.
+2. A durable lesson? One-line rule in CLAUDE.md's Do/Don't; the why goes in `decisions.md`,
+   the bug that taught it goes in `lessons.md`.
+3. A new subsystem? New `docs/harness/<name>.md` + one row in the index. Never inline 50
+   lines of subsystem detail into the front door.
+4. One concern per file. Never combine two topics -- split early, cross-link.
+
+## The truth hierarchy
+
+When they disagree: running code + tests > harness docs > historical notes. Trust what you
+observe now, and fix the stale doc in the same change.
+
+## Log before code
+
+Every substantive decision gets a dated entry in `docs/log/` (what was asked, what was
+decided, why) before or with the code it produced. The log is the raw history; CLAUDE.md
+and the deep-dives are the compressed, current view of it.
+</script>
+
+<script type="text/plain" id="src-codec">"""codec.py -- short-code generation for snip.
+
+A code is a random string over ALPHABET (base62 minus the look-alike characters).
+It is NEVER derived from the row id, the URL, or the time -- that randomness IS the
+security model. See docs/harness/lessons.md #1 and docs/harness/decisions.md.
+"""
+import secrets
+
+# base62 minus 0 O 1 l I -- 57 chars, unambiguous read-aloud / on paper (decisions.md).
+ALPHABET = "23456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"
+CODE_LEN = 7                                   # 57**7 ~ 1.9e12 (decisions.md: "why 7")
+
+
+def make_code(exists):
+    """Return a fresh random code that is not already in the store.
+
+    `exists(code) -> bool` is the store's membership check, injected so this stays
+    pure and testable. The retry loop almost never fires (see decisions.md).
+
+    Note there is NO id/url/time argument, and there must never be one again -- that
+    was the regression that made codes enumerable (lessons.md #1).
+    """
+    while True:
+        code = "".join(secrets.choice(ALPHABET) for _ in range(CODE_LEN))
+        if not exists(code):
+            return code
+
+
+def is_valid_code(code):
+    """True if `code` has the shape make_code() produces (not an existence check)."""
+    return (isinstance(code, str) and len(code) == CODE_LEN
+            and all(c in ALPHABET for c in code))
+</script>
+
+<script type="text/plain" id="src-codecmd"># codec -- short-code generation
+
+> Read when working on how codes are made or validated. The security model lives here.
+
+## What it does
+
+`make_code(exists)` returns a fresh code; `is_valid_code(code)` checks the *shape* (not
+existence). A code is `CODE_LEN` (7) random characters from `ALPHABET`.
+
+## The alphabet (base57)
+
+`ALPHABET` is base62 minus the five look-alikes `0 O 1 l I` -> 57 characters, so a code is
+unambiguous read aloud or off a printed page. It lives in exactly one place; never inline a
+different alphabet (see `decisions.md`).
+
+## The length math
+
+`57 ** 7 ~ 1.9e12`. At ~1M live links the birthday-collision probability per `create` is
+~`1e-6`, so the collision-retry loop in `make_code` is effectively never taken. If the live
+count ever approaches `1e9`, bump `CODE_LEN` to 8 -- never shrink the alphabet.
+
+## Collision handling
+
+`make_code` draws a candidate and calls `exists(code)` (the store's membership check,
+dependency-injected so codec stays pure and testable). On the rare hit it just draws again.
+
+## The one rule that must not regress
+
+`make_code` takes **no** id / seed / timestamp / URL -- only the `exists` callback. Deriving
+a code from any of those is what made codes enumerable (`lessons.md` #1). `test_codec.py`
+pins the signature so the regression fails a test, not a user.
+</script>
+
+<script type="text/plain" id="src-storemd"># store -- persistence
+
+> Read when touching how links are saved. The store is the source of truth for code -> url.
+
+## Format
+
+One JSON object in `runtime/snip.json`: `{ "<code>": {"url": "...", "hits": 0}, ... }`.
+Human-readable on purpose -- you can open it and see the whole state.
+
+## The interface (this is the contract)
+
+`Store.put(code, url)` / `get(code)` / `hits(code)` / `bump(code)` / `exists(code)`. Callers
+(`api.py`) depend on these four verbs, never on the JSON. Swap in SQLite behind the same
+interface the day write volume needs it, without touching codec or api (`decisions.md`).
+
+## Atomic writes
+
+`_save` writes a temp file in the same directory and `os.replace`s it -- atomic on POSIX and
+Windows -- under a process lock. That's the fix for the lost-writes incident (`lessons.md`
+#2). Never mutate the JSON in place.
+
+## Permanence
+
+`put` refuses to point an existing code at a different URL (raises `ValueError`) -- codes are
+permanent (CLAUDE.md non-negotiable #2). Re-putting the *same* url is idempotent.
+
+## Hits are soft
+
+`bump` is called by `resolve` *after* the URL is returned, never before -- a slow redirect is
+worse than a dropped increment (`lessons.md` #3). Don't move it onto the read path.
+</script>
+
+<script type="text/plain" id="src-baseline"># Current Baseline (snip)
+
+> Numbers at a glance, so you can tell if something regressed. Update after a material run.
+> No commentary -- the why lives in decisions.md / lessons.md.
+
+| Metric | Value |
+|--------|-------|
+| Code length | 7 chars |
+| Alphabet | 57 (base62 minus 0 O 1 l I) |
+| Code space | 57**7 ~ 1.9e12 |
+| Collision prob / create @ 1M links | ~1e-6 |
+| Tests | 9 (5 codec + 4 store), ~2s |
+| Pipeline | create / resolve / stats via python -m snip |
+| Store | one JSON file, runtime/snip.json |
+
+Last verified: 2026-07-12.
+</script>
+
+<script type="text/plain" id="src-log1"># 2026-07-05
+
+## Enumerable short-codes
+
+- Ask: a user reported they could reach other people's links by changing the code in the
+  URL by one character (/-/c -> /-/d).
+- Summary: codes were base62(row_id), so they came out sequential (b, c, d, ...) and anyone
+  could walk them.
+- Decision: switch to random 7-char codes from the base57 alphabet, collision-checked against
+  the store. make_code loses its row_id argument. Existing codes stay (permanent); new ones
+  are random.
+- Why: guessable codes are a full authorization bypass -- the code IS the capability.
+  Randomness is the security model. Wrote it up as lessons.md #1 and a non-negotiable in
+  CLAUDE.md; pinned the signature in test_codec.py so it can't quietly come back.
+</script>
+
+<script type="text/plain" id="src-log2"># 2026-07-09
+
+## Lost write under two creates
+
+- Ask: a load test fired two creates back-to-back; afterward one of the two new links was
+  gone from runtime/snip.json.
+- Summary: store.put did read-modify-write on the whole file with no atomicity. The second
+  call loaded the file before the first had finished writing, then overwrote it.
+- Decision: _save now writes a temp file and os.replace's it (atomic on POSIX + Windows),
+  under a process lock. put goes through _save.
+- Why: the store is the source of truth; a silently dropped link is its worst failure.
+  Recorded as lessons.md #2 and the write-temp-then-replace rule; detail in store.md.
+</script>
+
+<script type="text/plain" id="src-log3"># 2026-07-11
+
+## resolve got slow under load
+
+- Ask: redirects were fine in isolation but p95 latency climbed under load; it tracked the
+  disk, not the lookup.
+- Summary: resolve did a synchronous store.put to increment hits BEFORE returning the URL --
+  a disk write on the hottest read path in the system.
+- Decision: return the URL first, then bump(code) separately (in production: queued off the
+  hot path). hits is now explicitly eventually-consistent.
+- Why: resolve is the one thing that must stay fast. Recorded as lessons.md #3, the "resolve
+  stays cheap" non-negotiable (#4), and the eventually-consistent note in decisions.md.
+</script>
+
+<script type="text/plain" id="src-store">"""store.py -- JSON-file persistence for snip. The source of truth for code -> url.
+
+Every mutation goes write-temp-then-os.replace (atomic on POSIX + Windows) under a
+process lock -- that's the fix for the lost-writes incident (docs/harness/lessons.md #2).
+The put / get / hits / bump interface is the contract; the JSON backend is swappable
+for SQLite behind it (docs/harness/decisions.md).
+"""
+import json
+import os
+import tempfile
+import threading
+
+_LOCK = threading.Lock()
+
+
+class Store:
+    def __init__(self, path):
+        self.path = path
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+
+    def _load(self):
+        if not os.path.isfile(self.path):
+            return {}
+        with open(self.path, encoding="utf-8") as f:
+            return json.load(f)
+
+    def _save(self, data):
+        # atomic: write a temp file in the same dir, then replace (lessons.md #2).
+        d = os.path.dirname(self.path) or "."
+        fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(tmp, self.path)
+
+    def exists(self, code):
+        return code in self._load()
+
+    def put(self, code, url):
+        with _LOCK:
+            data = self._load()
+            if code in data and data[code]["url"] != url:
+                raise ValueError("codes are permanent (rule #2): " + code)
+            if code not in data:
+                data[code] = {"url": url, "hits": 0}
+            self._save(data)
+
+    def get(self, code):
+        rec = self._load().get(code)
+        return rec["url"] if rec else None
+
+    def hits(self, code):
+        rec = self._load().get(code)
+        return rec["hits"] if rec else None
+
+    def bump(self, code):
+        with _LOCK:
+            data = self._load()
+            if code in data:
+                data[code]["hits"] += 1
+                self._save(data)
+</script>
+
+<script type="text/plain" id="src-api">"""api.py -- the CLI for snip (create / resolve / stats).
+
+Thin: it wires codec + store together and nothing else. resolve returns the URL
+immediately and bumps the hit counter separately -- never on the read path
+(CLAUDE.md non-negotiable #4, docs/harness/lessons.md #3).
+"""
+import os
+import sys
+
+from .codec import make_code, is_valid_code
+from .store import Store
+
+RUNTIME = os.environ.get("SNIP_DB", "runtime/snip.json")
+
+
+def _store():
+    return Store(RUNTIME)
+
+
+def create(url):
+    s = _store()
+    code = make_code(s.exists)        # make_code takes NO id -- never make it guessable
+    s.put(code, url)
+    return code
+
+
+def resolve(code):
+    if not is_valid_code(code):
+        return None
+    s = _store()
+    url = s.get(code)
+    if url is not None:
+        s.bump(code)                  # in production this is queued off the hot path
+    return url
+
+
+def stats(code):
+    return _store().hits(code)
+</script>
+
+<script type="text/plain" id="src-testcodec">from snip.codec import make_code, is_valid_code, ALPHABET, CODE_LEN
+
+
+def test_alphabet_has_no_lookalikes():
+    for bad in "0O1lI":
+        assert bad not in ALPHABET
+    assert len(ALPHABET) == 57
+
+
+def test_make_code_takes_no_id():
+    # the whole point of lessons.md #1: make_code must not accept an id/seed.
+    import inspect
+    params = list(inspect.signature(make_code).parameters)
+    assert params == ["exists"], "make_code must take only the store's exists() -- never an id"
+
+
+def test_make_code_retries_on_collision():
+    calls = {"n": 0}
+    def exists(code):                          # first 3 candidates "exist", then free
+        calls["n"] += 1
+        return calls["n"] <= 3
+    code = make_code(exists)
+    assert calls["n"] == 4 and is_valid_code(code)
+</script>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+
+/* ==================== MODE TOGGLE ==================== */
+let P=null, TL=null;
+const HINTS={watch:"how a harness is born: walk into a system, or start one", read:"the real snip harness - click a file, read what's inside"};
+function setMode(m){
+  const watch=m==='watch';
+  $('watch').hidden=!watch; $('read').hidden=watch;
+  $('modehint').textContent=HINTS[m];
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+  if(P){ watch?P.loop():P.noLoop(); }
+  if(TL&&!watch) TL.pause();
+}
+document.querySelectorAll('.modebtn').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+
+/* ==================== WATCH (the two ways) ==================== */
+const col={blue:'#58c4dd',gold:'#ffd35c',green:'#83c167',red:'#fc6255',
+  ink:'#e9ebee',dim:'#98a2b0',faint:'#5b6470',line:'#2a3038',panel:'#141b22'};
+const REPO=['codec.py','store.py','api.py','tests/'];
+const DOORSEC=['Run it','Map','Rules','Do / Don\'t','Index'];
+const SHELF=[['decisions.md','why random codes'],['lessons.md','the guessable bug'],['codec.md','codec deep-dive'],['log/','dated journal']];
+const CODE_SEQ=['def make_code(n):','    return base62(n)','    # 1->b, 2->c, 3->d','    # ...enumerable!'];
+const CODE_RND=['def make_code():','    c = rand7()','    while exists(c):','        c = rand7()'];
+
+const STEPS=[
+ {act:1,focus:'exist', repo:'full', door:'none', shelf:[], meter:0.05, bench:null, verdict:null,
+  cap:"Way 1: you open a system that already exists - snip, a working URL shortener. The code is here, but there's no harness.",
+  ins:"<b>You walked into a system.</b> The knowledge of how it works lives in people's heads, not the repo.", good:false, who:'bit',emo:'neutral', rl:"A real repo, but nothing tells me how it works."},
+ {act:1,focus:'cold', repo:'read', door:'none', shelf:[], meter:0.68, bench:'seq', verdict:'GUESSABLE',
+  cap:"A fresh session reads every file blind to reconstruct it - and, with no rules written down, would reintroduce the old guessable-codes bug.",
+  ins:"<b>A cold start on an existing system is dangerous:</b> it re-explores AND repeats mistakes no one wrote down.", good:false, who:'bit',emo:'panic', rl:"Reading everything... and about to recreate the enumerable-codes hole."},
+ {act:1,focus:'onboard', repo:'scan', door:'gen', shelf:[0,1,2,3], shelfNew:-1, meter:0.32, bench:null, verdict:null,
+  cap:"The move: map it ONCE. An onboarding pass reads the repo and writes the front door + deep-dives - the system, captured.",
+  ins:"<b>Onboarding = compress the system into notes, once.</b> You pay the exploration a single time, not every session.", good:false, who:'bit',emo:'think', rl:"Scan the whole thing once, and write down what I learn."},
+ {act:1,focus:'ready1', repo:'dim', door:'on', shelf:[0,1,2,3], meter:0.13, bench:'rnd', verdict:'SAFE',
+  cap:"Now the front door exists. Every future session reads it first - oriented, and kept out of the trap.",
+  ins:"<b>Written down once, safe forever:</b> the lesson is in the repo now, not in someone's memory.", good:true, who:'bit',emo:'happy', rl:"One read and I know the rules. Random + collision-check it is."},
+ {act:2,focus:'green', repo:'empty', door:'none', shelf:[], meter:0.04, bench:null, verdict:null,
+  cap:"Way 2: you're starting from zero - greenfield. Nothing to map yet. You build snip WITH the AI.",
+  ins:"<b>You're building the system with AI.</b> There's no existing system to compress - so the harness grows as you go.", good:false, who:'bit',emo:'neutral', rl:"Blank slate. Let's build it together."},
+ {act:2,focus:'decide', repo:'b2', door:'seed', shelf:[0], shelfNew:0, meter:0.10, bench:'rnd', verdict:null,
+  cap:"You make a call - random codes, not sequential. The moment you decide, it's logged to decisions.md, and the front door is seeded.",
+  ins:"<b>Log the WHY the moment it happens</b> - or you'll re-litigate it next week.", good:false, who:'bit',emo:'think', rl:"Decided: random codes. Writing down why, right now."},
+ {act:2,focus:'bug2', repo:'b3', door:'on', shelf:[0,1], shelfNew:1, meter:0.14, bench:'seq', verdict:'GUESSABLE',
+  cap:"A bug bites: an early build shipped guessable codes. You fix it - and capture it: lessons.md, plus a golden rule in the door.",
+  ins:"<b>Every bug becomes a lesson</b> - the harness grows itself from the real moments of building.", good:false, who:'bit',emo:'confused', rl:"That one stung. Writing the lesson so it can't happen twice."},
+ {act:2,focus:'grown', repo:'full', door:'on', shelf:[0,1,2,3], meter:0.13, bench:'rnd', verdict:'SAFE',
+  cap:"By the time snip is built, its harness is too - assembled one real moment at a time. The same capped front door, the same deep-dives.",
+  ins:"<b>Build the system, build its memory</b> - the two grow together, for free.", good:true, who:'bit',emo:'happy', rl:"The system and its harness, done side by side."},
+ {act:3,focus:'converge', repo:'dim', door:'on', shelf:[0,1,2,3], meter:0.12, bench:null, verdict:null,
+  cap:"Two roads in - you walked into it, or you built it - and both end at the exact same place: a capped front door over a shelf of deep-dives.",
+  ins:"<b>Same artifact, either way.</b> How you arrived doesn't matter; the harness is identical.", good:false, who:'bit',emo:'neutral', rl:"However I got here, the door is the door."},
+ {act:3,focus:'reopen', repo:'dim', door:'on', shelf:[0,1,2,3], meter:0.12, bench:null, verdict:null,
+  cap:"Three weeks later, a brand-new session reads the door and knows exactly how snip works - instantly.",
+  ins:"<b>Open it any day:</b> the harness is your system's memory, outside the model. It never forgets.", good:true, who:'bit',emo:'happy', rl:"Back after weeks - oriented in one read."},
+ {act:3,focus:'contrast', repo:'dim', door:'on', shelf:[0,1,2,3], meter:0.12, bench:null, verdict:null,
+  cap:"And it's cheaper: 8 files read blind versus 1 front door + 1 deep-dive on demand. Less context loaded, fewer mistakes made.",
+  ins:"<b>Counted, not claimed:</b> a harness cuts the context you load AND the mistakes you repeat.", good:true, who:'bit',emo:'happy', rl:"A fraction of the tokens, and no reintroduced bug."},
+ {act:3,focus:'aha', repo:'dim', door:'on', shelf:[0,1,2,3], meter:0.12, bench:null, verdict:null,
+  cap:"That's the harness: your system, written down for your agent. Front door first, deep-dives on demand - and to see one for real, flip to 'read'.",
+  ins:"<b>Write your system down, front door first</b> - walked in or built, your AI never re-explores and never repeats your mistakes.", good:true, who:'cortex',emo:'happy', rl:"The leverage was never the model. It was the memory around it."},
+];
+const caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(w,e,l){ chrR.dataset.c=w; chrR.dataset.e=e; reactLine.textContent=l; if(window.Cast) Cast.render($("react")); }
+if (window.p5) p5.disableFriendlyErrors=true;
+const CW=900, CH=424;
+const ease=t=>t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+let STEP=0;
+
+new p5(function(p){
+  P=p;
+  const density=()=>Math.max(2,window.devicePixelRatio||1);
+  let lastStep=-1, stepStart=0;
+  const prog=(delay,dur)=> ease(p.constrain((p.frameCount-stepStart-(delay||0))/(dur||30),0,1));
+  const rr=(x,y,w,h,r)=> p.rect(x,y,w,h,r);
+  const pulse=()=> 55+45*Math.sin(p.frameCount*0.15);
+  p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
+    p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+  p.draw=function(){
+    if(p.pixelDensity()!==density()) p.pixelDensity(density());
+    if(STEP!==lastStep){ stepStart=p.frameCount; lastStep=STEP; }
+    try { scene(); }
+    catch(e){ p.background(11,14,18); p.noStroke(); p.fill(col.red); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("err: "+e.message,20,20); }
+  };
+  function frame(x,y,w,h,title,accent,dim){
+    p.push(); if(dim) p.drawingContext.globalAlpha=.5;
+    p.noStroke(); p.fill(col.panel); rr(x,y,w,h,10);
+    p.noFill(); p.stroke(col.line); p.strokeWeight(1); rr(x,y,w,h,10);
+    p.noStroke(); p.fill(col.faint); p.textSize(10.5); p.textAlign(p.LEFT,p.TOP); p.text(title,x+12,y+11);
+    p.stroke(accent); p.strokeWeight(2); p.line(x+12,y+27,x+42,y+27); p.noStroke(); p.pop();
+  }
+  function scene(){
+    p.background(11,14,18);
+    const s=STEPS[STEP];
+    drawRepo(s); drawDoor(s); drawBench(s); drawShelf(s); drawMeter(s);
+    if(s.focus==='onboard') mapArrow();
+  }
+  function drawRepo(s){
+    const x=24,y=58,w=175,h=244, m=s.repo, dim=(m==='dim');
+    frame(x,y,w,h, m==='empty'?"snip/   (greenfield)":"snip/   (the repo)",col.dim,dim||m==='empty');
+    if(m==='empty'){ p.push(); p.drawingContext.globalAlpha=.5; p.fill(col.faint); p.textSize(11.5); p.textAlign(p.CENTER,p.CENTER); p.text("(nothing built yet)",x+w/2,y+h/2); p.pop(); return; }
+    const nShown = m[0]==='b' ? +m.slice(1) : 4;
+    for(let i=0;i<nShown;i++){
+      const ry=y+42+i*46, read=(m==='read'), scan=(m==='scan'), building=(m[0]==='b'), fresh=building&&i===nShown-1;
+      p.push(); if(dim) p.drawingContext.globalAlpha=.5;
+      const outline = read||scan ? col.blue : building ? col.green : col.line;
+      if(scan){ p.noStroke(); p.fill(88,196,221,pulse()*0.6); rr(x+9,ry-3,w-18,40,6); }
+      if(fresh){ p.drawingContext.globalAlpha=prog(0,18); }
+      p.noStroke(); p.fill(read||scan?'#12202a':building?'#122015':col.panel); rr(x+12,ry,w-24,34,5);
+      p.noFill(); p.stroke(outline); p.strokeWeight(read||scan||building?1.4:1); rr(x+12,ry,w-24,34,5);
+      p.noStroke(); p.fill(read||scan?col.blue:building?col.green:col.dim); p.textSize(11.5); p.textAlign(p.LEFT,p.CENTER); p.text(REPO[i],x+22,ry+17);
+      if(read){ p.fill(col.faint); p.textSize(9.5); p.textAlign(p.RIGHT,p.CENTER); p.text("read",x+w-22,ry+17); }
+      if(building){ p.fill(col.faint); p.textSize(9.5); p.textAlign(p.RIGHT,p.CENTER); p.text(fresh?"+ new":"built",x+w-22,ry+17); }
+      p.pop();
+    }
+  }
+  function mapArrow(){ p.push(); p.stroke(col.gold); p.strokeWeight(1.4); p.drawingContext.setLineDash([4,4]);
+    p.line(203,104,209,104); p.drawingContext.setLineDash([]); p.noStroke(); p.fill(col.gold); p.textSize(9); p.textAlign(p.CENTER,p.BOTTOM); p.text("map",206,101); p.pop(); }
+  function drawDoor(s){
+    const x=213,y=58,w=340,h=96, m=s.door;
+    if(m==='none'){ p.push(); p.drawingContext.setLineDash([5,5]); p.noFill(); p.stroke(col.line); p.strokeWeight(1); rr(x,y,w,h,10);
+      p.drawingContext.setLineDash([]); p.noStroke(); p.fill(col.faint); p.textSize(12); p.textAlign(p.CENTER,p.CENTER);
+      p.text(s.act===2?"(no front door yet - about to start)":"(no CLAUDE.md - nothing to read first)",x+w/2,y+h/2); p.pop(); return; }
+    const a = (m==='gen')?prog(0,22) : (m==='seed')?prog(0,16) : 1;
+    p.push(); p.drawingContext.globalAlpha=a;
+    p.noStroke(); p.fill('#14110a'); rr(x,y,w,h,10);
+    p.noFill(); p.stroke(col.gold); p.strokeWeight(1.6); rr(x,y,w,h,10);
+    p.noStroke(); p.fill(col.gold); p.textSize(11.5); p.textAlign(p.LEFT,p.TOP); p.textStyle(p.BOLD); p.text('CLAUDE.md',x+12,y+11); p.textStyle(p.NORMAL);
+    p.fill(col.faint); p.textAlign(p.RIGHT,p.TOP);
+    p.text(m==='gen'?"generated by mapping the repo":m==='seed'?"just seeded - it will grow":"the front door - read FIRST",x+w-12,y+12); p.textAlign(p.LEFT,p.TOP);
+    const secs = m==='seed' ? DOORSEC.slice(0,2) : DOORSEC; let cx=x+12; const cy=y+34;
+    const hotRule=(s.focus==='ready1'||s.focus==='bug2');
+    for(const sec of secs){ const cw=p.textWidth(sec)+16, hot=(hotRule&&sec==='Rules');
+      p.noStroke(); p.fill(hot?col.gold:'#20242c'); rr(cx,cy,cw,20,10);
+      p.fill(hot?'#14110a':col.dim); p.textSize(10.5); p.textAlign(p.LEFT,p.CENTER); p.text(sec,cx+8,cy+11); cx+=cw+7; }
+    if(m!=='seed'){ p.fill(hotRule?col.gold:col.faint); p.textSize(11); p.textAlign(p.LEFT,p.TOP); p.text("rule: short codes must never be guessable",x+12,y+64); }
+    p.pop();
+  }
+  function drawBench(s){
+    const x=213,y=166,w=340,h=136; frame(x,y,w,h,"the agent writes:",col.blue);
+    const code = s.bench==='seq'?CODE_SEQ : s.bench==='rnd'?CODE_RND : null;
+    if(code){ p.textAlign(p.LEFT,p.TOP); p.textSize(12);
+      for(let i=0;i<code.length;i++){ const ln=code[i];
+        p.noStroke(); p.fill(ln.trim().startsWith('#')?(s.bench==='seq'?col.red:col.faint) : (ln.indexOf('rand')>=0?col.green : ln.indexOf('base62')>=0?col.red : col.dim));
+        p.text(ln,x+16,y+40+i*20); }
+    } else { p.noStroke(); p.fill(col.faint); p.textSize(12); p.textAlign(p.LEFT,p.TOP);
+      p.text(s.act===1&&s.focus==='exist'?"(no session running yet)":s.focus==='onboard'?"(reading the repo to write the harness)":"(oriented - about to write)",x+16,y+52); }
+    if(s.verdict) stamp(x+w-70,y+h-34,s.verdict);
+  }
+  function stamp(cx,cy,label){
+    const pr=prog(0,16), sc=1.5-0.5*pr, a=255*pr; const c=label==='SAFE'?[131,193,103]:[252,98,85];
+    p.push(); p.translate(cx,cy); p.rotate(-0.14); p.scale(sc);
+    p.noFill(); p.stroke(c[0],c[1],c[2],a); p.strokeWeight(2.4); rr(-52,-16,104,32,6);
+    p.noStroke(); p.fill(c[0],c[1],c[2],a); p.textSize(15); p.textAlign(p.CENTER,p.CENTER); p.textStyle(p.BOLD); p.text(label,0,1); p.textStyle(p.NORMAL); p.pop();
+  }
+  function drawShelf(s){
+    const x=567,y=58,w=309,h=244, vis=s.shelf||[];
+    frame(x,y,w,h,"docs/harness/   (deep-dives)",col.gold,vis.length===0);
+    if(vis.length===0){ p.push(); p.drawingContext.globalAlpha=.5; p.fill(col.faint); p.textSize(11.5); p.textAlign(p.CENTER,p.CENTER); p.text(s.act===2?"(grows as you build)":"(nothing written down yet)",x+w/2,y+h/2); p.pop(); return; }
+    for(const i of vis){
+      const cy=y+42+i*48, isNew=(s.shelfNew===i), onboardAll=(s.focus==='onboard');
+      const a = isNew?prog(0,20) : onboardAll?prog(4,26) : 1, glow=isNew||onboardAll;
+      p.push(); p.drawingContext.globalAlpha=a;
+      if(glow){ p.noStroke(); p.fill(255,211,92,pulse()); rr(x+9,cy-3,w-18,40,6); }
+      p.noStroke(); p.fill('#141a12'); rr(x+12,cy,w-24,34,5);
+      p.noFill(); p.stroke(glow?col.gold:col.line); p.strokeWeight(glow?1.5:1); rr(x+12,cy,w-24,34,5);
+      p.noStroke(); p.fill(col.gold); p.textSize(11.5); p.textAlign(p.LEFT,p.TOP); p.text(SHELF[i][0],x+22,cy+7);
+      p.fill(col.faint); p.textSize(9.5); p.text(SHELF[i][1],x+22,cy+21);
+      if(isNew){ p.fill(col.gold); p.textSize(9.5); p.textAlign(p.RIGHT,p.CENTER); p.text("+ born now",x+w-22,cy+17); }
+      p.pop();
+    }
+  }
+  function drawMeter(s){
+    const x=24,y=322,w=852,h=82;
+    p.noStroke(); p.fill(9,12,15); rr(x,y,w,h,8); p.noFill(); p.stroke(col.line); p.strokeWeight(1); rr(x,y,w,h,8); p.noStroke();
+    p.fill(col.faint); p.textSize(10.5); p.textAlign(p.LEFT,p.TOP); p.text("context loaded this session   (the attention budget - less is cheaper AND sharper)",x+14,y+10);
+    if(s.focus==='contrast'){
+      const rows=[["no harness - 8 files, blind",0.8,col.red,y+32],["with front door - 1 + 1 on demand",0.25,col.green,y+56]];
+      for(const [lab,v,c,ry] of rows){
+        p.noStroke(); p.fill(col.dim); p.textSize(10.5); p.textAlign(p.LEFT,p.CENTER); p.text(lab,x+14,ry+9);
+        p.fill('#161b22'); rr(x+230,ry,560,16,4); p.fill(c); rr(x+230,ry,560*v*prog(4,24),16,4); }
+      return;
+    }
+    const lvl=s.meter, c = lvl>=0.6?col.red : lvl>=0.4?col.gold : col.green; const bw=w-28, bx=x+14, by=y+40;
+    p.fill('#161b22'); rr(bx,by,bw,22,5); p.fill(c); rr(bx,by,bw*lvl*prog(0,20),22,5);
+    p.fill(col.ink); p.textSize(11.5); p.textAlign(p.LEFT,p.CENTER); p.text(Math.round(lvl*100)+"%  of the window",bx+8,by+11);
+    p.fill(col.faint); p.textAlign(p.RIGHT,p.CENTER);
+    p.text(s.focus==='cold'?"climbing - re-reading the whole repo":s.focus==='onboard'?"paid ONCE to map it":(s.focus==='exist'||s.focus==='green')?"just opened - nothing loaded yet":s.act===2?"low - grows with the project":"low - the door did the orienting",bx+bw-8,by+11);
+  }
+});
+
+function renderStep(i){
+  STEP=i; const s=STEPS[i];
+  caption.textContent=s.cap; insight.className="insight"+(s.good?" good":""); insight.innerHTML=s.ins; react(s.who,s.emo,s.rl);
+}
+const ACTS=[["A - already in a system",4],["B - starting one",4],["either way - never forgets",4]];
+TL=new Anim.Timeline({ length:STEPS.length, autoMs:4200, onStep:i=>renderStep(i) });
+Anim.scrubber($("scrub"), TL, { label:Anim.actLabel(ACTS), acts:ACTS });
+TL.render(0);
+
+/* ==================== READ (the real files) ==================== */
+const FILES = [
+  { id:'claude', fn:'CLAUDE.md', fs:'the front door - read first', path:'snip/CLAUDE.md', lang:'md', grp:'/' },
+  { id:'codecmd', fn:'codec.md', fs:'codec deep-dive', path:'snip/docs/harness/codec.md', lang:'md', grp:'docs/harness/' },
+  { id:'storemd', fn:'store.md', fs:'store deep-dive', path:'snip/docs/harness/store.md', lang:'md', grp:'docs/harness/' },
+  { id:'decisions', fn:'decisions.md', fs:'the why, with the math', path:'snip/docs/harness/decisions.md', lang:'md', grp:'docs/harness/' },
+  { id:'lessons', fn:'lessons.md', fs:'bugs already paid for', path:'snip/docs/harness/lessons.md', lang:'md', grp:'docs/harness/' },
+  { id:'policy', fn:'maintenance_policy.md', fs:'keep it lean', path:'snip/docs/harness/maintenance_policy.md', lang:'md', grp:'docs/harness/' },
+  { id:'baseline', fn:'baseline.md', fs:'numbers at a glance', path:'snip/docs/harness/baseline.md', lang:'md', grp:'docs/harness/' },
+  { id:'log1', fn:'2026-07-05.md', fs:'the guessable incident', path:'snip/docs/log/2026-07-05.md', lang:'md', grp:'docs/log/' },
+  { id:'log2', fn:'2026-07-09.md', fs:'lost writes', path:'snip/docs/log/2026-07-09.md', lang:'md', grp:'docs/log/' },
+  { id:'log3', fn:'2026-07-11.md', fs:'resolve latency', path:'snip/docs/log/2026-07-11.md', lang:'md', grp:'docs/log/' },
+  { id:'codec', fn:'codec.py', fs:'the tripwire, in code', path:'snip/snip/codec.py', lang:'py', grp:'snip/' },
+  { id:'store', fn:'store.py', fs:'atomic JSON store', path:'snip/snip/store.py', lang:'py', grp:'snip/' },
+  { id:'api', fn:'api.py', fs:'the CLI', path:'snip/snip/api.py', lang:'py', grp:'snip/' },
+  { id:'testcodec', fn:'test_codec.py', fs:'pins the no-id rule', path:'snip/tests/test_codec.py', lang:'py', grp:'tests/' },
+];
+const NOTES = {
+  claude: [
+    { a:'Read this FIRST', t:"<b>The front door.</b> One file, read every session - the single known place an agent starts. Everything else is reachable from here." },
+    { a:'~140-line cap', t:"<b>The cap is the forcing function.</b> It makes you push detail down into a deep-dive instead of letting the door rot into a dump." },
+    { a:'Non-negotiables', t:"<b>Rules up front - short, no explanation.</b> The why lives in decisions.md; the bug that taught it lives in lessons.md." },
+    { a:'(Why: `lessons.md` #1.)', t:"<b>Index, don't inline.</b> The rule points to the deep-dive; it doesn't contain it. That's what keeps the front door small." },
+    { a:'Deep-dives (read on demand)', t:"<b>The index.</b> The door is a map to the territory - each deep-dive loads only when the task needs it (just-in-time retrieval)." },
+  ],
+  lessons: [
+    { a:'Format for every entry', t:"<b>The format is half the value.</b> Every lesson is forced into the same four beats - Symptom / Cause / Fix / Rule - so it's skimmable and complete." },
+    { a:"that's the regression", t:"<b>The tripwire.</b> The exact signal to watch for. This one line is what stops the bug from ever coming back - the reason a harness beats a memory." },
+  ],
+  decisions: [
+    { a:'Why 7 characters', t:"<b>The why, with the numbers.</b> A future change gets evaluated against the math, not re-argued from scratch." },
+    { a:'the contract; the backend is not', t:"<b>Compress the decision, not just the code.</b> 'Swap the backend behind the interface' is a durable call worth writing down once." },
+  ],
+  policy: [
+    { a:'The cap is the point', t:"<b>Self-governance.</b> The harness has a policy for maintaining itself - that's what keeps it alive instead of rotting." },
+    { a:'The truth hierarchy', t:"<b>The anti-rot rule.</b> running code &gt; docs &gt; history. When they disagree, trust what runs and fix the stale doc in the same change." },
+    { a:'Log before code', t:"<b>The raw history.</b> The dated log is the source; the front door + deep-dives are its compressed, current view." },
+  ],
+  codec: [
+    { a:'randomness IS the', t:"<b>The rule in the code's own voice.</b> The docstring restates the non-negotiable right where it could be violated." },
+    { a:'there must never be one again', t:"<b>The tripwire from lessons.md #1, enforced at the code.</b> A reviewer - human or agent - meets it exactly where the mistake would be made." },
+  ],
+  codecmd: [
+    { a:'The length math', t:"<b>The math is the argument.</b> A future 'make codes shorter' gets checked against the collision numbers, not vibes." },
+    { a:'must not regress', t:"<b>Doc and test agree.</b> The deep-dive names the invariant; test_codec.py enforces it - belt and braces." },
+  ],
+  storemd: [
+    { a:'this is the contract', t:"<b>The interface is the contract, not the backend.</b> This is what lets you swap JSON for SQLite without touching a single caller." },
+    { a:'Atomic writes', t:"<b>A whole incident, compressed to a rule.</b> lessons.md #2 lives here as durable, reusable guidance." },
+  ],
+  store: [
+    { a:'os.replace(tmp', t:"<b>The fix from lessons.md #2, in code.</b> write-temp-then-replace is the atomic-write pattern the lesson prescribed." },
+    { a:'codes are permanent (rule #2)', t:"<b>Rule #2 enforced at the store.</b> Reassigning a code raises - the invariant can't be violated by accident." },
+  ],
+  api: [
+    { a:'make_code takes NO id', t:"<b>The tripwire, one more time.</b> The comment sits exactly where a future dev might be tempted to pass an id." },
+    { a:'queued off the hot path', t:"<b>lessons.md #3, in code.</b> resolve returns the URL first; the hit bump never blocks the read." },
+  ],
+};
+let annOn=true;
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function hlMd(line){
+  if(/^#{1,4}\s/.test(line)) return '<span class="h">'+esc(line)+'</span>';
+  let s=esc(line); const bq=/^>\s?/.test(line);
+  s=s.replace(/`([^`]+)`/g,'<span class="c">$1</span>').replace(/\*\*([^*]+)\*\*/g,'<span class="b">$1</span>').replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<span class="lk">$1</span>');
+  return bq?'<span class="q">'+s+'</span>':s;
+}
+function hlPy(line){
+  let s=esc(line);
+  s=s.replace(/(&quot;[^&]*&quot;|"[^"]*")/g,'<span class="str">$1</span>').replace(/(#.*)$/,'<span class="cm">$1</span>');
+  if(/^\s*#/.test(line)) s='<span class="cm">'+esc(line)+'</span>';
+  return s;
+}
+function showFile(id){
+  const f=FILES.find(x=>x.id===id);
+  const raw=$('src-'+id).textContent.replace(/^\n/,'').replace(/\s+$/,''); const lines=raw.split('\n'); const notes=NOTES[id]||[];
+  $('fhead').innerHTML='<b>'+f.fn+'</b>   '+f.path;
+  let html='', n=0;
+  for(const line of lines){ n++; const note=notes.find(x=>line.indexOf(x.a)>=0); const body=f.lang==='py'?hlPy(line):hlMd(line);
+    html+='<div class="row'+(note?' ann':'')+'"><span class="ln">'+n+'</span><span class="src">'+(body||' ')+'</span></div>';
+    if(note) html+='<div class="note'+(annOn?'':' hide')+'">'+note.t+'</div>'; }
+  $('codeview').innerHTML=html; $('codeview').parentElement.scrollTop=0;
+  document.querySelectorAll('.file').forEach(b=>b.classList.toggle('active',b.dataset.id===id));
+}
+const tree=$('tree'); let lastGrp='';
+for(const f of FILES){
+  if(f.grp!==lastGrp){ const g=document.createElement('div'); g.className='grp'; g.textContent=f.grp; tree.appendChild(g); lastGrp=f.grp; }
+  const b=document.createElement('button'); b.className='file'; b.dataset.id=f.id;
+  b.innerHTML='<span class="fn">'+f.fn+'</span><span class="fs">'+f.fs+'</span>'; b.onclick=()=>showFile(f.id); tree.appendChild(b);
+}
+$('annBtn').onclick=function(){ annOn=!annOn; this.classList.toggle('on',annOn); this.textContent='annotations: '+(annOn?'on':'off');
+  document.querySelectorAll('.note').forEach(nd=>nd.classList.toggle('hide',!annOn)); };
+showFile('claude');
+</script>
+</body>
+</html>

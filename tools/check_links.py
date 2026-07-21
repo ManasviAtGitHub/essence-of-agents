@@ -45,6 +45,8 @@ def main():
              glob.glob(os.path.join(ROOT, "production", "**", "*.html"), recursive=True) +
              glob.glob(os.path.join(ROOT, "models", "**", "*.html"), recursive=True) +
              glob.glob(os.path.join(ROOT, "frontier", "**", "*.html"), recursive=True) +
+             glob.glob(os.path.join(ROOT, "serving", "**", "*.html"), recursive=True) +
+             glob.glob(os.path.join(ROOT, "bonus", "**", "*.html"), recursive=True) +
              [os.path.join(ROOT, "index.html"), os.path.join(ROOT, "tools", "gallery.mjs")])
     files = [f for f in files if "node_modules" not in f]
 

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The graph - a large multi-agent system</title>
+<!-- Bonus B2: a large multi-agent system as a FLOW GRAPH. A task travels node to node
+     through typed specialist agents (cheap router / reasoning orchestrator, critic,
+     synthesizer / instruct workers). Every node shows its model TYPE and its function,
+     so you can foresee what it will do. The demo task + numbers are a labeled example. -->
+<link rel="stylesheet" href="../../../../assets/theme.css" />
+<style>
+  body { font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink);
+         background:var(--bg); max-width:1000px; margin:26px auto; padding:0 20px 60px; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:22px; margin:0 0 3px; }
+  .stamp { font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; }
+  .sub { color:var(--dim); margin:4px 0 12px; font-size:14px; }
+  .sub b { color:var(--ink); }
+  #canvas { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0b0e12; line-height:0; }
+  #canvas canvas { max-width:100%; height:auto !important; display:block; }
+  .legend { display:flex; gap:16px; margin-top:9px; font:11.5px var(--mono); color:var(--dim); flex-wrap:wrap; }
+  .sw { display:inline-block; width:9px; height:9px; border-radius:2px; vertical-align:middle; margin-right:5px; }
+  .caption { color:#d8dde3; font-size:15px; margin:12px 0 0; min-height:52px; }
+  .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
+             border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
+  .insight.good { border-left-color:var(--green); }
+  .react { margin-top:10px; }
+</style>
+</head>
+<body>
+<h1>The graph</h1>
+<div class="stamp">BONUS . B2 . verified as of 2026-07 - a large multi-agent system, and why it works</div>
+<p class="sub">A large multi-agent system is a <b>graph of typed specialists</b>. Watch one task travel node to node - each box names a suggested <b>open model + size</b>, chosen for cost and latency, so you can see what to run where.</p>
+
+<div id="canvas" aria-label="A flow graph of agents: router, orchestrator, parallel workers, critic, synthesizer - a task travels through"></div>
+<div class="legend">
+  <span><span class="sw" style="background:var(--gold)"></span>reasoning tier (plan / verify)</span>
+  <span><span class="sw" style="background:var(--blue)"></span>instruct tier (work / write)</span>
+  <span><span class="sw" style="background:var(--faint)"></span>cheap tier (route)</span>
+  <span><span class="sw" style="background:#e0b0ff"></span>the task, travelling</span>
+  <span style="color:var(--faint)">open models shown are illustrative</span>
+</div>
+<div class="caption" id="caption" aria-live="polite"></div>
+<div class="insight" id="insight"></div>
+<div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+<div id="scrub"></div>
+
+<script src="../../../../assets/cast.js"></script>
+<script src="../../../../assets/anim.js"></script>
+<script src="../../../../assets/vendor/p5.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const col={blue:'#58c4dd',gold:'#ffd35c',green:'#83c167',red:'#fc6255',violet:'#e0b0ff',
+  ink:'#e9ebee',dim:'#98a2b0',faint:'#5b6470',line:'#2a3038',panel:'#141b22'};
+const TC={cheap:col.faint, instruct:col.blue, reasoning:col.gold};
+
+// ---- the graph: typed agent nodes (name, technical type, function) ----
+const N = {
+  input:  {x:20,  y:160, w:72,  h:52, name:"TASK",  plain:true, fn:"the request"},
+  router: {x:108, y:148, w:120, h:76, name:"Router",       tier:"cheap",     model:"Llama-3.2-3B",  size:"3B",   fn:"classify + route",   note:"instant / ~free"},
+  plan:   {x:250, y:132, w:150, h:98, name:"Orchestrator", tier:"reasoning", model:"DeepSeek-R1",   size:"671B", fn:"decompose the task", note:"slow / pricey (once)"},
+  w0:     {x:424, y:40,  w:150, h:58, name:"Worker",       tier:"instruct",  model:"Qwen3-30B-A3B",              fn:"", note:"MoE: fast + cheap"},
+  w1:     {x:424, y:104, w:150, h:58, name:"Worker",       tier:"instruct",  model:"Qwen3-30B-A3B",              fn:"", note:"MoE: fast + cheap"},
+  w2:     {x:424, y:222, w:150, h:58, name:"Worker",       tier:"instruct",  model:"Qwen3-30B-A3B",              fn:"", note:"MoE: fast + cheap"},
+  w3:     {x:424, y:286, w:150, h:58, name:"Worker",       tier:"instruct",  model:"Qwen3-30B-A3B",              fn:"", note:"MoE: fast + cheap"},
+  critic: {x:600, y:132, w:122, h:98, name:"Critic",       tier:"reasoning", model:"QwQ-32B",       size:"32B",  fn:"verify / refute",    note:"deliberate / mid"},
+  synth:  {x:746, y:132, w:134, h:98, name:"Synthesizer",  tier:"instruct",  model:"Llama-3.3-70B", size:"70B",  fn:"compose the answer", note:"one strong call"},
+  output: {x:896, y:160, w:60,  h:52, name:"OUT",   plain:true, fn:"answer"},
+};
+const WORKERS=['w0','w1','w2','w3'];
+const SKELETON=[['input','router'],['router','plan'],['plan','w0'],['plan','w1'],['plan','w2'],['plan','w3'],
+                ['w0','critic'],['w1','critic'],['w2','critic'],['w3','critic'],['critic','synth'],['synth','output']];
+
+const STEPS=[
+ {active:['input'], edges:[], payload:'task: "why did dirigibles lose to airplanes?"',
+  cap:"A task enters the system. Follow it - it will travel agent to agent through the graph above, which you can see whole.",
+  ins:"<b>A multi-agent system is a graph of typed specialists.</b> Because every node is labelled, you can foresee the path before the task takes it.", good:false, who:'cortex',emo:'neutral', rl:"One request in. Let's see where it goes."},
+ {active:['router'], edges:[['input','router']], payload:'routed: a complex research task',
+  cap:"First hop: the ROUTER - a cheap, small model. It classifies the task and picks the path (how hard, how many workers).",
+  ins:"<b>Cheap model, cheap job.</b> Routing runs on every request, so it must be tiny - you don't spend a reasoning model here.", good:false, who:'bit',emo:'think', rl:"Small model out front: size it up, send it on."},
+ {active:['plan'], edges:[['router','plan']], payload:'a plan: 6 independent subtasks',
+  cap:"Next: the ORCHESTRATOR - a reasoning model. It decomposes the task into 6 INDEPENDENT subtasks.",
+  ins:"<b>Reasoning model, hard job.</b> Decomposition is the load-bearing decision - a bad split dooms everything downstream, so it earns the deliberation.", good:false, who:'cortex',emo:'think', rl:"Split it into pieces that don't depend on each other."},
+ {active:['w0','w1','w2','w3'], edges:[['plan','w0'],['plan','w1'],['plan','w2'],['plan','w3']], fan:'out', payload:'6 subtasks dispatched at once',
+  cap:"The task SPLITS and fans out to the WORKERS - instruct models. One subtask each, all dispatched at the same moment.",
+  ins:"<b>Parallelism + isolation.</b> Each worker gets its own context window, so they don't interfere - and they run concurrently, not one after another.", good:true, who:'bit',emo:'happy', rl:"Four of us, four pieces, all at once."},
+ {active:['w0','w1','w2','w3'], edges:[], work:true, payload:'6 findings (each worker, in parallel)',
+  cap:"Each worker runs in its own window, calls its tools, and returns one condensed finding - not its whole transcript.",
+  ins:"<b>Instruct model, tool work.</b> Fast, high-frequency, cost-sensitive - the tier you run many of, in parallel.", good:false, who:'bit',emo:'think', rl:"Chase my angle, hand back one tight finding."},
+ {active:['critic'], edges:[['w0','critic'],['w1','critic'],['w2','critic'],['w3','critic']], fan:'in', payload:'6 findings arrive at the critic',
+  cap:"The findings travel to the CRITIC - a reasoning model - where they merge for checking.",
+  ins:"<b>Fan-in.</b> Many parallel results converge on one node; the condensed findings keep it from being flooded.", good:false, who:'cortex',emo:'think', rl:"Collect the pieces; now, are they true?"},
+ {active:['critic'], edges:[['critic','w2']], reject:true, payload:'5 pass, 1 rejected -> sent back',
+  cap:"The critic REFUTES each finding against its evidence. Five pass; one unsupported claim is rejected and sent BACK for a redo.",
+  ins:"<b>Reasoning model, adversarial job.</b> A critic catches what a producer is blind to - and the loop-back edge means a bad result never ships.", good:true, who:'cortex',emo:'happy', rl:"No source for that one - back it goes."},
+ {active:['synth'], edges:[['critic','synth']], payload:'5 verified findings -> compose',
+  cap:"The verified pieces travel to the SYNTHESIZER - a reasoning model - which reconciles them into one answer.",
+  ins:"<b>Synthesis.</b> Condensed, checked findings become a single coherent result - each claim still traceable to a source.", good:false, who:'cortex',emo:'think', rl:"Five true threads, one clean answer."},
+ {active:['output'], edges:[['synth','output']], payload:'a single cited answer',
+  cap:"Out comes one cited answer. That's the whole journey: task in, answer out, through a chain of typed specialists.",
+  ins:"<b>Task in, answer out.</b> You could foresee every hop because the graph and the node types were visible from the start.", good:true, who:'bit',emo:'happy', rl:"In one end, out the other - and I saw it coming."},
+ {active:Object.keys(N), edges:[], recap:'types', payload:'right model, right node - sized for cost + latency',
+  cap:"Read the models back: a 3B on the router (it runs on every call), a 671B reasoner to plan just once, cheap MoE workers to run four in parallel, a 32B critic, a 70B to write. Size follows cost and latency.",
+  ins:"<b>Model heterogeneity.</b> A reasoning giant is slow and pricey, so you spend it once - not per token. The high-volume nodes (router, workers) run small, fast, and cheap.", good:true, who:'cortex',emo:'happy', rl:"Big brain once; small + fast everywhere it repeats."},
+ {active:Object.keys(N), edges:[], trade:true, payload:'the bill',
+  cap:"Why pay for all this? About +90% over a single agent on research - at ~15x the tokens. And it only works because the subtasks were INDEPENDENT.",
+  ins:"<b>The trade, and the limit.</b> Multi-agent buys parallelism + isolation. Give agents shared state (like one codebase) and they misalign - then keep a single thread.", good:false, who:'cortex',emo:'neutral', rl:"Big gain, big bill - and only when the work truly splits."},
+];
+
+const caption=$("caption"), insight=$("insight"), chrR=$("chrR"), reactLine=$("reactLine");
+function react(w,e,l){ chrR.dataset.c=w; chrR.dataset.e=e; reactLine.textContent=l; if(window.Cast) Cast.render($("react")); }
+if (window.p5) p5.disableFriendlyErrors=true;
+const CW=956, CH=390;
+const ease=t=>t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+let STEP=0;
+
+const RC=(k)=>({x:N[k].x+N[k].w, y:N[k].y+N[k].h/2});   // right-center (out)
+const LC=(k)=>({x:N[k].x,        y:N[k].y+N[k].h/2});   // left-center (in)
+
+new p5(function(p){
+  const density=()=>Math.max(2,window.devicePixelRatio||1);
+  let lastStep=-1, stepStart=0;
+  const prog=(d,dur)=> ease(p.constrain((p.frameCount-stepStart-(d||0))/(dur||34),0,1));
+  const rr=(x,y,w,h,r)=> p.rect(x,y,w,h,r);
+  const pulse=()=> 55+45*Math.sin(p.frameCount*0.15);
+  p.setup=function(){ const c=p.createCanvas(CW,CH); c.parent("canvas");
+    p.textFont("ui-monospace, Menlo, Consolas, monospace"); p.pixelDensity(density()); };
+  p.draw=function(){
+    if(p.pixelDensity()!==density()) p.pixelDensity(density());
+    if(STEP!==lastStep){ stepStart=p.frameCount; lastStep=STEP; }
+    try { scene(); } catch(e){ p.background(11,14,18); p.noStroke(); p.fill(col.red); p.textSize(12); p.textAlign(p.LEFT,p.TOP); p.text("err: "+e.message,20,20); }
+  };
+
+  function edge(a,b,c,wt,al){
+    const s=RC(a), e=LC(b); p.push(); p.drawingContext.globalAlpha=al;
+    p.stroke(c); p.strokeWeight(wt); p.noFill();
+    // gentle curve
+    const mx=(s.x+e.x)/2; p.beginShape(); p.vertex(s.x,s.y); p.bezierVertex(mx,s.y,mx,e.y,e.x,e.y); p.endShape();
+    // arrowhead
+    const ang=Math.atan2(e.y - (e.y), e.x-mx)||0; p.fill(c); p.noStroke();
+    p.triangle(e.x,e.y, e.x-7,e.y-4, e.x-7,e.y+4);
+    p.pop();
+  }
+  function packet(a,b,t,label){
+    const s=RC(a), e=LC(b), mx=(s.x+e.x)/2;
+    // point on the bezier at t
+    const u=1-t, x=u*u*u*s.x+3*u*u*t*mx+3*u*t*t*mx+t*t*t*e.x, y=u*u*u*s.y+3*u*u*t*s.y+3*u*t*t*e.y+t*t*t*e.y;
+    p.noStroke(); p.fill(col.violet); p.drawingContext.globalAlpha=.25; p.ellipse(x,y,16,16); p.drawingContext.globalAlpha=1;
+    p.fill(col.violet); p.ellipse(x,y,8,8);
+    return {x,y};
+  }
+  function badge(x,y,tier){
+    const c=TC[tier], w=p.textWidth(tier)+13;
+    p.noStroke(); p.drawingContext.globalAlpha=.16; p.fill(c); rr(x,y,w,15,7); p.drawingContext.globalAlpha=1;
+    p.noFill(); p.stroke(c); p.strokeWeight(1); rr(x,y,w,15,7);
+    p.noStroke(); p.fill(c); p.textSize(9.5); p.textAlign(p.LEFT,p.CENTER); p.text(tier,x+6,y+8);
+  }
+  function node(k,lit){
+    const n=N[k], acc=n.tier?TC[n.tier]:col.dim;
+    p.push(); if(!lit) p.drawingContext.globalAlpha=.5;
+    p.noStroke(); p.fill(lit?'#161c24':col.panel); rr(n.x,n.y,n.w,n.h,9);
+    p.noFill(); p.stroke(lit?acc:col.line); p.strokeWeight(lit?1.7:1); rr(n.x,n.y,n.w,n.h,9);
+    p.noStroke(); p.textAlign(p.LEFT,p.TOP);
+    p.fill(lit?col.ink:col.dim); p.textSize(11.5); p.textStyle(p.BOLD); p.text(n.name,n.x+10,n.y+8); p.textStyle(p.NORMAL);
+    if(n.plain){ p.fill(col.faint); p.textSize(9.5); p.text(n.fn,n.x+10,n.y+27); p.pop(); return; }
+    // suggested open model + size (tier-coloured) - what you'd actually run here
+    p.textSize(11); p.textStyle(p.BOLD); p.fill(lit?acc:col.dim); p.text(n.model,n.x+10,n.y+24);
+    const mw=p.textWidth(n.model); p.textStyle(p.NORMAL);
+    if(n.size){ p.fill(col.faint); p.textSize(9); p.text(n.size,n.x+10+mw+6,n.y+26); }
+    if(n.fn){ p.fill(col.faint); p.textSize(9); p.text(n.fn,n.x+10,n.y+41); }
+    if(n.note){ p.fill(lit?col.dim:col.faint); p.textSize(8.7); p.text(n.note,n.x+10,n.y+n.h-15); }
+    p.pop();
+  }
+
+  function scene(){
+    p.background(11,14,18);
+    const s=STEPS[STEP];
+    // 1) skeleton edges (always visible -> the graph is foreseeable)
+    for(const [a,b] of SKELETON) edge(a,b,col.line,1,.5);
+    // 2) traversed path so far (green, faint) - every edge used by steps <= STEP
+    for(let i=0;i<=STEP;i++){ if(STEPS[i].reject) continue; for(const [a,b] of (STEPS[i].edges||[])) edge(a,b,col.green,1.4,.35); }
+    // 3) current edges bright + travelling packet
+    const t=prog(4,30);
+    for(const [a,b] of (s.edges||[])){
+      edge(a,b, s.reject?col.red:col.green, 2, 1);
+      packet(a,b,t, s.payload);
+    }
+    // reject label
+    if(s.reject){ const m=LC('w2'); p.fill(col.red); p.textSize(9.5); p.textAlign(p.RIGHT,p.CENTER); p.text("rejected",m.x-6,m.y-14); }
+    // work pulse on active workers
+    if(s.work){ for(const k of WORKERS){ const n=N[k]; p.noStroke(); p.fill(88,196,221,pulse()*0.5); rr(n.x-3,n.y-3,n.w+6,n.h+6,11); } }
+    // 4) nodes
+    const activeSet=new Set(s.active||[]);
+    for(const k in N){ // a node stays "on" once the packet has reached it (<= its stage), plus current active
+      const reached = reachedBy(k) <= STEP;
+      node(k, activeSet.has(k) || reached);
+    }
+    // 5) status bar (what is travelling) + recaps
+    statusBar(s);
+    if(s.trade) tradeMeters();
+  }
+
+  // the step index at which each node first goes live (for "stays lit once reached")
+  function reachedBy(k){
+    const map={input:0,router:1,plan:2,w0:3,w1:3,w2:3,w3:3,critic:5,synth:7,output:8};
+    return map[k]!==undefined?map[k]:99;
+  }
+
+  function statusBar(s){
+    const y=CH-34;
+    p.noStroke(); p.fill(9,12,15); rr(20,y,CW-40,26,7); p.noFill(); p.stroke(col.line); rr(20,y,CW-40,26,7);
+    p.noStroke(); p.fill(col.violet); p.textSize(10.5); p.textAlign(p.LEFT,p.CENTER); p.text("CARRYING",32,y+13);
+    p.fill(col.ink); p.textSize(12); p.text(s.payload||"",112,y+13);
+  }
+  function tradeMeters(){
+    const bx=560,by=250,bw=376;
+    p.noStroke(); p.fill(9,12,15); rr(bx,by,bw,64,7); p.noFill(); p.stroke(col.line); rr(bx,by,bw,64,7); p.noStroke();
+    p.fill(col.faint); p.textSize(10); p.textAlign(p.LEFT,p.TOP); p.text("the trade (measured)",bx+12,by+8);
+    const rows=[["quality vs 1 agent","+90%",0.9,col.green,by+28],["tokens vs a chat","x15",1.0,col.red,by+48]];
+    for(const [lab,v,val,c,ry] of rows){
+      p.fill(col.dim); p.textSize(10); p.textAlign(p.LEFT,p.CENTER); p.text(lab,bx+12,ry+6);
+      p.fill('#161b22'); rr(bx+140,ry,190,12,3); p.fill(c); rr(bx+140,ry,190*val*prog(6,22),12,3);
+      p.fill(col.ink); p.textSize(9.5); p.text(v,bx+140+190*val*prog(6,22)+6,ry+6);
+    }
+  }
+});
+
+function renderStep(i){ STEP=i; const s=STEPS[i];
+  caption.textContent=s.cap; insight.className="insight"+(s.good?" good":""); insight.innerHTML=s.ins; react(s.who,s.emo,s.rl); }
+const ACTS=[["route & plan",3],["fan out & work",3],["verify & synth",3],["types & trade",2]];
+const TL=new Anim.Timeline({ length:STEPS.length, autoMs:4200, onStep:i=>renderStep(i) });
+Anim.scrubber($("scrub"), TL, { label:Anim.actLabel(ACTS), acts:ACTS });
+TL.render(0);
+</script>
+</body>
+</html>

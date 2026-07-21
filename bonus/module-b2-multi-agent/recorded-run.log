@@ -1,0 +1,36 @@
+[the newsroom] researching: "Why did dirigibles lose to airplanes?"
+
+[router - cheap] triage: broad 'why did X lose' question -> 6 independent angles, in parallel
+[editor - reasoning] decompose into independent angles:
+    1. safety & public trust
+    2. speed
+    3. cost & infrastructure
+    4. weather fragility
+    5. military obsolescence
+    6. regulation / were they banned?
+[reporter - instruct] 6 reporters running IN PARALLEL, each its own notebook (isolated context):
+    safety & public trust      -> "The 1937 Hindenburg disaster destroyed p"
+    speed                      -> "Airplanes were nearly twice as fast as a"
+    cost & infrastructure      -> "Airships were vast and costly to build, "
+    weather fragility          -> "Rigid airships were fragile and repeated"
+    military obsolescence      -> "By WWII, aircraft and radar had erased t"
+    regulation / were they ban -> "A 1938 international treaty outlawed air"
+[checker - reasoning] refute each claim against the wire; keep only what a source supports:
+    safety & public trust        sources s1             -> KEEP
+    speed                        sources s2             -> KEEP
+    cost & infrastructure        sources s3,s6          -> KEEP
+    weather fragility            sources s4             -> KEEP
+    military obsolescence        sources s5             -> KEEP
+    regulation / were they banne (no source)            -> DROP
+[copy desk - instruct] citations attached; editor synthesizes the final report.
+
+=== the cited report ===
+Dirigibles lost to airplanes for several converging reasons.  The 1937 Hindenburg disaster destroyed public confidence in airships [s1].  Airplanes were nearly twice as fast as airships [s2].  Airships were vast and costly to build, house, and crew [s3][s6].  Rigid airships were fragile and repeatedly lost to storms [s4].  By WWII, aircraft and radar had erased the airship's niche [s5].
+
+=== why multi-agent, here ===
+  PARALLELISM  6 reporters worked at once, not one after another.
+  ISOLATION    each had its own window -> no interference; more effective context than one agent.
+  VERIFICATION the fact-checker dropped 1 unsupported claim a lone agent might have kept.
+  SPECIALIZATION reasoning model to plan + check, instruct to report, a cheap model to triage.
+  THE TRADE    ~+90% on research evals, at ~15x the tokens - worth it here, not for everything.
+  THE LIMIT    it only works because the angles are INDEPENDENT; share state (e.g. coding) and it misaligns.
