@@ -23,3 +23,6 @@ agentic-course/module-11-shipping/evalset.json
 
 # built static site
 dist/
+
+# social drafts + media -- local only, the repo is public
+posts/
