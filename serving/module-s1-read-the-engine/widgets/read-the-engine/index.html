@@ -42,6 +42,14 @@
   .react .rl { font-size:13.5px; color:#d8dde3; }
   #scrub { margin-top:15px; }
   @media (max-width:820px){ .stage { flex-direction:column; } }
+  /* capture-only: with #film in the URL we film just the machine + the character
+     (Cortex/Bit), dropping the prose so the hero GIF stays clean. On the live page
+     (no hash) #film is an unstyled wrapper - the layout is unchanged. */
+  body.filming .caption, body.filming .insight { display:none; }
+  /* S1 only: the token-flow canvas is tall + sparse; film the CODE + character (the "15 lines" punch). Canvas stays on the live page. */
+  body.filming .cvwrap { display:none; }
+  body.filming .react { margin-top:12px; padding:11px 15px; }
+  body.filming .react .chr svg { width:54px; height:54px; }
 </style>
 </head>
 <body>
@@ -57,6 +65,7 @@ Watch a token flow through it - and the one line that turns it from a demo into 
   <span class="modehint" id="modehint"></span>
 </div>
 
+<div id="film">
 <div class="stage">
   <div class="codewrap">
     <div class="codehd"><span>run.c &middot; forward()</span><span id="codetag">the engine</span></div>
@@ -68,6 +77,7 @@ Watch a token flow through it - and the one line that turns it from a demo into 
 <p class="caption" id="caption"></p>
 <div class="insight" id="insight"></div>
 <div class="react"><span class="chr" id="rchr" data-c="bit" data-e="read"></span><span class="rl" id="rline"></span></div>
+</div>
 <div id="scrub"></div>
 
 <script src="../../../../assets/cast.js"></script>
@@ -337,6 +347,9 @@ function build(mode){
 }
 document.querySelectorAll('.modebtn').forEach(b=> b.addEventListener('click', ()=> build(b.dataset.mode)));
 build('int');
+// capture-only: film the machine + character for the series GIF. Also render step 0 now
+// so the character's first line is in frame 1 (the live page renders on first interaction).
+if (location.hash === '#film') { document.body.classList.add('filming'); try { tl.render(0); } catch (e) {} }
 </script>
 </body>
 </html>

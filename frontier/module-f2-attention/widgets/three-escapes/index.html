@@ -26,6 +26,13 @@
   .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
              border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
   .react { margin-top:10px; }
+  /* capture-only: with #film in the URL, film the canvas + the character (Cortex/Bit) and
+     drop the prose, so the hero GIF stays clean. Live page (no hash) is unchanged. */
+  body.filming .caption, body.filming .insight { display:none; }
+  body.filming .react { display:flex; gap:11px; align-items:center; margin-top:12px; padding:11px 15px;
+    border:1px solid var(--line); border-radius:10px; background:var(--panel); min-height:44px; }
+  body.filming .react .chr svg { width:54px; height:54px; flex:none; }
+  body.filming .react .line { font-size:14px; color:#d8dde3; }
 </style>
 </head>
 <body>
@@ -39,11 +46,13 @@
   <span class="modehint">page + toy vectors hand-authored (labeled); scores, notes and meters computed live</span>
 </div>
 
+<div id="film">
 <div id="canvas" aria-label="One page of text being read three different ways"></div>
 
 <div class="caption" id="caption" aria-live="polite"></div>
 <div class="insight" id="insight"></div>
 <div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+</div>
 
 <div id="scrub"></div>
 
@@ -481,6 +490,8 @@ document.querySelectorAll(".modebtn").forEach(b=>b.onclick=()=>{
   build(b.dataset.mode);
 });
 build("int");
+// capture-only: film the canvas + character for the series GIF (build() already rendered step 0).
+if (location.hash === '#film') document.body.classList.add('filming');
 </script>
 </body>
 </html>

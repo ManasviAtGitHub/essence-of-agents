@@ -18,7 +18,12 @@ import pngjs from "pngjs";
 const { PNG } = pngjs;
 import { writeFileSync } from "fs";
 
-const [, , widget, out, stepsArg, fpsArg, perArg, selArg, clickArg] = process.argv;
+const [, , widgetArg, out, stepsArg, fpsArg, perArg, selArg, clickArg] = process.argv;
+// The widget path may carry a #hash (e.g. index.html#film) to trigger a capture-only mode
+// inside the widget. pathToFileURL would mangle it, so split it off and re-append to the URL.
+const hashAt = widgetArg.indexOf("#");
+const widget = hashAt >= 0 ? widgetArg.slice(0, hashAt) : widgetArg;
+const urlHash = hashAt >= 0 ? widgetArg.slice(hashAt) : "";
 const STEPS = +(stepsArg || 8), FPS = +(fpsArg || 12), PER = +(perArg || 6);
 const DELAY = Math.round(1000 / FPS);
 const NEXT = clickArg || '.scrub-btn[data-a="next"]';
@@ -26,9 +31,16 @@ const NEXT = clickArg || '.scrub-btn[data-a="next"]';
 // human can actually read the state (GIFs allow per-frame delays). Override: GIF_HOLD=ms.
 // 4200 was calibrated against the series' caption-heavy widgets (user-picked, 2026-07).
 const HOLD = +(process.env.GIF_HOLD || 4200);
+// CRISPNESS: GIF_SCALE = deviceScaleFactor (render at Nx for sharp small text/lines); GIF_VW widens
+// the viewport so canvases authored wider than 680 aren't downscaled before capture. Both default to
+// the original behavior - only text-dense widgets that read fuzzy at 1x need to raise them.
+const SCALE = +(process.env.GIF_SCALE || 1), VW = +(process.env.GIF_VW || 680);
+// START: advance this many steps before capturing, to split one widget's arc into several GIFs
+// (e.g. GIF 1 = step 0, GIF 2 = steps 1..n). Default 0 = from the beginning.
+const START = +(process.env.GIF_START || 0);
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 680, height: 2200 }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: VW, height: 2200 }, deviceScaleFactor: SCALE });
 
 async function findTarget() {
   return selArg
@@ -36,9 +48,16 @@ async function findTarget() {
     : (await page.$("#canvas")) || (await page.$("#cv")) || (await page.$("canvas"));
 }
 
-await page.goto(pathToFileURL(widget).href, { timeout: 15000 });
+await page.goto(pathToFileURL(widget).href + urlHash, { timeout: 15000 });
 await page.waitForTimeout(700);
 if (!(await findTarget())) { console.error("no capture target (" + (selArg || "canvas") + ") in " + widget); process.exit(1); }
+
+// advance to the START step (for GIFs that film a later slice of one widget's arc)
+for (let j = 0; j < START; j++) {
+  const b = await page.$(NEXT);
+  if (b) { try { await b.click({ timeout: 1000 }); } catch {} }
+  await page.waitForTimeout(DELAY);
+}
 
 // ---- collect: one ELEMENT screenshot per frame (always whole, sizes may vary) ----
 // Per step: PER animation frames at DELAY pace, then one settled frame held for HOLD ms

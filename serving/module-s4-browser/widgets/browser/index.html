@@ -50,6 +50,12 @@
   .rp-metrics { display:flex; gap:18px; margin-top:10px; font:12px var(--mono); color:var(--dim); flex-wrap:wrap; }
   .rp-metrics b { color:var(--gold); }
   .rp-note { font:11px var(--mono); color:var(--faint); margin-top:10px; }
+  /* capture-only: with #film in the URL we film just the machine + the character
+     (Cortex/Bit), dropping the prose so the hero GIF stays clean. On the live page
+     (no hash) #film is an unstyled wrapper - the layout is unchanged. */
+  body.filming .caption, body.filming .insight { display:none; }
+  body.filming .react { margin-top:12px; padding:11px 15px; }
+  body.filming .react .chr svg { width:54px; height:54px; }
 </style>
 </head>
 <body>
@@ -65,11 +71,13 @@ quantized model runs client-side - private, offline after one download, keyless.
   <span class="modehint" id="modehint"></span>
 </div>
 
+<div id="film">
 <div class="cvwrap"><div id="cv"></div></div>
 
 <p class="caption" id="caption"></p>
 <div class="insight" id="insight"></div>
 <div class="react"><span class="chr" id="rchr" data-c="cortex" data-e="read"></span><span class="rl" id="rline"></span></div>
+</div>
 <div id="scrub"></div>
 
 <!-- ===================== the REAL run (rule 13/14) ===================== -->
@@ -205,6 +213,9 @@ function build(mode){ CUR={mode,step:0};
 }
 document.querySelectorAll('.modebtn').forEach(b=>b.addEventListener('click', ()=>build(b.dataset.mode)));
 build('int');
+// capture-only: film the machine + character for the series GIF. Also render step 0 now
+// so the character's first line is in frame 1 (the live page renders on first interaction).
+if (location.hash === '#film') { document.body.classList.add('filming'); try { tl.render(0); } catch (e) {} }
 
 /* ================= the REAL run (rule 13/14): transformers.js on WebGPU, WASM fallback ================= */
 (function(){
