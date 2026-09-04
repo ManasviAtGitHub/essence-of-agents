@@ -60,6 +60,10 @@
   .lchip b { color:var(--ink); }
 
   .react { margin-top:10px; }
+  /* capture-only: #film in the URL films the machine + Cortex/Bit for the series GIF -
+     long prose + controls hidden, intro skipped. Live page (no hash) unchanged. */
+  body.filming .why { display:none; }   /* .ctl stays - the capture tool clicks #run for the finale */
+  body.filming .react .chr svg { width:54px; height:54px; }
 </style>
 </head>
 <body>
@@ -91,6 +95,7 @@ each one before it uses it.)</p>
 
 <div class="pick" id="pick"></div>
 
+<div id="film">
 <div id="canvas" aria-label="Candidate words passing a rules gate and assembling into a plan"></div>
 
 <div class="trace">
@@ -117,6 +122,7 @@ each one before it uses it.)</p>
 </div>
 
 <div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+</div>
 
 <script src="../../../../assets/cast.js"></script>
 <script src="../../../../assets/vendor/p5.min.js"></script>
@@ -261,7 +267,7 @@ new p5(function(p){
   // inside an iframe fires no resize event, so event hooks miss it. Polling never does.
   const density=()=>Math.max(2, window.devicePixelRatio||1);
   p.setup=function(){ const c=p.createCanvas(W,H); c.parent("canvas"); p.textFont("ui-monospace, Menlo, Consolas, monospace");
-    p.pixelDensity(density()); load(0); };
+    p.pixelDensity(density()); load(0, location.hash === "#film"); };
 
   p.draw=function(){
     if(p.pixelDensity()!==density()) p.pixelDensity(density());
@@ -466,6 +472,7 @@ document.getElementById("pick").addEventListener("click", e=>{ const b=e.target.
   document.querySelectorAll(".req").forEach((r,j)=>r.classList.toggle("on", j===+b.dataset.i));
   document.querySelectorAll(".brk").forEach(x=>x.classList.remove("on"));
   window.__loadReq(+b.dataset.i); if(window.__caption) window.__caption(); });
+if (location.hash === "#film") document.body.classList.add("filming");
 document.getElementById("run").onclick=()=>window.__run();
 document.querySelectorAll(".brk").forEach(b=>b.onclick=function(){
   const on=!this.classList.contains("on");

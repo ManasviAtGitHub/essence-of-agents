@@ -220,6 +220,13 @@ document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
 });
 
 tl.render(0);
+// capture-only: #filmon opens in the ON/fixed mode so the series GIF shows the cure
+// (the live page still opens OFF). No layout change.
+if (location.hash === "#filmon") {
+  state.mode = "on";
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x.dataset.mode === "on"));
+  tl.render(0);
+}
 </script>
 </body>
 </html>

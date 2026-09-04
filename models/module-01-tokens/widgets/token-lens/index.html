@@ -92,6 +92,10 @@
     body { padding:0 12px 48px; }
     .duo, .emb { flex-direction:column; }
   }
+  /* capture-only: with #film in the URL we film machine + Cortex (prose hidden). The live
+     page (no hash) is unchanged - #film is an unstyled wrapper. */
+  body.filming .caption, body.filming .insight { display:none; }
+  body.filming .react .chr svg { width:54px; height:54px; }
 </style>
 </head>
 <body>
@@ -106,6 +110,7 @@ screen) and ends where every later module starts: the token's <b>vector</b>.</p>
   <span class="modehint">act 1 really trains a byte-pair-encoding (BPE) vocab; act 2's sandbox encodes anything you type</span>
 </div>
 
+<div id="film">
 <div class="stage" role="group" aria-label="Tokenization stage">
   <div class="hd" id="stageHd">the text</div>
   <div class="chipwrap" id="chips"></div>
@@ -128,6 +133,7 @@ screen) and ends where every later module starts: the token's <b>vector</b>.</p>
 <div class="caption" id="caption" aria-live="polite"></div>
 <div class="insight" id="insight"></div>
 <div class="react" id="react"><span class="chr" id="chrR" data-c="cortex" data-e="neutral"></span><span class="line" id="reactLine"></span></div>
+</div>
 
 <div id="scrub"></div>
 
@@ -484,6 +490,8 @@ document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
   build(b.dataset.mode);
 });
 build("int");
+// capture-only: #film = the series-GIF mode (machine + character, prose hidden)
+if (location.hash === "#film") { document.body.classList.add("filming"); try { tl.render(0); } catch (e) {} }
 </script>
 </body>
 </html>

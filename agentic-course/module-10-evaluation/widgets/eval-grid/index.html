@@ -72,6 +72,9 @@
 <p class="sub">You rewrote the prompt and v2 <i>feels</i> better. But feelings are not measurement. Run the
 same 8-case eval on each version and watch the score - a change that reads better can quietly break things.</p>
 
+<!-- #film: capture-only wrapper (unstyled - the live layout is unchanged). The series GIF
+     films score + grid + the cast together: the delta chip and WAS-PASS tags ARE the thesis. -->
+<div id="film">
 <div class="panel">
   <div class="top">
     <span class="setlbl">eval set - 8 fixed cases, checkable answers</span>
@@ -88,6 +91,7 @@ same 8-case eval on each version and watch the score - a change that reads bette
   <span class="chr" id="bitChr" data-c="bit" data-e="neutral"></span>
   <span class="chr" id="cortexChr" data-c="cortex" data-e="neutral"></span>
   <span class="line" id="reactline"></span>
+</div>
 </div>
 
 <div class="modes">
@@ -198,6 +202,13 @@ document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
 });
 
 tl.render(0);
+// capture-only: #film2 films the v2 sweep (the regression) for the series GIF - the
+// WAS-PASS tags + "-2 vs v1" delta carry the v1 comparison inside one arc.
+if (location.hash === "#film2") {
+  state.mode = "v2";
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x.dataset.mode === "v2"));
+  tl.render(0);
+}
 </script>
 </body>
 </html>

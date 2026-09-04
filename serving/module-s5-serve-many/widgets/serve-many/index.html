@@ -201,7 +201,9 @@ document.querySelectorAll('.modebtn').forEach(b=>b.addEventListener('click', ()=
 build('int');
 // capture-only: film the machine + character for the series GIF. Also render step 0 now
 // so the character's first line is in frame 1 (the live page renders on first interaction).
-if (location.hash === '#film') { document.body.classList.add('filming'); try { tl.render(0); } catch (e) {} }
+// #film films the INT arc; #film2 the MECH arc (the post's second GIF). Both capture-only.
+if (location.hash === '#film' || location.hash === '#film2') { document.body.classList.add('filming');
+  if (location.hash === '#film2') build('mech'); try { tl.render(0); } catch (e) {} }
 </script>
 </body>
 </html>
