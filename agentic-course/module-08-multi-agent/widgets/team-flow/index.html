@@ -76,6 +76,13 @@
     .stage { width:100%; }
     .diag { width:100%; max-width:100%; }
   }
+  /* capture-only: with #film/#film2 in the URL we film diagram + caption-as-voice-bar
+     (toggles + insight hidden, padding so nothing rides the frame edge). The live page
+     (no hash) is unchanged - #film is an unstyled wrapper. */
+  body.filming #film { padding: 4px 4px 10px; }
+  body.filming .modes { display:none; }
+  body.filming .caption { border:1px solid var(--line); border-radius:10px; background:var(--panel);
+    padding:10px 14px; margin-top:12px; font-size:14.5px; min-height:0; }
 </style>
 </head>
 <body>
@@ -83,6 +90,7 @@
 <p class="sub">More agents is not better - the right <b>shape</b> is. Messages travel as arrows between
 agent nodes. Watch when fanning out wins, and when it just buys coordination tax.</p>
 
+<div id="film">
 <div class="wrap">
   <div class="stage" role="group" aria-label="Team shape diagram">
     <div id="dSingle" class="diag">
@@ -134,6 +142,7 @@ agent nodes. Watch when fanning out wins, and when it just buys coordination tax
 </div>
 
 <div class="caption" id="caption" aria-live="polite"></div>
+</div>
 <div class="insight" id="insight"></div>
 
 <div id="scrub"></div>
@@ -281,7 +290,6 @@ function renderStep(i, dir) {
 
 const tl = new Anim.Timeline({ length: LEN, onStep: renderStep, autoMs: 1300 });
 Anim.scrubber($("scrub"), tl, { label: i => "step " + (i + 1) + " / " + LEN });
-
 document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
   if (b.dataset.shape) {
     state.shape = b.dataset.shape;
@@ -294,6 +302,13 @@ document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
 });
 
 tl.render(0);
+// capture-only: film modes for the series GIF (after all wiring). #film = team + parallel
+// audit (the win); #film2 = team + tangled bug - the shape LOSES, the arc the post claims.
+if (location.hash === "#film" || location.hash === "#film2") {
+  document.body.classList.add("filming");
+  if (location.hash === "#film2") { const b = document.querySelector('.modebtn[data-task="bug"]'); if (b) b.click(); }
+  try { tl.render(0); } catch (e) {}
+}
 </script>
 </body>
 </html>
