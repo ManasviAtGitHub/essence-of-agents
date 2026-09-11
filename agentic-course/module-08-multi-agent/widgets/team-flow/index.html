@@ -309,6 +309,23 @@ if (location.hash === "#film" || location.hash === "#film2") {
   if (location.hash === "#film2") { const b = document.querySelector('.modebtn[data-task="bug"]'); if (b) b.click(); }
   try { tl.render(0); } catch (e) {}
 }
+// #film3: the double-arc film - the SAME shape failing on the tangled bug, then winning on
+// the parallel audit (the verdict flips x -> ok = "match the shape to the task" in one loop).
+// CLICK-driven so capture pacing is exact: the tool's next-clicks advance the steps; the
+// first click AT the failure verdict arms the switch, the second flips the task to audit.
+if (location.hash === "#film3") {
+  document.body.classList.add("filming");
+  const pick = t => { const b = document.querySelector('.modebtn[data-task="' + t + '"]'); if (b) b.click(); };
+  pick("bug");
+  let armed = false, done = false;
+  document.addEventListener("click", e => {
+    if (done || !e.target.closest || !e.target.closest('.scrub-btn[data-a="next"]')) return;
+    if (state.task === "bug" && tl.state().i === LEN - 1) {
+      if (armed) { done = true; e.stopPropagation(); pick("audit"); tl.seek(0); }
+      else armed = true;
+    }
+  }, true);
+}
 </script>
 </body>
 </html>
