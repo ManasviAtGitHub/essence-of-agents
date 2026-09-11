@@ -120,7 +120,7 @@ const MENU=[
   {k:"action", label:"actions (later this track)",        v:24,  door:"teaser",    col:"#98a2b0"},
 ];
 function drawMenu(active){
-  const w=430,h=150,bh=20;
+  const w=430,h=164,bh=20;
   const svg=d3.create("svg").attr("viewBox","0 0 "+w+" "+h);
   const g=svg.selectAll("g").data(MENU).join("g")
     .attr("transform",(d,i)=>"translate(0,"+(6+i*28)+")");
@@ -133,9 +133,12 @@ function drawMenu(active){
   g.append("text").attr("x",d=>d.v*2.6+8).attr("y",14)
     .attr("fill",d=>active&&active.indexOf(d.k)>=0?"#e9ebee":"#5b6470")
     .style("font","10.5px ui-monospace, Menlo, Consolas, monospace").text(d=>d.label);
+  svg.append("text").attr("x",0).attr("y",h-15).attr("fill","#5b6470")
+    .style("font","9.5px ui-monospace, monospace")
+    .text("bar sizes illustrative . solid = discrete menu");
   svg.append("text").attr("x",0).attr("y",h-4).attr("fill","#5b6470")
     .style("font","9.5px ui-monospace, monospace")
-    .text("bar sizes illustrative . solid = discrete menu . dashed = projected vectors (not menu entries)");
+    .text("dashed = projected vectors (not menu entries)");
   const host=$("menuChart"); host.innerHTML=""; host.appendChild(svg.node());
 }
 

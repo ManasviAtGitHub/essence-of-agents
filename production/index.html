@@ -128,10 +128,24 @@
   .demo-view.broken .react .line { color:var(--red); }
   .demo-view.fixed  .react .line { color:var(--green); }
   iframe.scene-embed { width:100%; height:560px; border:1px solid var(--line); border-radius:12px; background:var(--bg); margin:16px 0; display:block; }
+
+/* ---- mobile: sidebar becomes a drawer behind the floating scenes button ---- */
+#menubtn { display:none; position:fixed; top:10px; left:10px; z-index:70; font:inherit; font-size:13px;
+           border:1px solid var(--line); background:rgba(13,16,20,.92); color:var(--ink);
+           border-radius:8px; padding:6px 12px; cursor:pointer; }
+@media (max-width:720px) {
+  #menubtn { display:inline-block; }
+  #side { display:none; position:fixed; top:0; left:0; bottom:0; z-index:60;
+          width:min(320px, 86vw); overflow-y:auto; box-shadow:6px 0 24px rgba(0,0,0,.55); }
+  body.navopen #side { display:block; }
+  main { min-width:0; }
+  .content { padding-top:46px; }
+}
 </style>
 </head>
 <body>
 <nav id="side"></nav>
+<button id="menubtn" aria-label="Scenes menu" aria-expanded="false">&#9776; scenes</button>
 <main><div class="content" id="content"></div></main>
 
 <script src="../assets/cast.js"></script>
@@ -380,6 +394,22 @@ content.addEventListener("click", e => {
 });
 
 show(location.hash ? location.hash.slice(1) : CH[0].id);
+
+// mobile drawer: the scenes button toggles the sidebar; picking a scene closes it
+(function () {
+  var mb = document.getElementById("menubtn"), sd = document.getElementById("side");
+  if (!mb || !sd) return;
+  mb.onclick = function () {
+    var on = document.body.classList.toggle("navopen");
+    mb.setAttribute("aria-expanded", on ? "true" : "false");
+  };
+  sd.addEventListener("click", function (e) {
+    if (e.target.closest("button, a")) {
+      document.body.classList.remove("navopen");
+      mb.setAttribute("aria-expanded", "false");
+    }
+  });
+})();
 </script>
 </body>
 </html>

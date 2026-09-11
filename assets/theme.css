@@ -21,7 +21,7 @@
    height:auto cannot beat, so on a narrow viewport the width shrinks via max-width
    while the height stays pinned -> the drawing squishes (circles become ellipses).
    The !important overrides that inline height so the aspect ratio is preserved. */
-#canvas canvas { max-width:100%; height:auto !important; display:block; }
+#canvas canvas, #cv canvas { max-width:100%; height:auto !important; display:block; }
 
 /* ---- characters ---- */
 .chr svg { width:60px; height:60px; vertical-align:middle; display:block; }
@@ -91,3 +91,10 @@ body.reduce svg.nn.wave .nn-edge { animation:none; stroke:#2a5560; }
 .scrub-count { font:12px ui-monospace,Consolas,monospace; color:#6b7480; min-width:96px; text-align:right; }
 .scrub-note { font:11px ui-monospace,Consolas,monospace; color:#6b7480; border:1px solid #2a2f38;
               border-radius:999px; padding:2px 8px; margin-left:4px; cursor:help; white-space:nowrap; }
+
+/* ---- narrow screens: the scrubber wraps instead of overflowing ---- */
+@media (max-width: 560px) {
+  .scrub { flex-wrap:wrap; row-gap:8px; }
+  .scrub-range { flex:1 1 100%; order:5; }   /* the slider drops to its own full-width row */
+  .scrub-count { min-width:0; margin-left:auto; }
+}

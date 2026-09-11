@@ -56,12 +56,26 @@
   #lesson .lbody b { color:var(--gold); }
   #lesson .lbody a { color:var(--blue); text-decoration:none; font-size:12.5px; }
   #lesson .lbody a:hover { text-decoration:underline; }
+
+/* ---- mobile: the sidebar becomes a drawer behind the modules button ---- */
+#menubtn { display:none; font:inherit; font-size:13px; border:1px solid var(--line);
+           background:none; color:var(--ink); border-radius:8px; padding:5px 11px; cursor:pointer; }
+@media (max-width:720px) {
+  #menubtn { display:inline-block; }
+  #side { display:none; position:fixed; top:0; left:0; bottom:0; z-index:60;
+          width:min(320px, 86vw); overflow-y:auto; box-shadow:6px 0 24px rgba(0,0,0,.55); }
+  body.navopen #side { display:block; }
+  #bar { flex-wrap:wrap; height:auto; row-gap:6px; padding-top:8px; padding-bottom:8px; }
+  #now { flex-basis:100%; order:9; }
+}
 </style>
 </head>
 <body>
 <nav id="side"></nav>
 <main>
   <header id="bar">
+    <button id="menubtn" aria-label="Modules menu" aria-expanded="false">&#9776; modules</button>
+    
     <button id="prev" class="navbtn">&larr; Prev</button>
     <span id="now"></span><span id="count" class="count"></span>
     <button id="next" class="navbtn">Next &rarr;</button>
@@ -207,6 +221,22 @@ next.onclick = () => { if (curIdx < flat.length - 1) load(flat[curIdx + 1].src);
 
 const initial = location.hash ? decodeURIComponent(location.hash.slice(1)) : flat[0].src;
 load(initial);
+
+// mobile drawer: the modules button toggles the sidebar; picking a module closes it
+(function () {
+  var mb = document.getElementById("menubtn"), sd = document.getElementById("side");
+  if (!mb || !sd) return;
+  mb.onclick = function () {
+    var on = document.body.classList.toggle("navopen");
+    mb.setAttribute("aria-expanded", on ? "true" : "false");
+  };
+  sd.addEventListener("click", function (e) {
+    if (e.target.closest("button, a")) {
+      document.body.classList.remove("navopen");
+      mb.setAttribute("aria-expanded", "false");
+    }
+  });
+})();
 </script>
 </body>
 </html>
