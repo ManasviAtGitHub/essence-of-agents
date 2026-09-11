@@ -159,7 +159,7 @@ const ITEMS = {
 };
 const SPECS = {
   audit: ["auth.py", "cache.py", "api + db"],
-  bug:   ["module A", "module B", "module C"],
+  bug:   ["auth.py", "session.py", "cache.py"],   /* same repo as the audit - the tangle is shared session state */
 };
 // coordination messages by step
 const COORD = {
