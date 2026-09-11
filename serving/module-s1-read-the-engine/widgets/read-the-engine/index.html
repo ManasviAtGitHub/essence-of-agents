@@ -349,6 +349,8 @@ document.querySelectorAll('.modebtn').forEach(b=> b.addEventListener('click', ()
 build('int');
 // capture-only: film the machine + character for the series GIF. Also render step 0 now
 // so the character's first line is in frame 1 (the live page renders on first interaction).
+// first paint: show step 0's caption + character right away (was: blank until first click)
+tl.render(0);
 if (location.hash === '#film') { document.body.classList.add('filming'); try { tl.render(0); } catch (e) {} }
 </script>
 </body>
