@@ -98,3 +98,9 @@ body.reduce svg.nn.wave .nn-edge { animation:none; stroke:#2a5560; }
   .scrub-range { flex:1 1 100%; order:5; }   /* the slider drops to its own full-width row */
   .scrub-count { min-width:0; margin-left:auto; }
 }
+
+/* ---- touch devices: finger-sized controls ---- */
+@media (pointer: coarse) {
+  .scrub-btn { padding:10px 14px; }
+  .scrub-range { height:28px; }
+}

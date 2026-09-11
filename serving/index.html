@@ -58,6 +58,8 @@
   #side { display:none; position:fixed; top:0; left:0; bottom:0; z-index:60;
           width:min(320px, 86vw); overflow-y:auto; box-shadow:6px 0 24px rgba(0,0,0,.55); }
   body.navopen #side { display:block; }
+  body.navopen::before { content:""; position:fixed; inset:0; z-index:55; background:rgba(5,7,10,.55); }
+  @media (pointer: coarse) { #bar button, #bar a { padding-top:9px; padding-bottom:9px; } }
   #bar { flex-wrap:wrap; height:auto; row-gap:6px; padding-top:8px; padding-bottom:8px; }
   #now { flex-basis:100%; order:9; }
 }
@@ -177,6 +179,12 @@ load(initial);
       mb.setAttribute("aria-expanded", "false");
     }
   });
+  document.addEventListener("click", function (e) {
+    if (!document.body.classList.contains("navopen")) return;
+    if (e.target.closest("#side, #menubtn")) return;
+    document.body.classList.remove("navopen");
+    mb.setAttribute("aria-expanded", "false");
+  }, true);
 })();
 </script>
 </body>
