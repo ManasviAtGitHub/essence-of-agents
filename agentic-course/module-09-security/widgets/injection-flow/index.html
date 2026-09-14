@@ -285,6 +285,13 @@ document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
 });
 
 tl.render(0);
+// capture-only: #filmon opens with the guardrail ON so the series GIF can show the cure
+// (the hidden command flagged + blocked before it enters the context). Live page unchanged.
+if (location.hash === "#filmon") {
+  state.mode = "on";
+  document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x.dataset.mode === "on"));
+  tl.render(0);
+}
 </script>
 </body>
 </html>
