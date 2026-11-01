@@ -64,6 +64,14 @@
   .insight { margin:10px 0 2px; padding:10px 13px; border:1px solid var(--line); border-left:3px solid var(--blue);
              border-radius:8px; background:var(--panel); color:#dfe4ea; font-size:14px; }
 
+  /* capture-only (#filmon): cap older turns behind a "+N earlier" chip and give Cortex's
+     expression + quote more weight, so the GIF reads as a reaction, not a transcript.
+     On the live page (no hash) "filming" is never added - layout is unchanged. */
+  .card.chip { border:none; background:none; justify-content:center; color:var(--faint);
+               font:11px var(--mono); padding:3px 0; }
+  body.filming .model .chr svg { width:118px; height:118px; }
+  body.filming .mnote { font-size:14.5px; font-style:italic; color:#e3e7ec; }
+
   @media (max-width:640px) {
     .scene { flex-direction:column; }
     .model { width:100%; flex-direction:row; justify-content:flex-start; padding-top:0; }
@@ -151,6 +159,18 @@ const meter = $("meter"), meterlbl = $("meterlbl"), bar = $("bar"), fill = $("fi
       caption = $("caption"), insight = $("insight"), cortexChr = $("cortexChr"), mnote = $("mnote");
 const state = { mode: "off" };
 if (Anim.reduced()) document.body.classList.add("reduce");
+const FILMING = location.hash === "#filmon";
+
+// capture-only: collapse older live turns behind a "+N earlier" chip so a filmed frame
+// never shows more than 3 full bubbles at once - the character + meter carry the rest.
+function filmCards(cards) {
+  const hasSummary = cards[0] && cards[0].role === "summary";
+  const live = hasSummary ? cards.slice(1) : cards;
+  const hidden = Math.max(0, live.length - 3);
+  const shown = live.slice(-3);
+  const chip = hidden > 0 ? [{ role:"chip", text:"+ " + hidden + " earlier turn" + (hidden > 1 ? "s" : "") }] : [];
+  return (hasSummary ? [cards[0]] : []).concat(chip, shown);
+}
 
 const AHA = "Memory is the message list, and it is bounded. A long-running agent must compact "
           + "&mdash; summarize old turns &mdash; or it eventually overflows and dies.";
@@ -176,9 +196,11 @@ function renderStep(i, dir) {
   else { eventEl.className = "event"; eventEl.textContent = ""; }
 
   // cards
-  const last = cards[cards.length - 1];
-  cardsEl.innerHTML = cards.map((c, idx) => {
-    const isNew = (dir > 0) && idx === cards.length - 1 && c.role !== "summary";
+  const renderCards = FILMING ? filmCards(cards) : cards;
+  const last = renderCards[renderCards.length - 1];
+  cardsEl.innerHTML = renderCards.map((c, idx) => {
+    if (c.role === "chip") return `<div class="card chip">${esc(c.text)}</div>`;
+    const isNew = (dir > 0) && idx === renderCards.length - 1 && c.role !== "summary";
     return `<div class="card ${c.role}${isNew ? " new" : ""}${over ? " dead" : ""}">`
          + `<div class="body"><span class="ml">${esc(c.label)}</span>${esc(c.text)}</div>`
          + `<span class="tk">${c.tok} tok</span></div>`;
@@ -222,8 +244,9 @@ document.querySelectorAll(".modebtn").forEach(b => b.onclick = () => {
 tl.render(0);
 // capture-only: #filmon opens in the ON/fixed mode so the series GIF shows the cure
 // (the live page still opens OFF). No layout change.
-if (location.hash === "#filmon") {
+if (FILMING) {
   state.mode = "on";
+  document.body.classList.add("filming");
   document.querySelectorAll(".modebtn").forEach(x => x.classList.toggle("on", x.dataset.mode === "on"));
   tl.render(0);
 }
