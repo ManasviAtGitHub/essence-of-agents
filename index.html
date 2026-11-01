@@ -43,6 +43,9 @@
 
   .foot { text-align:center; color:var(--faint); font-size:12.5px; margin-top:26px; }
   @media (max-width:640px){ .doors { grid-template-columns:1fr; } }
+
+  .react-wrap { max-width:760px; margin:28px auto 0; }
+  .react-cap { text-align:center; color:var(--faint); font-size:12.5px; margin:0 0 10px; }
 </style>
 </head>
 <body>
@@ -140,9 +143,29 @@
   </div>
 
   <p class="foot">Everything here runs with no key and no server &mdash; it's all simulation.</p>
+
+  <div class="react-wrap">
+    <p class="react-cap">Found something useful? A reaction below tells me what's landing.</p>
+    <div class="giscus"></div>
+  </div>
 </div>
 
 <script src="assets/cast.js"></script>
 <script>Cast.render(document);</script>
+<script src="https://giscus.app/client.js"
+        data-repo="ManasviAtGitHub/essence-of-agents"
+        data-repo-id="R_kgDOTX8uXw"
+        data-category="Announcements"
+        data-category-id="DIC_kwDOTX8uX84DKHsZ"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="bottom"
+        data-theme="preferred_color_scheme"
+        data-lang="en"
+        crossorigin="anonymous"
+        async>
+</script>
 </body>
 </html>
