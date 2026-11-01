@@ -49,6 +49,9 @@ async function findTarget() {
 }
 
 await page.goto(pathToFileURL(widget).href + urlHash, { timeout: 15000 });
+// never film site furniture: every widget page ends with a reaction block, and some
+// captures film `body`. Hiding it keeps the frame (and the padded canvas) on the widget.
+await page.addStyleTag({ content: ".react-wrap{display:none!important}" });
 await page.waitForTimeout(700);
 if (!(await findTarget())) { console.error("no capture target (" + (selArg || "canvas") + ") in " + widget); process.exit(1); }
 
